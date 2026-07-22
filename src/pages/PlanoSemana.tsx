@@ -1,15 +1,16 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getOrCreatePlanoAtual } from '../db/db';
+import { db } from '../db/db';
+import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
 import { formatQuantidade } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
 
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
-  const plano = useLiveQuery(() => getOrCreatePlanoAtual(), []);
+  const plano = usePlano();
 
-  if (!recipes || !plano) return <p className="text-stone-500">Carregando…</p>;
+  if (!recipes) return <p className="text-stone-500">Carregando…</p>;
 
   const fatorDe = (id: string) => plano.itens.find((i) => i.recipeId === id)?.fator;
 

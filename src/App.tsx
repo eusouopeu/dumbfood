@@ -1,4 +1,5 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import Receitas from './pages/Receitas';
 import Importar from './pages/Importar';
 import Detalhe from './pages/Detalhe';
@@ -21,6 +22,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 px-4 py-4 pb-24">
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Receitas />} />
           <Route path="/importar" element={<Importar />} />
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/plano" element={<PlanoSemana />} />
           <Route path="/lista" element={<ListaMercado />} />
         </Routes>
+        </ErrorBoundary>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-2xl border-t border-stone-200 bg-white/95 backdrop-blur">

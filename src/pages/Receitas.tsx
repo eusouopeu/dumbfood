@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getOrCreatePlanoAtual } from '../db/db';
+import { db } from '../db/db';
+import { usePlano } from '../db/usePlano';
 import { salvarReceita, exportarJSON, importarJSON } from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { capitalizar, rotuloRendimento } from '../lib/format';
@@ -8,8 +9,8 @@ import { useRef } from 'react';
 
 export default function Receitas() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
-  const plano = useLiveQuery(() => getOrCreatePlanoAtual(), []);
-  const noPlano = new Set(plano?.itens.map((i) => i.recipeId));
+  const plano = usePlano();
+  const noPlano = new Set(plano.itens.map((i) => i.recipeId));
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function adicionarExemplos() {

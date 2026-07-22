@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getOrCreatePlanoAtual } from '../db/db';
+import { db } from '../db/db';
+import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, removerReceita } from '../db/repo';
 import { scaleIngredients, fatorParaRendimento, formatQuantidade } from '../lib/scale';
 import { formatQtdUnidade } from '../lib/displayQty';
@@ -15,7 +16,7 @@ export default function Detalhe() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const recipe = useLiveQuery(() => db.recipes.get(id), [id]);
-  const plano = useLiveQuery(() => getOrCreatePlanoAtual(), []);
+  const plano = usePlano();
 
   const [modo, setModo] = useState<Modo>('rendimento');
   const [alvoRend, setAlvoRend] = useState<number | null>(null);
@@ -61,7 +62,7 @@ export default function Detalhe() {
   }
 
   const escalados = scaleIngredients(recipe.ingredientes, fator);
-  const noPlano = plano?.itens.find((i) => i.recipeId === recipe.id);
+  const noPlano = plano.itens.find((i) => i.recipeId === recipe.id);
 
   return (
     <div className="space-y-4">
