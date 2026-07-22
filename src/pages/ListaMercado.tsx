@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { buildShoppingList } from '../lib/shoppingList';
+import { coresGondola } from '../lib/aisles';
 import { capitalizar } from '../lib/format';
 import type { Recipe } from '../types';
 
@@ -88,9 +89,16 @@ export default function ListaMercado() {
             )}
           </div>
 
-          {sections.map((s) => (
+          {sections.map((s) => {
+            const cor = coresGondola(s.gondola);
+            return (
             <div key={s.gondola} className="card overflow-hidden">
-              <div className="bg-brand-50 px-4 py-2 text-sm font-bold text-brand-700">{s.gondola}</div>
+              <div
+                className="px-4 py-2 text-sm font-bold"
+                style={{ backgroundColor: cor.bg, color: cor.texto }}
+              >
+                {s.gondola}
+              </div>
               <ul>
                 {s.linhas.map((l) => {
                   const key = `${s.gondola}:${l.item}`;
@@ -115,7 +123,8 @@ export default function ListaMercado() {
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>

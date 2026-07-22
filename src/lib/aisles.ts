@@ -21,6 +21,27 @@ export const GONDOLA_ORDER = [
 
 export type Gondola = (typeof GONDOLA_ORDER)[number];
 
+/** Cor de fundo + cor de texto distintas por gôndola, para identificação visual rápida. */
+export const GONDOLA_CORES: Record<string, { bg: string; texto: string }> = {
+  Hortifruti: { bg: '#dcfce7', texto: '#166534' },
+  Açougue: { bg: '#fee2e2', texto: '#991b1b' },
+  Peixaria: { bg: '#dbeafe', texto: '#1e40af' },
+  'Frios e Laticínios': { bg: '#fef9c3', texto: '#854d0e' },
+  Padaria: { bg: '#ffedd5', texto: '#9a3412' },
+  Mercearia: { bg: '#f3e8ff', texto: '#6b21a8' },
+  'Temperos e Condimentos': { bg: '#ffe4e6', texto: '#9f1239' },
+  'Enlatados e Conservas': { bg: '#e0e7ff', texto: '#3730a3' },
+  'Massas e Grãos': { bg: '#fef3c7', texto: '#92400e' },
+  Bebidas: { bg: '#cffafe', texto: '#155e75' },
+  Congelados: { bg: '#e0f2fe', texto: '#075985' },
+  'Limpeza e Outros': { bg: '#f1f5f9', texto: '#334155' },
+  Outros: { bg: '#f5f5f4', texto: '#44403c' },
+};
+
+export function coresGondola(gondola: string): { bg: string; texto: string } {
+  return GONDOLA_CORES[gondola] ?? { bg: '#f5f5f4', texto: '#44403c' };
+}
+
 // Palavras-chave por gôndola. A ordem importa: a primeira que casar vence,
 // então listas mais específicas vêm antes das genéricas.
 const KEYWORDS: Array<[Gondola, string[]]> = [

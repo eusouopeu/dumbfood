@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
-import { formatQuantidade } from '../lib/scale';
+import { round } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
 
 export default function PlanoSemana() {
@@ -59,19 +59,40 @@ export default function PlanoSemana() {
 
                 {ativo && (
                   <div className="mt-2 flex items-center gap-2 pl-8">
-                    <span className="text-xs text-stone-500">quantidade:</span>
-                    {[0.5, 1, 2, 3].map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => definirNoPlano(r.id, f)}
-                        className={`rounded-lg px-2 py-1 text-xs font-semibold ${
-                          fator === f ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600'
-                        }`}
-                      >
-                        {formatQuantidade(f)}×
-                      </button>
-                    ))}
-                    <span className="ml-auto text-xs text-stone-400">atual: {formatQuantidade(fator!)}×</span>
+                    <span className="text-xs text-stone-500">fazer para:</span>
+                    {(() => {
+                      const alvo = Math.max(1, Math.round(r.rendimentoBase.valor * (fator ?? 1)));
+                      const setAlvo = (v: number) => {
+                        const n = Math.max(1, v);
+                        definirNoPlano(r.id, round(n / r.rendimentoBase.valor));
+                      };
+                      return (
+                        <>
+                          <button
+                            className="btn-outline h-7 w-7 !px-0 text-xs"
+                            onClick={() => setAlvo(alvo - 1)}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            min={1}
+                            className="input w-14 py-1 text-center text-sm"
+                            value={alvo}
+                            onChange={(e) => setAlvo(Number(e.target.value))}
+                          />
+                          <button
+                            className="btn-outline h-7 w-7 !px-0 text-xs"
+                            onClick={() => setAlvo(alvo + 1)}
+                          >
+                            +
+                          </button>
+                          <span className="text-xs text-stone-500">
+                            {rotuloRendimento(r.rendimentoBase.tipo, alvo)}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </li>

@@ -2,6 +2,7 @@
 
 import Dexie, { type Table } from 'dexie';
 import type { Recipe, WeekPlan } from '../types';
+import { gerarTags } from '../lib/tags';
 
 export class DumbfoodDB extends Dexie {
   recipes!: Table<Recipe, string>;
@@ -13,6 +14,17 @@ export class DumbfoodDB extends Dexie {
       recipes: 'id, titulo, criadoEm',
       plans: 'id',
     });
+    // v2: tags (índice multiEntry) e tempo de preparo; backfill de tags/tags vazias.
+    this.version(2)
+      .stores({
+        recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+        plans: 'id',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('recipes').toCollection().modify((r: Recipe) => {
+          if (!Array.isArray(r.tags)) r.tags = gerarTags(r.titulo, r.ingredientes ?? []);
+        });
+      });
   }
 }
 

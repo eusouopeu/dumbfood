@@ -21,6 +21,7 @@ export default function Importar() {
   const [rendTipo, setRendTipo] = useState<YieldType>('porcoes');
   const [ingredientes, setIngredientes] = useState('');
   const [preparo, setPreparo] = useState('');
+  const [tempo, setTempo] = useState<number>(0);
 
   async function importarUrl() {
     setErro(null);
@@ -43,6 +44,7 @@ export default function Importar() {
       rendimentoTipo: rendTipo,
       ingredientesTexto: ingredientes,
       modoPreparoTexto: preparo,
+      tempoPreparoMin: tempo,
     });
     if (nova.ingredientes.length === 0) {
       setErro('Cole ao menos um ingrediente.');
@@ -115,6 +117,16 @@ export default function Importar() {
                 <option value="pessoas">pessoas</option>
                 <option value="unidades">unidades</option>
               </select>
+            </div>
+            <div className="w-24">
+              <label className="block text-sm font-medium">Tempo (min)</label>
+              <input
+                type="number"
+                min={0}
+                className="input"
+                value={tempo || ''}
+                onChange={(e) => setTempo(Number(e.target.value))}
+              />
             </div>
           </div>
           <div>

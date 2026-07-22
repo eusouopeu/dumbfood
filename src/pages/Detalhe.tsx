@@ -3,11 +3,20 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { definirNoPlano, removerDoPlano, removerReceita } from '../db/repo';
+import {
+  definirNoPlano,
+  removerDoPlano,
+  removerReceita,
+  redefinirRendimentoPadrao,
+  definirTags,
+  adicionarTags,
+} from '../db/repo';
 import { scaleIngredients, fatorParaRendimento, formatQuantidade } from '../lib/scale';
-import { formatQtdUnidade } from '../lib/displayQty';
+import { formatQtdUnidadeAbrev } from '../lib/displayQty';
+import { padronizarMedida, type MedidaModo } from '../lib/measures';
+import { detectPreheat } from '../lib/preheat';
 import { unitDefByCanonical } from '../lib/units';
-import { capitalizar, rotuloRendimento } from '../lib/format';
+import { capitalizar, rotuloRendimento, formatTempo } from '../lib/format';
 import type { YieldType } from '../types';
 
 type Modo = 'rendimento' | 'grama';
@@ -23,8 +32,9 @@ export default function Detalhe() {
   const [tipoRend, setTipoRend] = useState<YieldType | null>(null);
   const [refIngIdx, setRefIngIdx] = useState<number>(-1);
   const [alvoGramas, setAlvoGramas] = useState<number>(0);
+  const [medidaModo, setMedidaModo] = useState<MedidaModo>('original');
+  const [novaTag, setNovaTag] = useState('');
 
-  // Ingredientes com unidade de massa, candidatos a âncora do modo "grama".
   const massIngredientes = useMemo(() => {
     if (!recipe) return [] as { idx: number; label: string; baseG: number }[];
     return recipe.ingredientes
@@ -37,6 +47,8 @@ export default function Detalhe() {
       })
       .filter((x): x is { idx: number; label: string; baseG: number } => x !== null);
   }, [recipe]);
+
+  const preheat = useMemo(() => (recipe ? detectPreheat(recipe.modoPreparo) : null), [recipe]);
 
   if (recipe === undefined) return <p className="text-stone-500">Carregando…</p>;
   if (recipe === null)
@@ -63,6 +75,22 @@ export default function Detalhe() {
 
   const escalados = scaleIngredients(recipe.ingredientes, fator);
   const noPlano = plano.itens.find((i) => i.recipeId === recipe.id);
+  const tempo = formatTempo(recipe.tempoPreparoMin);
+
+  async function salvarComoPadrao() {
+    if (!recipe) return;
+    await redefinirRendimentoPadrao(recipe, alvo, tipo);
+    setAlvoRend(null);
+    setTipoRend(null);
+    setModo('rendimento');
+  }
+
+  async function addTag() {
+    const t = novaTag.trim();
+    if (!recipe || !t) return;
+    await adicionarTags(recipe, [t]);
+    setNovaTag('');
+  }
 
   return (
     <div className="space-y-4">
@@ -70,14 +98,13 @@ export default function Detalhe() {
         ← Receitas
       </Link>
 
-      {recipe.imagem && (
-        <img src={recipe.imagem} alt="" className="h-44 w-full rounded-2xl object-cover" />
-      )}
+      {recipe.imagem && <img src={recipe.imagem} alt="" className="h-44 w-full rounded-2xl object-cover" />}
 
       <div>
         <h2 className="text-2xl font-bold">{capitalizar(recipe.titulo)}</h2>
         <p className="text-sm text-stone-500">
           Rende {base.valor} {rotuloRendimento(base.tipo, base.valor)}
+          {tempo ? ` · ${tempo}` : ''}
           {recipe.fonteUrl && (
             <>
               {' · '}
@@ -87,6 +114,29 @@ export default function Detalhe() {
             </>
           )}
         </p>
+      </div>
+
+      {/* Tags */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {recipe.tags.map((t) => (
+          <span key={t} className="chip gap-1 bg-brand-100 text-brand-700">
+            {t}
+            <button
+              onClick={() => definirTags(recipe, recipe.tags.filter((x) => x !== t))}
+              className="text-brand-500 hover:text-brand-700"
+              aria-label={`remover ${t}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className="input h-7 w-28 py-0 text-xs"
+          placeholder="+ tag"
+          value={novaTag}
+          onChange={(e) => setNovaTag(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addTag()}
+        />
       </div>
 
       {/* Controle de reescala */}
@@ -124,11 +174,7 @@ export default function Detalhe() {
                 +
               </button>
             </div>
-            <select
-              className="input flex-1"
-              value={tipo}
-              onChange={(e) => setTipoRend(e.target.value as YieldType)}
-            >
+            <select className="input flex-1" value={tipo} onChange={(e) => setTipoRend(e.target.value as YieldType)}>
               <option value="porcoes">porções</option>
               <option value="pessoas">pessoas</option>
               <option value="unidades">unidades</option>
@@ -138,11 +184,7 @@ export default function Detalhe() {
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <label className="block text-xs text-stone-500">Ingrediente de referência</label>
-              <select
-                className="input"
-                value={refIngIdx}
-                onChange={(e) => setRefIngIdx(Number(e.target.value))}
-              >
+              <select className="input" value={refIngIdx} onChange={(e) => setRefIngIdx(Number(e.target.value))}>
                 <option value={-1}>escolha…</option>
                 {massIngredientes.map((m) => (
                   <option key={m.idx} value={m.idx}>
@@ -163,21 +205,63 @@ export default function Detalhe() {
             </div>
           </div>
         )}
-        <p className="text-xs text-stone-500">Fator aplicado: {formatQuantidade(fator)}×</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-stone-500">Fator aplicado: {formatQuantidade(fator)}×</p>
+          {Math.abs(fator - 1) > 0.001 && (
+            <button onClick={salvarComoPadrao} className="btn-ghost h-7 py-0 text-xs">
+              Salvar como padrão
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Passo de pré-aquecimento em destaque */}
+      {preheat && (
+        <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-4 text-amber-900 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🔥</span>
+            <h3 className="font-bold">Faça antes de começar: pré-aqueça o forno</h3>
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {preheat.temperatura && (
+              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-sm font-bold">{preheat.temperatura}</span>
+            )}
+            {preheat.duracao && (
+              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-sm font-bold">{preheat.duracao}</span>
+            )}
+          </div>
+          <p className="mt-2 text-sm">{preheat.texto}</p>
+        </div>
+      )}
 
       {/* Ingredientes escalados */}
       <div className="card p-4">
-        <h3 className="mb-2 font-semibold">Ingredientes</h3>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="font-semibold">Ingredientes</h3>
+          <div className="flex gap-0.5 rounded-lg bg-stone-100 p-0.5 text-xs">
+            {(['original', 'metrico', 'recipiente'] as MedidaModo[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMedidaModo(m)}
+                className={`rounded-md px-2 py-1 font-semibold ${medidaModo === m ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+              >
+                {m === 'original' ? 'Original' : m === 'metrico' ? 'g / L' : 'Recip.'}
+              </button>
+            ))}
+          </div>
+        </div>
         <ul className="space-y-1.5">
-          {escalados.map((ing, i) => (
-            <li key={i} className="flex items-baseline gap-2 text-sm">
-              <span className="min-w-[64px] font-semibold text-brand-700">
-                {formatQtdUnidade(ing.quantidade, ing.unidade)}
-              </span>
-              <span>{capitalizar(ing.item)}</span>
-            </li>
-          ))}
+          {escalados.map((ing, i) => {
+            const med = padronizarMedida(ing.item, ing.quantidade, ing.unidade, medidaModo);
+            return (
+              <li key={i} className="flex items-baseline gap-3 text-sm">
+                <span className="w-24 flex-shrink-0 text-right font-semibold tabular-nums text-brand-700">
+                  {formatQtdUnidadeAbrev(med.quantidade, med.unidade)}
+                </span>
+                <span>{capitalizar(ing.item)}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 

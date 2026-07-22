@@ -2,11 +2,13 @@
 
 import type { NewRecipe } from '../types';
 import { parseIngredientLines } from './ingredientParser';
+import { gerarTags } from './tags';
 
-const exemplos: NewRecipe[] = [
+const base: Array<Omit<NewRecipe, 'tags'> & { tempoPreparoMin?: number }> = [
   {
     titulo: 'Molho de tomate caseiro',
     rendimentoBase: { valor: 4, tipo: 'porcoes' },
+    tempoPreparoMin: 40,
     ingredientes: parseIngredientLines([
       '2 cebolas picadas',
       '4 dentes de alho',
@@ -24,6 +26,7 @@ const exemplos: NewRecipe[] = [
   {
     titulo: 'Frango ao curry',
     rendimentoBase: { valor: 4, tipo: 'porcoes' },
+    tempoPreparoMin: 30,
     ingredientes: parseIngredientLines([
       '600 g de peito de frango',
       '1 cebola picada',
@@ -39,8 +42,27 @@ const exemplos: NewRecipe[] = [
       'Volte o frango, adicione o leite de coco e cozinhe por 20 minutos.',
     ],
   },
+  {
+    titulo: 'Bolo de cenoura',
+    rendimentoBase: { valor: 12, tipo: 'porcoes' },
+    tempoPreparoMin: 60,
+    ingredientes: parseIngredientLines([
+      '3 cenouras médias',
+      '4 ovos',
+      '1 xícara de óleo',
+      '2 xícaras de açúcar',
+      '3 e 1/2 xícaras de farinha de trigo',
+      '1 colher de sopa de fermento em pó',
+    ]),
+    modoPreparo: [
+      'Pré-aqueça o forno a 180 °C por 10 minutos.',
+      'Bata no liquidificador a cenoura, os ovos e o óleo.',
+      'Misture o açúcar e a farinha, junte o fermento por último.',
+      'Asse por aproximadamente 40 minutos.',
+    ],
+  },
 ];
 
 export function receitasExemplo(): NewRecipe[] {
-  return exemplos;
+  return base.map((r) => ({ ...r, tags: gerarTags(r.titulo, r.ingredientes) }));
 }

@@ -107,3 +107,18 @@ export function formatUnitLabel(canonical: string | null, quantidade: number | n
   const plural = quantidade === null ? false : quantidade > 1;
   return plural ? labels[1] : labels[0];
 }
+
+/** Abreviações curtas e invariáveis, para uniformizar visualmente a coluna de medidas. */
+const CANONICAL_ABBREV: Record<string, string> = {
+  g: 'g', mg: 'mg', kg: 'kg', ml: 'ml', l: 'L',
+  xicara: 'xíc', copo: 'copo', colher_sopa: 'c. sopa', colher_cha: 'c. chá',
+  colher_sobremesa: 'c. sob', pitada: 'pitada', fio: 'fio', gota: 'gota',
+  unidade: 'un', dente: 'dente', lata: 'lata', caixa: 'cx', pacote: 'pct',
+  pote: 'pote', vidro: 'vidro', envelope: 'env', tablete: 'tab',
+  fatia: 'fatia', folha: 'folha', ramo: 'ramo', maco: 'maço', punhado: 'punh',
+};
+
+export function formatUnitAbbrev(canonical: string | null): string {
+  if (!canonical) return '';
+  return CANONICAL_ABBREV[canonical] ?? canonical;
+}

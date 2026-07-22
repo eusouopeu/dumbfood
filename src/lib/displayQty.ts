@@ -2,7 +2,7 @@
 // massa/volume usam decimal (1,5 kg); contagem e medidas de cozinha usam frações (1 ½ xícara).
 
 import { formatQuantidade, round } from './scale';
-import { unitDefByCanonical, formatUnitLabel } from './units';
+import { unitDefByCanonical, formatUnitLabel, formatUnitAbbrev } from './units';
 
 export function formatDecimal(n: number): string {
   return round(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
@@ -25,5 +25,13 @@ export function formatQtdUnidade(quantidade: number | null, unidade: string | nu
   if (quantidade === null) return 'a gosto';
   const num = formatQtd(quantidade, unidade);
   const label = formatUnitLabel(unidade, quantidade);
+  return label ? `${num} ${label}` : num;
+}
+
+/** Igual ao anterior, mas com unidade abreviada e invariável (coluna uniforme). */
+export function formatQtdUnidadeAbrev(quantidade: number | null, unidade: string | null): string {
+  if (quantidade === null) return 'a gosto';
+  const num = formatQtd(quantidade, unidade);
+  const label = formatUnitAbbrev(unidade);
   return label ? `${num} ${label}` : num;
 }
