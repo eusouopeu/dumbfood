@@ -1,7 +1,9 @@
 // Operações de alto nível sobre o banco.
 
-import type { NewRecipe, Recipe, WeekPlan } from '../types';
+import type { NewRecipe, Recipe, WeekPlan, YieldType } from '../types';
 import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
+import { scaleIngredients } from '../lib/scale';
+import { mesclarTags } from '../lib/tags';
 
 function novoId(): string {
   return (
@@ -18,6 +20,36 @@ export async function salvarReceita(nova: NewRecipe): Promise<Recipe> {
 
 export async function atualizarReceita(recipe: Recipe): Promise<void> {
   await db.recipes.put(recipe);
+}
+
+/**
+ * Redefine o rendimento padrão da receita: reescala os ingredientes armazenados
+ * e passa a usar o novo valor/tipo como base dali em diante.
+ */
+export async function redefinirRendimentoPadrao(
+  recipe: Recipe,
+  alvoValor: number,
+  alvoTipo?: YieldType,
+): Promise<Recipe> {
+  const base = recipe.rendimentoBase;
+  const fator = base.valor > 0 ? alvoValor / base.valor : 1;
+  const atualizada: Recipe = {
+    ...recipe,
+    ingredientes: scaleIngredients(recipe.ingredientes, fator),
+    rendimentoBase: { valor: alvoValor, tipo: alvoTipo ?? base.tipo },
+  };
+  await db.recipes.put(atualizada);
+  return atualizada;
+}
+
+/** Substitui as tags da receita. */
+export async function definirTags(recipe: Recipe, tags: string[]): Promise<void> {
+  await db.recipes.put({ ...recipe, tags });
+}
+
+/** Adiciona tags novas (sem duplicar) à receita. */
+export async function adicionarTags(recipe: Recipe, novas: string[]): Promise<void> {
+  await db.recipes.put({ ...recipe, tags: mesclarTags(recipe.tags ?? [], novas) });
 }
 
 export async function removerReceita(id: string): Promise<void> {

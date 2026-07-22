@@ -10,6 +10,7 @@ function receita(id: string, titulo: string, linhas: string[]): Recipe {
     rendimentoBase: { valor: 4, tipo: 'porcoes' },
     ingredientes: parseIngredientLines(linhas),
     modoPreparo: [],
+    tags: [],
     criadoEm: 0,
   };
 }

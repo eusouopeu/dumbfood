@@ -22,6 +22,19 @@ describe('parseIngredient', () => {
     expect(r.unidade).toBe('xicara');
   });
 
+  it('entende "3 e 1/2 xícaras" (valor após o "e")', () => {
+    const r = parseIngredient('3 e 1/2 xícaras de farinha de trigo');
+    expect(r.quantidade).toBe(3.5);
+    expect(r.unidade).toBe('xicara');
+    expect(r.item).toBe('farinha de trigo');
+  });
+
+  it('entende "1 e meia xícara"', () => {
+    const r = parseIngredient('1 e meia xícara de leite');
+    expect(r.quantidade).toBe(1.5);
+    expect(r.unidade).toBe('xicara');
+  });
+
   it('conta dentes de alho', () => {
     const r = parseIngredient('3 dentes de alho');
     expect(r.quantidade).toBe(3);

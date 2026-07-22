@@ -28,6 +28,10 @@ export interface Recipe {
   rendimentoBase: RecipeYield;
   ingredientes: Ingredient[];
   modoPreparo: string[];
+  /** Tags do tipo de receita (Bolos, Massas, Carnes...), auto + manuais. */
+  tags: string[];
+  /** Tempo de preparo em minutos, quando disponível. */
+  tempoPreparoMin?: number;
   criadoEm: number;
 }
 

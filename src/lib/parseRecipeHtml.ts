@@ -3,6 +3,8 @@
 
 import type { NewRecipe, RecipeYield, YieldType } from '../types';
 import { parseIngredientLines } from './ingredientParser';
+import { decodeEntities } from './decodeEntities';
+import { gerarTags } from './tags';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -76,7 +78,7 @@ function parseYield(value: any): RecipeYield {
 function parseInstructions(value: any): string[] {
   if (!value) return [];
   if (typeof value === 'string') {
-    return value
+    return decodeEntities(value)
       .split(/\r?\n|\.\s+(?=[A-ZÀ-Ú])/)
       .map((s) => s.trim())
       .filter((s) => s.length > 2);
@@ -95,9 +97,21 @@ function parseInstructions(value: any): string[] {
         if (t) steps.push(t.trim());
       }
     }
-    return steps.filter((s) => s.length > 0);
+    return steps.map((s) => decodeEntities(s)).filter((s) => s.length > 0);
   }
   return [];
+}
+
+/** Converte duração ISO 8601 (ex.: "PT1H30M") em minutos. */
+function parseIsoDurationMin(value: any): number | undefined {
+  const s = Array.isArray(value) ? value.find((v) => typeof v === 'string') : value;
+  if (typeof s !== 'string') return undefined;
+  const m = s.match(/^P(?:\d+D)?T?(?:(\d+)H)?(?:(\d+)M)?/i);
+  if (!m) return undefined;
+  const horas = m[1] ? Number(m[1]) : 0;
+  const min = m[2] ? Number(m[2]) : 0;
+  const total = horas * 60 + min;
+  return total > 0 ? total : undefined;
 }
 
 /** Constrói uma NewRecipe a partir do HTML; retorna null se não achar receita. */
@@ -110,22 +124,26 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
   }
   if (!node) return null;
 
-  const titulo = firstString(node.name) ?? 'Receita sem título';
+  const titulo = decodeEntities(firstString(node.name) ?? 'Receita sem título');
   const imagem = firstString(node.image);
   const ingredienteRaw: string[] = Array.isArray(node.recipeIngredient)
-    ? node.recipeIngredient.map((x: any) => String(x))
+    ? node.recipeIngredient.map((x: any) => decodeEntities(String(x)))
     : Array.isArray(node.ingredients)
-      ? node.ingredients.map((x: any) => String(x))
+      ? node.ingredients.map((x: any) => decodeEntities(String(x)))
       : [];
 
   if (ingredienteRaw.length === 0) return null;
+
+  const ingredientes = parseIngredientLines(ingredienteRaw);
 
   return {
     titulo: titulo.trim(),
     fonteUrl,
     imagem,
     rendimentoBase: parseYield(node.recipeYield ?? node.yield),
-    ingredientes: parseIngredientLines(ingredienteRaw),
+    ingredientes,
     modoPreparo: parseInstructions(node.recipeInstructions),
+    tags: gerarTags(titulo, ingredientes),
+    tempoPreparoMin: parseIsoDurationMin(node.totalTime ?? node.cookTime ?? node.prepTime),
   };
 }

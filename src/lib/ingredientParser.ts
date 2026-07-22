@@ -35,6 +35,23 @@ function parseQuantity(text: string): [number | null, string] {
     return [UNICODE_FRACTIONS[uni], rest.slice(1).trim()];
   }
 
+  // "3 e 1/2", "3 e ½", "1 e meia" -> inteiro + fração/palavra.
+  const comE = rest.match(/^(\d+)\s+e\s+(\d+\s*\/\s*\d+|[½⅓⅔¼¾⅕⅖⅗⅘⅛]|meia|meio)/i);
+  if (comE) {
+    const inteiro = Number(comE[1]);
+    const parte = comE[2].toLowerCase();
+    let fracVal: number;
+    if (/^\d/.test(parte)) {
+      const [a, b] = parte.split('/').map((x) => Number(x.trim()));
+      fracVal = a / b;
+    } else if (UNICODE_FRACTIONS[parte] !== undefined) {
+      fracVal = UNICODE_FRACTIONS[parte];
+    } else {
+      fracVal = 0.5; // "meia"/"meio"
+    }
+    return [inteiro + fracVal, rest.slice(comE[0].length).trim()];
+  }
+
   // Número misto "1 1/2" ou fração "1/2".
   const mixed = rest.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)/);
   if (mixed) {
