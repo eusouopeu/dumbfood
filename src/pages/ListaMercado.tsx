@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getOrCreatePlanoAtual } from '../db/db';
+import { db } from '../db/db';
+import { usePlano } from '../db/usePlano';
 import { buildShoppingList } from '../lib/shoppingList';
 import { capitalizar } from '../lib/format';
 import type { Recipe } from '../types';
@@ -18,7 +19,7 @@ function loadChecked(): Set<string> {
 
 export default function ListaMercado() {
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
-  const plano = useLiveQuery(() => getOrCreatePlanoAtual(), []);
+  const plano = usePlano();
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
 
   useEffect(() => {
@@ -26,12 +27,12 @@ export default function ListaMercado() {
   }, [checked]);
 
   const sections = useMemo(() => {
-    if (!recipes || !plano) return [];
+    if (!recipes) return [];
     const map = new Map<string, Recipe>(recipes.map((r) => [r.id, r]));
     return buildShoppingList(plano, map);
   }, [recipes, plano]);
 
-  if (!recipes || !plano) return <p className="text-stone-500">Carregando…</p>;
+  if (!recipes) return <p className="text-stone-500">Carregando…</p>;
 
   const total = sections.reduce((n, s) => n + s.linhas.length, 0);
 
