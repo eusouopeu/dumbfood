@@ -1,11 +1,11 @@
 // Operações de alto nível sobre o banco.
 
-import type { NewRecipe, Recipe, WeekPlan, YieldType } from '../types';
+import type { Compra, NewRecipe, PrecoItem, Recipe, WeekPlan, YieldType } from '../types';
 import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
 
-function novoId(): string {
+export function novoId(): string {
   return (
     (globalThis.crypto?.randomUUID?.() as string | undefined) ??
     `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -105,4 +105,28 @@ export async function importarJSON(json: string): Promise<{ recipes: number }> {
     if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
   });
   return { recipes: data.recipes.length };
+}
+
+// ---- Preços de ingredientes ----
+
+/** Insere/atualiza preços importados (upsert por chave normalizada do item). */
+export async function importarPrecos(itens: PrecoItem[]): Promise<number> {
+  await db.precos.bulkPut(itens);
+  return itens.length;
+}
+
+export async function removerPreco(itemKey: string): Promise<void> {
+  await db.precos.delete(itemKey);
+}
+
+// ---- Histórico de compras ----
+
+export async function salvarCompra(compra: Omit<Compra, 'id' | 'criadoEm'>): Promise<Compra> {
+  const nova: Compra = { ...compra, id: novoId(), criadoEm: Date.now() };
+  await db.compras.put(nova);
+  return nova;
+}
+
+export async function removerCompra(id: string): Promise<void> {
+  await db.compras.delete(id);
 }

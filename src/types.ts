@@ -65,3 +65,36 @@ export interface ShoppingSection {
   gondola: string;
   linhas: ShoppingLine[];
 }
+
+/** Preço unitário de um ingrediente, importado de CSV/JSON gerado a partir de notas fiscais. */
+export interface PrecoItem {
+  /** Nome como veio do arquivo importado. */
+  item: string;
+  /** Chave normalizada usada para casar com itens da lista de mercado. */
+  itemKey: string;
+  /** Preço por kg, por litro (1 L tratado como 1 kg) ou por unidade, conforme `unidade`. */
+  precoUnitario: number;
+  unidade: 'kg' | 'l' | 'unidade';
+  atualizadoEm: number;
+}
+
+/** Item já comprado, congelado no momento em que a compra foi salva no histórico. */
+export interface CompraItem {
+  item: string;
+  gondola: string;
+  /** Peso estimado em gramas (inclui estimativa por unidade p/ ovos, batatas etc., usada no cálculo nutricional). */
+  quantidadeG: number | null;
+  /** Contagem, quando o item é comprado por unidade. */
+  quantidadeUnidades: number | null;
+  precoEstimado: number | null;
+}
+
+export interface Compra {
+  id: string;
+  /** Timestamp da compra (data informada pelo usuário ao salvar, por padrão "hoje"). */
+  data: number;
+  valorTotalReal: number;
+  valorTotalEstimado: number;
+  itens: CompraItem[];
+  criadoEm: number;
+}

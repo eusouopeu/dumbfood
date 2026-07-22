@@ -1,14 +1,31 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
 import { round } from '../lib/scale';
+import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
+import { calcularNutricaoTotal } from '../lib/nutrition';
+import { useDieta, DIETAS } from '../lib/diet';
+import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import type { Ingredient } from '../types';
 
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
   const plano = usePlano();
+  const [dieta, setDieta] = useDieta();
+
+  const nutriTotal = useMemo(() => {
+    if (!recipes) return calcularNutricaoTotal([]);
+    const porId = new Map(recipes.map((r) => [r.id, r]));
+    const todos: Ingredient[] = plano.itens.flatMap((item) => {
+      const r = porId.get(item.recipeId);
+      return r ? scaleIngredients(r.ingredientes, item.fator) : [];
+    });
+    return calcularNutricaoTotal(todos);
+  }, [recipes, plano]);
 
   if (!recipes) return <p className="text-stone-500">Carregando…</p>;
 
@@ -23,6 +40,16 @@ export default function PlanoSemana() {
       <p className="text-sm text-stone-500">
         Marque as receitas da semana e ajuste a quantidade. Depois gere a lista de mercado.
       </p>
+
+      {plano.itens.length > 0 && (
+        <div className="card p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">Macros do plano</h3>
+            <SeletorDieta dieta={dieta} onChange={setDieta} />
+          </div>
+          <MacroResumoCard titulo="" real={nutriTotal} ideal={DIETAS[dieta]} />
+        </div>
+      )}
 
       {recipes.length === 0 ? (
         <div className="card p-6 text-center text-stone-500">

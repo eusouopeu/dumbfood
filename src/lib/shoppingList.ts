@@ -6,7 +6,8 @@ import { GONDOLA_ORDER } from './aisles';
 import { normalizeItemKey } from './ingredientParser';
 import { scaleIngredients, round } from './scale';
 import { unitDefByCanonical } from './units';
-import { formatQtd, formatQtdUnidade } from './displayQty';
+import { padronizarMedida } from './measures';
+import { formatQtdUnidade } from './displayQty';
 
 const COUNT_KEY = '__count__';
 const AGOSTO_KEY = '__agosto__';
@@ -61,34 +62,40 @@ function acumular(buckets: Map<string, Bucket>, ing: Ingredient, origem: string)
   }
   bucket.origens.add(origem);
 
+  // A lista de mercado sempre exibe em g/L e unidades: medidas de cozinha (xícara, colher...)
+  // com densidade conhecida são convertidas para métrico antes de somar.
+  const metrico = padronizarMedida(ing.item, ing.quantidade, ing.unidade, 'metrico');
+  const quantidade = metrico.quantidade;
+  const unidade = metrico.unidade;
+
   // Determina a chave/base do grupo de unidade.
   let grupoKey: string;
   let unidadeCanonica: string | null;
   let base: string;
   let valorNaBase: number | null;
 
-  if (ing.quantidade === null) {
+  if (quantidade === null) {
     grupoKey = AGOSTO_KEY;
-    unidadeCanonica = ing.unidade;
+    unidadeCanonica = unidade;
     base = AGOSTO_KEY;
     valorNaBase = null;
-  } else if (ing.unidade === null) {
+  } else if (unidade === null) {
     grupoKey = COUNT_KEY;
     unidadeCanonica = null;
     base = COUNT_KEY;
-    valorNaBase = ing.quantidade;
+    valorNaBase = quantidade;
   } else {
-    const def = unitDefByCanonical(ing.unidade);
+    const def = unitDefByCanonical(unidade);
     if (def && (def.dimension === 'massa' || def.dimension === 'volume')) {
       grupoKey = def.base;
       unidadeCanonica = def.base;
       base = def.base;
-      valorNaBase = ing.quantidade * def.toBase;
+      valorNaBase = quantidade * def.toBase;
     } else {
-      grupoKey = ing.unidade;
-      unidadeCanonica = ing.unidade;
-      base = ing.unidade;
-      valorNaBase = ing.quantidade;
+      grupoKey = unidade;
+      unidadeCanonica = unidade;
+      base = unidade;
+      valorNaBase = quantidade;
     }
   }
 
@@ -113,7 +120,7 @@ function bucketParaLinha(bucket: Bucket): ShoppingLine {
     if (grupo.base === COUNT_KEY) {
       const q = grupo.soma;
       quantidades.push({ unidade: null, quantidade: q });
-      partes.push(formatQtd(q, null));
+      partes.push(formatQtdUnidade(q, null));
       continue;
     }
     // Massa/volume: promove para kg/l quando grande.
@@ -137,4 +144,36 @@ function bucketParaLinha(bucket: Bucket): ShoppingLine {
     rotulo: partes.join(' + '),
     origens: Array.from(bucket.origens),
   };
+}
+
+/** Resume uma linha em peso (g) e contagem (unidades), quando aplicável a cada grupo. */
+export function resumoLinha(linha: ShoppingLine): { gramas: number | null; unidades: number | null } {
+  let gramas = 0;
+  let achouGramas = false;
+  let unidades = 0;
+  let achouUnidades = false;
+  for (const q of linha.quantidades) {
+    if (q.quantidade === null) continue;
+    if (q.unidade === 'g') { gramas += q.quantidade; achouGramas = true; }
+    else if (q.unidade === 'kg') { gramas += q.quantidade * 1000; achouGramas = true; }
+    else if (q.unidade === 'ml') { gramas += q.quantidade; achouGramas = true; }
+    else if (q.unidade === 'l') { gramas += q.quantidade * 1000; achouGramas = true; }
+    else if (q.unidade === null) { unidades += q.quantidade; achouUnidades = true; }
+  }
+  return { gramas: achouGramas ? round(gramas) : null, unidades: achouUnidades ? unidades : null };
+}
+
+/**
+ * Peso total das seções em kg, tratando 1 L como 1 kg e desconsiderando medidas sem peso
+ * conhecido (pitada, fio, gota) e itens comprados por contagem/embalagem.
+ */
+export function pesoTotalKg(sections: ShoppingSection[]): number {
+  let totalG = 0;
+  for (const s of sections) {
+    for (const l of s.linhas) {
+      const { gramas } = resumoLinha(l);
+      if (gramas !== null) totalG += gramas;
+    }
+  }
+  return round(totalG / 1000);
 }

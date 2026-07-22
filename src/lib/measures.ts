@@ -54,11 +54,13 @@ const LIQUIDOS = [
   'creme de leite', 'mel', 'leite de coco', 'caldo', 'agua de coco',
 ];
 
-function densidadeDe(key: string): number | undefined {
+/** Densidade média (g/ml) de um item já normalizado (normalizeItemKey), quando conhecida. */
+export function densidadeDe(key: string): number | undefined {
   for (const [k, d] of DENSIDADE) if (key.includes(k)) return d;
   return undefined;
 }
-function ehLiquido(key: string): boolean {
+/** Indica se o item (já normalizado) é medido/tratado como líquido (densidade ~ igual ao volume). */
+export function ehLiquido(key: string): boolean {
   return LIQUIDOS.some((l) => key.includes(l));
 }
 function roundStep(n: number, step: number): number {

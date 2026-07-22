@@ -54,7 +54,8 @@ describe('buildShoppingList', () => {
     expect(arroz.rotulo).toBe('400 g');
   });
 
-  it('mantém unidades incompatíveis separadas', () => {
+  it('converte medidas de cozinha para métrico antes de somar (lista sempre em g/L)', () => {
+    // 2 xícaras (240 ml cada) de leite = 480 ml; somado aos 200 ml -> 680 ml, em um único grupo.
     const r1 = receita('1', 'A', ['2 xícaras de leite']);
     const r2 = receita('2', 'B', ['200 ml de leite']);
     const recipes = new Map([r1, r2].map((r) => [r.id, r]));
@@ -62,7 +63,17 @@ describe('buildShoppingList', () => {
 
     const sections = buildShoppingList(plan, recipes);
     const leite = sections.flatMap((s) => s.linhas).find((l) => l.item.includes('leite'))!;
-    expect(leite.rotulo).toContain('+');
-    expect(leite.quantidades.length).toBe(2);
+    expect(leite.rotulo).toBe('680 ml');
+    expect(leite.quantidades.length).toBe(1);
+  });
+
+  it('rotula itens contados sem unidade explícita como "unidades"', () => {
+    const r1 = receita('1', 'A', ['3 ovos']);
+    const recipes = new Map([[r1.id, r1]]);
+    const plan: WeekPlan = { id: 'p', itens: [{ recipeId: '1', fator: 1 }] };
+
+    const sections = buildShoppingList(plan, recipes);
+    const ovos = sections.flatMap((s) => s.linhas).find((l) => l.item.includes('ovo'))!;
+    expect(ovos.rotulo).toBe('3 unidades');
   });
 });

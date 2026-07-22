@@ -21,25 +21,29 @@ export const GONDOLA_ORDER = [
 
 export type Gondola = (typeof GONDOLA_ORDER)[number];
 
-/** Cor de fundo + cor de texto distintas por gôndola, para identificação visual rápida. */
-export const GONDOLA_CORES: Record<string, { bg: string; texto: string }> = {
-  Hortifruti: { bg: '#dcfce7', texto: '#166534' },
-  Açougue: { bg: '#fee2e2', texto: '#991b1b' },
-  Peixaria: { bg: '#dbeafe', texto: '#1e40af' },
-  'Frios e Laticínios': { bg: '#fef9c3', texto: '#854d0e' },
-  Padaria: { bg: '#ffedd5', texto: '#9a3412' },
-  Mercearia: { bg: '#f3e8ff', texto: '#6b21a8' },
-  'Temperos e Condimentos': { bg: '#ffe4e6', texto: '#9f1239' },
-  'Enlatados e Conservas': { bg: '#e0e7ff', texto: '#3730a3' },
-  'Massas e Grãos': { bg: '#fef3c7', texto: '#92400e' },
-  Bebidas: { bg: '#cffafe', texto: '#155e75' },
-  Congelados: { bg: '#e0f2fe', texto: '#075985' },
-  'Limpeza e Outros': { bg: '#f1f5f9', texto: '#334155' },
-  Outros: { bg: '#f5f5f4', texto: '#44403c' },
+/**
+ * Estilo (degradê + borda) por gôndola, para identificação visual rápida na lista de mercado.
+ * Classes utilitárias do Tailwind (paleta padrão) — cada gôndola com uma cor bem distinta,
+ * usando degradês de dois tons da mesma família quando útil para dar mais vida ao cabeçalho.
+ */
+export const GONDOLA_ESTILO: Record<string, { header: string; borda: string }> = {
+  Hortifruti: { header: 'bg-gradient-to-r from-green-500 to-emerald-600 text-white', borda: 'border-green-600' },
+  Açougue: { header: 'bg-gradient-to-r from-red-500 to-rose-600 text-white', borda: 'border-red-600' },
+  Peixaria: { header: 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white', borda: 'border-blue-600' },
+  'Frios e Laticínios': { header: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white', borda: 'border-amber-500' },
+  Padaria: { header: 'bg-gradient-to-r from-orange-400 to-orange-600 text-white', borda: 'border-orange-500' },
+  Mercearia: { header: 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white', borda: 'border-purple-600' },
+  'Temperos e Condimentos': { header: 'bg-gradient-to-r from-rose-400 to-pink-600 text-white', borda: 'border-rose-500' },
+  'Enlatados e Conservas': { header: 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white', borda: 'border-indigo-600' },
+  'Massas e Grãos': { header: 'bg-gradient-to-r from-amber-400 to-yellow-600 text-white', borda: 'border-amber-500' },
+  Bebidas: { header: 'bg-gradient-to-r from-cyan-400 to-teal-500 text-white', borda: 'border-cyan-500' },
+  Congelados: { header: 'bg-gradient-to-r from-sky-400 to-blue-500 text-white', borda: 'border-sky-500' },
+  'Limpeza e Outros': { header: 'bg-gradient-to-r from-slate-400 to-slate-600 text-white', borda: 'border-slate-500' },
+  Outros: { header: 'bg-gradient-to-r from-stone-400 to-stone-600 text-white', borda: 'border-stone-500' },
 };
 
-export function coresGondola(gondola: string): { bg: string; texto: string } {
-  return GONDOLA_CORES[gondola] ?? { bg: '#f5f5f4', texto: '#44403c' };
+export function estiloGondola(gondola: string): { header: string; borda: string } {
+  return GONDOLA_ESTILO[gondola] ?? { header: 'bg-gradient-to-r from-stone-400 to-stone-600 text-white', borda: 'border-stone-500' };
 }
 
 // Palavras-chave por gôndola. A ordem importa: a primeira que casar vence,

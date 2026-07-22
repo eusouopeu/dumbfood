@@ -1,12 +1,14 @@
 // Banco local (IndexedDB) via Dexie.
 
 import Dexie, { type Table } from 'dexie';
-import type { Recipe, WeekPlan } from '../types';
+import type { Compra, PrecoItem, Recipe, WeekPlan } from '../types';
 import { gerarTags } from '../lib/tags';
 
 export class DumbfoodDB extends Dexie {
   recipes!: Table<Recipe, string>;
   plans!: Table<WeekPlan, string>;
+  compras!: Table<Compra, string>;
+  precos!: Table<PrecoItem, string>;
 
   constructor() {
     super('dumbfood');
@@ -25,6 +27,13 @@ export class DumbfoodDB extends Dexie {
           if (!Array.isArray(r.tags)) r.tags = gerarTags(r.titulo, r.ingredientes ?? []);
         });
       });
+    // v3: histórico de compras de mercado e tabela de preços de ingredientes.
+    this.version(3).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data',
+      precos: 'itemKey, item',
+    });
   }
 }
 
