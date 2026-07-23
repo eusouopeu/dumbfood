@@ -67,13 +67,13 @@ describe('buildShoppingList', () => {
     expect(leite.quantidades.length).toBe(1);
   });
 
-  it('rotula itens contados sem unidade explícita como "unidades"', () => {
+  it('rotula itens contados sem unidade explícita como "un"', () => {
     const r1 = receita('1', 'A', ['3 ovos']);
     const recipes = new Map([[r1.id, r1]]);
     const plan: WeekPlan = { id: 'p', itens: [{ recipeId: '1', fator: 1 }] };
 
     const sections = buildShoppingList(plan, recipes);
     const ovos = sections.flatMap((s) => s.linhas).find((l) => l.item.includes('ovo'))!;
-    expect(ovos.rotulo).toBe('3 unidades');
+    expect(ovos.rotulo).toBe('3 un');
   });
 });

@@ -20,24 +20,24 @@ export function formatQtd(quantidade: number | null, unidade: string | null): st
   return usaDecimal(unidade) ? formatDecimal(quantidade) : formatQuantidade(quantidade);
 }
 
-/** Formata número + rótulo de unidade ("400 g", "2 xícaras", "3 unidades"). */
+/** Formata número + rótulo de unidade ("400 g", "2 xícaras", "3 un"). */
 export function formatQtdUnidade(quantidade: number | null, unidade: string | null): string {
   if (quantidade === null) return 'a gosto';
   const num = formatQtd(quantidade, unidade);
-  // Itens contados sem unidade explícita (ex.: "3 ovos") são sempre rotulados como "unidade(s)".
-  const label = unidade ? formatUnitLabel(unidade, quantidade) : formatUnitLabel('unidade', quantidade);
+  // Itens contados sem unidade explícita (ex.: "3 ovos") ou com "unidade" explícita são sempre "un".
+  if (unidade === null || unidade === 'unidade') return `${num} ${formatUnitAbbrev('unidade')}`;
+  const label = formatUnitLabel(unidade, quantidade);
   return label ? `${num} ${label}` : num;
 }
 
 /**
  * Igual ao anterior, mas com unidade abreviada e invariável (coluna uniforme).
- * Exceções: "xícara(s)" e "unidade(s)" nunca são abreviadas, para ficarem explícitas na leitura.
+ * Exceção: "xícara(s)" nunca é abreviada, para ficar explícita na leitura.
  */
 export function formatQtdUnidadeAbrev(quantidade: number | null, unidade: string | null): string {
   if (quantidade === null) return 'a gosto';
   const num = formatQtd(quantidade, unidade);
-  if (unidade === null) return `${num} ${formatUnitLabel('unidade', quantidade)}`;
   if (unidade === 'xicara') return `${num} ${formatUnitLabel('xicara', quantidade)}`;
-  const label = formatUnitAbbrev(unidade);
+  const label = unidade === null ? formatUnitAbbrev('unidade') : formatUnitAbbrev(unidade);
   return label ? `${num} ${label}` : num;
 }

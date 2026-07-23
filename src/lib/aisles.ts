@@ -22,28 +22,30 @@ export const GONDOLA_ORDER = [
 export type Gondola = (typeof GONDOLA_ORDER)[number];
 
 /**
- * Estilo (degradê + borda) por gôndola, para identificação visual rápida na lista de mercado.
- * Classes utilitárias do Tailwind (paleta padrão) — cada gôndola com uma cor bem distinta,
- * usando degradês de dois tons da mesma família quando útil para dar mais vida ao cabeçalho.
+ * Estilo (fundo pastel + texto/borda escuros) por gôndola, para identificação visual rápida
+ * na lista de mercado. Classes utilitárias do Tailwind (paleta padrão). Cada gôndola tem uma
+ * cor própria e bem espalhada pelo círculo cromático (não um degradê dentro do próprio
+ * título, mas sim uma "escala" de cores distintas entre as gôndolas, para que nenhuma repita
+ * ou fique parecida com a vizinha) — em tons claros/pastéis para não pesar na leitura.
  */
 export const GONDOLA_ESTILO: Record<string, { header: string; borda: string }> = {
-  Hortifruti: { header: 'bg-gradient-to-r from-green-500 to-emerald-600 text-white', borda: 'border-green-600' },
-  Açougue: { header: 'bg-gradient-to-r from-red-500 to-rose-600 text-white', borda: 'border-red-600' },
-  Peixaria: { header: 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white', borda: 'border-blue-600' },
-  'Frios e Laticínios': { header: 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white', borda: 'border-amber-500' },
-  Padaria: { header: 'bg-gradient-to-r from-orange-400 to-orange-600 text-white', borda: 'border-orange-500' },
-  Mercearia: { header: 'bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white', borda: 'border-purple-600' },
-  'Temperos e Condimentos': { header: 'bg-gradient-to-r from-rose-400 to-pink-600 text-white', borda: 'border-rose-500' },
-  'Enlatados e Conservas': { header: 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white', borda: 'border-indigo-600' },
-  'Massas e Grãos': { header: 'bg-gradient-to-r from-amber-400 to-yellow-600 text-white', borda: 'border-amber-500' },
-  Bebidas: { header: 'bg-gradient-to-r from-cyan-400 to-teal-500 text-white', borda: 'border-cyan-500' },
-  Congelados: { header: 'bg-gradient-to-r from-sky-400 to-blue-500 text-white', borda: 'border-sky-500' },
-  'Limpeza e Outros': { header: 'bg-gradient-to-r from-slate-400 to-slate-600 text-white', borda: 'border-slate-500' },
-  Outros: { header: 'bg-gradient-to-r from-stone-400 to-stone-600 text-white', borda: 'border-stone-500' },
+  Hortifruti: { header: 'bg-green-100 text-green-800', borda: 'border-green-700' },
+  Açougue: { header: 'bg-red-100 text-red-800', borda: 'border-red-700' },
+  Peixaria: { header: 'bg-sky-100 text-sky-800', borda: 'border-sky-700' },
+  'Frios e Laticínios': { header: 'bg-yellow-100 text-yellow-800', borda: 'border-yellow-700' },
+  Padaria: { header: 'bg-orange-100 text-orange-800', borda: 'border-orange-700' },
+  Mercearia: { header: 'bg-violet-100 text-violet-800', borda: 'border-violet-700' },
+  'Temperos e Condimentos': { header: 'bg-fuchsia-100 text-fuchsia-800', borda: 'border-fuchsia-700' },
+  'Enlatados e Conservas': { header: 'bg-indigo-100 text-indigo-800', borda: 'border-indigo-700' },
+  'Massas e Grãos': { header: 'bg-lime-100 text-lime-800', borda: 'border-lime-700' },
+  Bebidas: { header: 'bg-teal-100 text-teal-800', borda: 'border-teal-700' },
+  Congelados: { header: 'bg-blue-100 text-blue-800', borda: 'border-blue-700' },
+  'Limpeza e Outros': { header: 'bg-slate-100 text-slate-800', borda: 'border-slate-700' },
+  Outros: { header: 'bg-stone-100 text-stone-800', borda: 'border-stone-700' },
 };
 
 export function estiloGondola(gondola: string): { header: string; borda: string } {
-  return GONDOLA_ESTILO[gondola] ?? { header: 'bg-gradient-to-r from-stone-400 to-stone-600 text-white', borda: 'border-stone-500' };
+  return GONDOLA_ESTILO[gondola] ?? { header: 'bg-stone-100 text-stone-800', borda: 'border-stone-700' };
 }
 
 // Palavras-chave por gôndola. A ordem importa: a primeira que casar vence,

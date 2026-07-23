@@ -105,8 +105,8 @@ export default function Detalhe() {
       {recipe.imagem && <img src={recipe.imagem} alt="" className="h-44 w-full rounded-2xl object-cover" />}
 
       <div>
-        <h2 className="text-2xl font-bold">{capitalizar(recipe.titulo)}</h2>
-        <p className="text-sm text-stone-500">
+        <h2 className="text-2xl font-bold leading-snug">{capitalizar(recipe.titulo)}</h2>
+        <p className="mt-1 text-sm text-stone-500">
           Rende {base.valor} {rotuloRendimento(base.tipo, base.valor)}
           {tempo ? ` · ${tempo}` : ''}
           {recipe.fonteUrl && (
@@ -221,8 +221,8 @@ export default function Detalhe() {
 
       {/* Ingredientes escalados */}
       <div className="card p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Ingredientes</h3>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h3 className="section-heading">Ingredientes</h3>
           <div className="flex gap-0.5 rounded-lg bg-stone-100 p-0.5 text-xs">
             {(['metrico', 'original', 'recipiente'] as MedidaModo[]).map((m) => (
               <button
@@ -235,11 +235,11 @@ export default function Detalhe() {
             ))}
           </div>
         </div>
-        <ul className="space-y-1.5">
+        <ul className="space-y-3.5">
           {escalados.map((ing, i) => {
             const med = padronizarMedida(ing.item, ing.quantidade, ing.unidade, medidaModo);
             return (
-              <li key={i} className="flex items-baseline gap-3 text-sm">
+              <li key={i} className="flex items-baseline gap-3 text-base leading-relaxed">
                 <span className="w-24 flex-shrink-0 text-right font-semibold tabular-nums text-brand-700">
                   {formatQtdUnidadeAbrev(med.quantidade, med.unidade)}
                 </span>
@@ -256,10 +256,10 @@ export default function Detalhe() {
           <p className="text-sm font-bold">
             Antes de começar: pré-aqueça o forno
             {preheat.temperatura && (
-              <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs">({preheat.temperatura})</span>
+              <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{preheat.temperatura}</span>
             )}
             {preheat.duracao && (
-              <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">({preheat.duracao})</span>
+              <span className="ml-1 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{preheat.duracao}</span>
             )}
           </p>
         </div>
@@ -267,10 +267,13 @@ export default function Detalhe() {
 
       {recipe.modoPreparo.length > 0 && (
         <div className="card p-4">
-          <h3 className="mb-2 font-semibold">Modo de preparo</h3>
-          <ol className="list-decimal space-y-1.5 pl-5 text-sm">
+          <h3 className="section-heading mb-4">Modo de preparo</h3>
+          <ol className="space-y-5">
             {recipe.modoPreparo.map((p, i) => (
-              <li key={i}>{p}</li>
+              <li key={i} className="flex gap-3">
+                <span className="flex-shrink-0 font-extrabold text-brand-600">{i + 1}.</span>
+                <span className="text-base leading-relaxed">{p}</span>
+              </li>
             ))}
           </ol>
         </div>
@@ -279,8 +282,8 @@ export default function Detalhe() {
       {/* Tabela nutricional estimada, a partir de ingredientes-chave */}
       {escalados.length > 0 && (
         <div className="card p-4">
-          <h3 className="font-semibold">Tabela nutricional</h3>
-          <p className="mb-3 text-xs text-stone-500">
+          <h3 className="section-heading">Tabela nutricional</h3>
+          <p className="mb-3 mt-1 text-xs text-stone-500">
             Por porção ({porcoesAtuais} {rotuloRendimento(tipo, porcoesAtuais)}) · %VD com base em uma dieta de 2.000
             kcal. Estimativa a partir de ingredientes-chave; temperos e itens sem quantidade definida não entram no
             cálculo.

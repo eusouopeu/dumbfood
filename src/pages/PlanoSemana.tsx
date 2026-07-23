@@ -44,7 +44,7 @@ export default function PlanoSemana() {
       {plano.itens.length > 0 && (
         <div className="card p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">Macros do plano</h3>
+            <h3 className="section-heading text-sm">Macros do plano</h3>
             <SeletorDieta dieta={dieta} onChange={setDieta} />
           </div>
           <MacroResumoCard titulo="" real={nutriTotal} ideal={DIETAS[dieta]} />

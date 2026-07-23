@@ -242,7 +242,7 @@ function AbaGastos({ compras }: { compras: Compra[] }) {
       </div>
 
       <div className="card p-4">
-        <h3 className="mb-2 font-semibold">Gasto ao longo do tempo</h3>
+        <h3 className="section-heading mb-3 text-sm">Gasto ao longo do tempo</h3>
         <BarChart dados={dadosChart} formatar={formatBRL} />
       </div>
     </div>
@@ -283,11 +283,11 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
       </div>
 
       <div className="card p-4">
-        <MacroResumoCard titulo={`Média por ${label} (real / ideal para dieta ${DIETAS[dieta].label.toLowerCase()})`} real={real} ideal={ideal} />
+        <MacroResumoCard titulo={`Média por ${label} · % da meta da dieta ${DIETAS[dieta].label.toLowerCase()}`} real={real} ideal={ideal} />
       </div>
 
       <div className="card p-4">
-        <h3 className="mb-2 font-semibold">Composição de macros ao longo do tempo</h3>
+        <h3 className="section-heading mb-3 text-sm">Composição de macros ao longo do tempo</h3>
         <StackedBarChart dados={dadosChart} />
       </div>
     </div>

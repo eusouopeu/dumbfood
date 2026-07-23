@@ -11,6 +11,7 @@ body {
   background: #fffbf5;
   color: #1c1917;
   -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
 }
 
 @layer components {
@@ -34,5 +35,9 @@ body {
   }
   .chip {
     @apply inline-flex items-center rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600;
+  }
+  /* Título de seção de conteúdo (Ingredientes, Modo de preparo...), inspirado em cadernos de receita. */
+  .section-heading {
+    @apply text-base font-extrabold uppercase tracking-wide text-stone-800;
   }
 }

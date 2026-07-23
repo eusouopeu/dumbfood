@@ -208,7 +208,7 @@ export default function ListaMercado() {
 
       <div className="card p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Macros da lista</h3>
+          <h3 className="section-heading text-sm">Macros da lista</h3>
           <SeletorDieta dieta={dieta} onChange={setDieta} />
         </div>
         <MacroResumoCard titulo="" real={nutriTotal} ideal={DIETAS[dieta]} />

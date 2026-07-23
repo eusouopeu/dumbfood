@@ -28,9 +28,10 @@ export function formatQuantidade(n: number | null): string {
   if (n === null) return 'a gosto';
   const rounded = round(n);
   if (Number.isInteger(rounded)) return String(rounded);
-  // Frações comuns para leitura de cozinha.
+  // Frações comuns para leitura de cozinha, em números tradicionais (não em glifos unicode,
+  // que ficam pequenos e difíceis de ler na fonte do app).
   const frac: Record<string, string> = {
-    '0.25': '¼', '0.5': '½', '0.75': '¾', '0.33': '⅓', '0.67': '⅔',
+    '0.25': '1/4', '0.5': '1/2', '0.75': '3/4', '0.33': '1/3', '0.67': '2/3',
   };
   const inteiro = Math.floor(rounded);
   const resto = round(rounded - inteiro);
