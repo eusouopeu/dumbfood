@@ -36,4 +36,18 @@ describe('padronizarMedida', () => {
     const m = padronizarMedida('farinha', 2, 'xicara', 'original');
     expect(m).toEqual({ quantidade: 2, unidade: 'xicara' });
   });
+
+  // Conversões são estimativas por densidade: casas decimais quebradas dão falsa precisão.
+  it('arredonda a conversão para inteiro ou meia unidade', () => {
+    // 3 colheres de sopa (45 ml) * 0.42 = 18,9 g -> 19 g
+    expect(padronizarMedida('chocolate em pó', 3, 'colher_sopa', 'metrico').quantidade).toBe(19);
+    // 1 colher de sopa (15 ml) * 0.9 = 13,5 g -> 13,5 g (meia unidade exata, fica)
+    expect(padronizarMedida('manteiga', 1, 'colher_sopa', 'metrico').quantidade).toBe(13.5);
+    // 2/3 de xícara (160 ml) * 0.8 = 128 g
+    expect(padronizarMedida('açúcar', 2 / 3, 'xicara', 'metrico').quantidade).toBe(128);
+  });
+
+  it('não mexe em quantidades que já vieram em gramas', () => {
+    expect(padronizarMedida('farinha de trigo', 123.4, 'g', 'metrico').quantidade).toBe(123.4);
+  });
 });

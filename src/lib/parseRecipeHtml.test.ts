@@ -40,4 +40,33 @@ describe('parseRecipeFromHtml', () => {
     const page = html({ '@type': 'Article', name: 'Texto' });
     expect(parseRecipeFromHtml(page)).toBeNull();
   });
+
+  // Formato do Panelinha: o texto do passo fica dentro de um itemListElement que é
+  // um objeto só (não um array). Antes disso, a receita importava sem nenhum passo.
+  it('lê passos aninhados em itemListElement', () => {
+    const page = html({
+      '@type': 'Recipe',
+      name: 'Arroz',
+      recipeYield: '2',
+      recipeIngredient: ['1 xícara de arroz'],
+      recipeInstructions: [
+        { '@type': 'HowToStep', position: 1, itemListElement: { '@type': 'HowToDirection', text: 'Lave o arroz.' } },
+        { '@type': 'HowToStep', position: 2, itemListElement: { '@type': 'HowToDirection', text: 'Cozinhe.' } },
+      ],
+    });
+    expect(parseRecipeFromHtml(page)!.modoPreparo).toEqual(['Lave o arroz.', 'Cozinhe.']);
+  });
+
+  it('lê passos agrupados em HowToSection', () => {
+    const page = html({
+      '@type': 'Recipe',
+      name: 'Bolo',
+      recipeIngredient: ['2 ovos'],
+      recipeInstructions: [
+        { '@type': 'HowToSection', name: 'Massa', itemListElement: [{ '@type': 'HowToStep', text: 'Bata.' }] },
+        { '@type': 'HowToSection', name: 'Cobertura', itemListElement: [{ '@type': 'HowToStep', text: 'Derreta.' }] },
+      ],
+    });
+    expect(parseRecipeFromHtml(page)!.modoPreparo).toEqual(['Bata.', 'Derreta.']);
+  });
 });

@@ -53,6 +53,19 @@ describe('custoLinha', () => {
     expect(custoLinha(linha, precos)).toBe(3);
   });
 
+  it('estima o custo de itens contados a partir do peso médio da unidade', () => {
+    const linha: ShoppingLine = {
+      item: 'cenouras',
+      gondola: 'Hortifruti',
+      quantidades: [{ unidade: null, quantidade: 3 }],
+      rotulo: '3 un',
+      origens: [],
+    };
+    const precos = [{ item: 'Cenoura', itemKey: 'cenoura', precoUnitario: 6, unidade: 'kg' as const, atualizadoEm: 0 }];
+    // 3 cenouras * 80 g = 240 g -> 0,24 kg * R$ 6 = R$ 1,44
+    expect(custoLinha(linha, precos)).toBe(1.44);
+  });
+
   it('retorna null quando não há preço cadastrado', () => {
     const linha: ShoppingLine = { item: 'item sem preco', gondola: 'Outros', quantidades: [], rotulo: '', origens: [] };
     expect(custoLinha(linha, [])).toBeNull();

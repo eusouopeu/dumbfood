@@ -16,7 +16,7 @@ import { formatQtdUnidadeAbrev, formatDecimal } from '../lib/displayQty';
 import { padronizarMedida, type MedidaModo } from '../lib/measures';
 import { detectPreheat } from '../lib/preheat';
 import { unitDefByCanonical } from '../lib/units';
-import { capitalizar, rotuloRendimento, formatTempo } from '../lib/format';
+import { capitalizar, nomeItem, rotuloRendimento, formatTempo } from '../lib/format';
 import { calcularNutricaoTotal, dividirPorPorcoes, percentualVD } from '../lib/nutrition';
 import type { YieldType } from '../types';
 
@@ -192,7 +192,7 @@ export default function Detalhe() {
                 <option value={-1}>escolha…</option>
                 {massIngredientes.map((m) => (
                   <option key={m.idx} value={m.idx}>
-                    {capitalizar(m.label)} ({m.baseG} g)
+                    {nomeItem(m.label)} ({m.baseG} g)
                   </option>
                 ))}
               </select>
@@ -243,7 +243,7 @@ export default function Detalhe() {
                 <span className="w-24 flex-shrink-0 text-right font-semibold tabular-nums text-brand-700">
                   {formatQtdUnidadeAbrev(med.quantidade, med.unidade)}
                 </span>
-                <span>{capitalizar(ing.item)}</span>
+                <span>{nomeItem(ing.item)}</span>
               </li>
             );
           })}
@@ -253,8 +253,9 @@ export default function Detalhe() {
       {/* Faça antes de começar: passo de pré-aquecimento, resumido (sem emoji nem citação da etapa) */}
       {preheat && (
         <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-3 text-amber-900 shadow-sm">
-          <p className="text-sm font-bold">
-            Antes de começar: pré-aqueça o forno
+          <p className="text-sm font-bold">Antes de começar:</p>
+          <p className="mt-1 text-sm font-bold">
+            Pré-aqueça o forno
             {preheat.temperatura && (
               <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs">{preheat.temperatura}</span>
             )}

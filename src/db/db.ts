@@ -3,6 +3,7 @@
 import Dexie, { type Table } from 'dexie';
 import type { Compra, PrecoItem, Recipe, WeekPlan } from '../types';
 import { gerarTags } from '../lib/tags';
+import { reprocessarIngrediente } from '../lib/ingredientParser';
 
 export class DumbfoodDB extends Dexie {
   recipes!: Table<Recipe, string>;
@@ -34,6 +35,19 @@ export class DumbfoodDB extends Dexie {
       compras: 'id, data',
       precos: 'itemKey, item',
     });
+    // v4: reprocessa os ingredientes já importados com o parser corrigido.
+    this.version(4)
+      .stores({
+        recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+        plans: 'id',
+        compras: 'id, data',
+        precos: 'itemKey, item',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('recipes').toCollection().modify((r: Recipe) => {
+          if (Array.isArray(r.ingredientes)) r.ingredientes = r.ingredientes.map(reprocessarIngrediente);
+        });
+      });
   }
 }
 

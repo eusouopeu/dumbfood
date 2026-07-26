@@ -5,6 +5,16 @@ export function capitalizar(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/**
+ * Nome de ingrediente para exibição. Além de capitalizar, derruba uma preposição
+ * inicial — receitas salvas antes da correção do parser guardaram nomes como
+ * "de óleo", que apareciam na lista como "De óleo".
+ */
+export function nomeItem(s: string): string {
+  const limpo = s.trim().replace(/^(?:de|do|da|dos|das)\s+/i, '');
+  return capitalizar(limpo || s.trim());
+}
+
 export function formatTempo(min?: number): string | null {
   if (!min || min <= 0) return null;
   if (min < 60) return `${min} min`;

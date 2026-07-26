@@ -8,6 +8,7 @@
 
 import type { PrecoItem, ShoppingLine } from '../types';
 import { normalizeItemKey } from './ingredientParser';
+import { pesoEmGramas } from './weight';
 
 type LinhaBruta = Record<string, unknown>;
 
@@ -95,6 +96,12 @@ export function custoLinha(linha: ShoppingLine, precos: PrecoItem[]): number | n
     else if (q.unidade === 'kg') { total += preco.precoUnitario * q.quantidade; achou = true; }
     else if (q.unidade === 'ml') { total += preco.precoUnitario * (q.quantidade / 1000); achou = true; }
     else if (q.unidade === 'l') { total += preco.precoUnitario * q.quantidade; achou = true; }
+    else {
+      // Item contado (3 cenouras) com preço por peso: estima o peso das unidades.
+      // Sem isso, boa parte do hortifruti ficaria sem valor nenhum na lista.
+      const gramas = pesoEmGramas(linha.item, q.quantidade, q.unidade);
+      if (gramas !== null) { total += preco.precoUnitario * (gramas / 1000); achou = true; }
+    }
   }
   return achou ? round2(total) : null;
 }

@@ -5,6 +5,7 @@ import type { NewRecipe, RecipeYield, YieldType } from '../types';
 import { parseIngredientLines } from './ingredientParser';
 import { decodeEntities } from './decodeEntities';
 import { gerarTags } from './tags';
+import { parseRecipeFromDom } from './parseRecipeDom';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -75,30 +76,37 @@ function parseYield(value: any): RecipeYield {
   return { valor: valor > 0 ? valor : 1, tipo };
 }
 
+/**
+ * Achata `recipeInstructions` em uma lista de passos.
+ *
+ * O formato varia bastante entre os sites: string única, array de strings, HowToStep
+ * com `text`, HowToSection com `itemListElement`, e — como no Panelinha — HowToStep
+ * cujo texto fica dentro de um `itemListElement` que é um objeto só, não um array.
+ * Por isso a descida é recursiva em vez de um punhado de casos especiais.
+ */
 function parseInstructions(value: any): string[] {
   if (!value) return [];
+
   if (typeof value === 'string') {
     return decodeEntities(value)
       .split(/\r?\n|\.\s+(?=[A-ZÀ-Ú])/)
       .map((s) => s.trim())
       .filter((s) => s.length > 2);
   }
+
   if (Array.isArray(value)) {
-    const steps: string[] = [];
-    for (const item of value) {
-      if (typeof item === 'string') steps.push(item.trim());
-      else if (item?.['@type'] === 'HowToSection' && Array.isArray(item.itemListElement)) {
-        for (const sub of item.itemListElement) {
-          const t = firstString(sub?.text ?? sub);
-          if (t) steps.push(t.trim());
-        }
-      } else {
-        const t = firstString(item?.text ?? item?.name ?? item);
-        if (t) steps.push(t.trim());
-      }
-    }
-    return steps.map((s) => decodeEntities(s)).filter((s) => s.length > 0);
+    return value.flatMap((item) => parseInstructions(item));
   }
+
+  if (typeof value === 'object') {
+    if (value.itemListElement) return parseInstructions(value.itemListElement);
+    const texto = firstString(value.text ?? value.name ?? value.description);
+    if (texto) {
+      const limpo = decodeEntities(texto).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return limpo.length > 2 ? [limpo] : [];
+    }
+  }
+
   return [];
 }
 
@@ -114,6 +122,29 @@ function parseIsoDurationMin(value: any): number | undefined {
   return total > 0 ? total : undefined;
 }
 
+/**
+ * Última tentativa quando não há JSON-LD de receita: lê ingredientes e preparo
+ * direto da marcação (Panelinha, Panelaterapia e blogs em geral).
+ */
+function parseViaMarcacao(html: string, fonteUrl?: string): NewRecipe | null {
+  const dom = parseRecipeFromDom(html);
+  if (dom.ingredientes.length === 0) return null;
+
+  const titulo = (dom.titulo ?? 'Receita sem título').trim();
+  const ingredientes = parseIngredientLines(dom.ingredientes);
+  if (ingredientes.length === 0) return null;
+
+  return {
+    titulo,
+    fonteUrl,
+    imagem: dom.imagem,
+    rendimentoBase: dom.rendimento,
+    ingredientes,
+    modoPreparo: dom.modoPreparo,
+    tags: gerarTags(titulo, ingredientes),
+  };
+}
+
 /** Constrói uma NewRecipe a partir do HTML; retorna null se não achar receita. */
 export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe | null {
   const blocks = extractJsonLdBlocks(html);
@@ -122,7 +153,7 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
     node = findRecipeNode(b);
     if (node) break;
   }
-  if (!node) return null;
+  if (!node) return parseViaMarcacao(html, fonteUrl);
 
   const titulo = decodeEntities(firstString(node.name) ?? 'Receita sem título');
   const imagem = firstString(node.image);
@@ -132,9 +163,14 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
       ? node.ingredients.map((x: any) => decodeEntities(String(x)))
       : [];
 
-  if (ingredienteRaw.length === 0) return null;
+  // Há sites que declaram Recipe mas deixam recipeIngredient vazio (a lista fica só no HTML).
+  if (ingredienteRaw.length === 0) return parseViaMarcacao(html, fonteUrl);
 
   const ingredientes = parseIngredientLines(ingredienteRaw);
+
+  // Se o JSON-LD não trouxer o preparo em formato reconhecível, tenta a marcação —
+  // é melhor importar a receita com os passos do HTML do que sem passo nenhum.
+  const modoPreparo = parseInstructions(node.recipeInstructions);
 
   return {
     titulo: titulo.trim(),
@@ -142,7 +178,7 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
     imagem,
     rendimentoBase: parseYield(node.recipeYield ?? node.yield),
     ingredientes,
-    modoPreparo: parseInstructions(node.recipeInstructions),
+    modoPreparo: modoPreparo.length > 0 ? modoPreparo : parseRecipeFromDom(html).modoPreparo,
     tags: gerarTags(titulo, ingredientes),
     tempoPreparoMin: parseIsoDurationMin(node.totalTime ?? node.cookTime ?? node.prepTime),
   };

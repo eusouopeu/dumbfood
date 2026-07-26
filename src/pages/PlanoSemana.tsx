@@ -8,7 +8,7 @@ import { round } from '../lib/scale';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
 import { calcularNutricaoTotal } from '../lib/nutrition';
-import { useDieta, DIETAS } from '../lib/diet';
+import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import type { Ingredient } from '../types';
 
@@ -47,7 +47,7 @@ export default function PlanoSemana() {
             <h3 className="section-heading text-sm">Macros do plano</h3>
             <SeletorDieta dieta={dieta} onChange={setDieta} />
           </div>
-          <MacroResumoCard titulo="" real={nutriTotal} ideal={DIETAS[dieta]} />
+          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
         </div>
       )}
 

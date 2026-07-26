@@ -2,12 +2,11 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { removerCompra } from '../db/repo';
-import { capitalizar } from '../lib/format';
+import { nomeItem } from '../lib/format';
 import { round } from '../lib/scale';
 import { formatQtdUnidade } from '../lib/displayQty';
 import { formatBRL } from '../lib/prices';
 import {
-  DIAS_POR_GRANULARIDADE,
   GRANULARIDADES,
   agruparPorPeriodo,
   csvDeCompra,
@@ -19,7 +18,7 @@ import {
 } from '../lib/history';
 import BarChart from '../components/BarChart';
 import StackedBarChart from '../components/StackedBarChart';
-import { useDieta, DIETAS } from '../lib/diet';
+import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import type { Compra, CompraItem } from '../types';
 
@@ -164,7 +163,7 @@ function AbaCompras({ compras }: { compras: Compra[] }) {
                     <span className="w-16 flex-shrink-0 text-right text-xs font-semibold tabular-nums text-brand-700">
                       {formatCompraItemQtd(i)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate">{capitalizar(i.item)}</span>
+                    <span className="min-w-0 flex-1 truncate">{nomeItem(i.item)}</span>
                     <span className="flex-shrink-0 text-xs tabular-nums text-stone-500">
                       {i.precoEstimado !== null ? formatBRL(i.precoEstimado) : '—'}
                     </span>
@@ -256,18 +255,9 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
   const label = GRANULARIDADES.find((g) => g.chave === granularidade)!.label.toLowerCase();
 
   const real = {
-    kcal: mediaMacroPorPeriodo(compras, 'kcal', granularidade, inicio, fim),
     proteina: mediaMacroPorPeriodo(compras, 'proteina', granularidade, inicio, fim),
     carboidrato: mediaMacroPorPeriodo(compras, 'carboidrato', granularidade, inicio, fim),
     gorduraTotal: mediaMacroPorPeriodo(compras, 'gorduraTotal', granularidade, inicio, fim),
-  };
-  const dias = DIAS_POR_GRANULARIDADE[granularidade];
-  const meta = DIETAS[dieta];
-  const ideal = {
-    kcal: meta.kcal * dias,
-    proteina: meta.proteina * dias,
-    carboidrato: meta.carboidrato * dias,
-    gorduraTotal: meta.gorduraTotal * dias,
   };
 
   const dadosChart = useMemo(
@@ -283,7 +273,11 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
       </div>
 
       <div className="card p-4">
-        <MacroResumoCard titulo={`Média por ${label} · % da meta da dieta ${DIETAS[dieta].label.toLowerCase()}`} real={real} ideal={ideal} />
+        <MacroResumoCard
+          titulo={`Composição média por ${label} · % das gramas de macros`}
+          real={real}
+          dieta={dieta}
+        />
       </div>
 
       <div className="card p-4">

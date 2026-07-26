@@ -5,15 +5,16 @@ import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { buildShoppingList, resumoLinha, pesoTotalKg } from '../lib/shoppingList';
 import { estiloGondola, GONDOLA_ORDER } from '../lib/aisles';
-import { capitalizar } from '../lib/format';
+import { nomeItem } from '../lib/format';
 import { pesoEmGramas } from '../lib/weight';
-import { parseIngredient } from '../lib/ingredientParser';
+import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 import { padronizarMedida } from '../lib/measures';
 import { formatQtdUnidade } from '../lib/displayQty';
 import { calcularNutricaoTotal } from '../lib/nutrition';
-import { parseArquivoPrecos, custoLinha, formatBRL } from '../lib/prices';
+import { parseArquivoPrecos, custoLinha, buscarPreco, formatBRL } from '../lib/prices';
+import { PRECOS_BASE } from '../lib/precosBase';
 import { importarPrecos, salvarCompra, novoId } from '../db/repo';
-import { useDieta, DIETAS } from '../lib/diet';
+import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import type { CompraItem, Ingredient, Recipe, ShoppingLine, ShoppingSection } from '../types';
 
@@ -103,11 +104,18 @@ export default function ListaMercado() {
     return GONDOLA_ORDER.filter((g) => porGondola.has(g)).map((g) => ({ gondola: g, linhas: porGondola.get(g)! }));
   }, [sections, extras]);
 
-  const listaPrecos = precos ?? [];
+  // Os preços importados pelo usuário vêm primeiro: `buscarPreco` usa o primeiro que casar,
+  // então a tabela embutida só entra onde ele ainda não tem nota fiscal.
+  const listaPrecos = useMemo(() => [...(precos ?? []), ...PRECOS_BASE], [precos]);
 
   const custoPorLinha = useMemo(() => {
-    const m = new Map<string, number | null>();
-    for (const s of sectionsComExtras) for (const l of s.linhas) m.set(l.id, custoLinha(l, listaPrecos));
+    const m = new Map<string, { valor: number | null; estimado: boolean }>();
+    for (const s of sectionsComExtras) {
+      for (const l of s.linhas) {
+        const fonte = buscarPreco(normalizeItemKey(l.item), listaPrecos);
+        m.set(l.id, { valor: custoLinha(l, listaPrecos), estimado: fonte?.estimado === true });
+      }
+    }
     return m;
   }, [sectionsComExtras, listaPrecos]);
 
@@ -122,7 +130,7 @@ export default function ListaMercado() {
 
   const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
   const pesoTotal = pesoTotalKg(sectionsComExtras);
-  const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s: number, v) => s + (v ?? 0), 0);
+  const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s, v) => s + (v.valor ?? 0), 0);
 
   function toggle(key: string) {
     setChecked((prev) => {
@@ -149,7 +157,7 @@ export default function ListaMercado() {
       .map(
         (s) =>
           `## ${s.gondola}\n` +
-          s.linhas.map((l) => `- ${l.rotulo} ${capitalizar(l.item)}`).join('\n'),
+          s.linhas.map((l) => `- ${l.rotulo} ${nomeItem(l.item)}`).join('\n'),
       )
       .join('\n\n');
     try {
@@ -183,7 +191,7 @@ export default function ListaMercado() {
         if (!checked.has(l.id)) continue;
         const { gramas, unidades } = resumoLinha(l);
         const quantidadeG = gramas ?? (unidades !== null ? pesoEmGramas(l.item, unidades, null) : null);
-        const custo = custoPorLinha.get(l.id) ?? null;
+        const custo = custoPorLinha.get(l.id)?.valor ?? null;
         if (custo !== null) valorTotalEstimado += custo;
         itens.push({ item: l.item, gondola: s.gondola, quantidadeG, quantidadeUnidades: unidades, precoEstimado: custo });
       }
@@ -211,7 +219,7 @@ export default function ListaMercado() {
           <h3 className="section-heading text-sm">Macros da lista</h3>
           <SeletorDieta dieta={dieta} onChange={setDieta} />
         </div>
-        <MacroResumoCard titulo="" real={nutriTotal} ideal={DIETAS[dieta]} />
+        <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -266,7 +274,7 @@ export default function ListaMercado() {
                 <ul>
                   {s.linhas.map((l) => {
                     const isChecked = checked.has(l.id);
-                    const custo = custoPorLinha.get(l.id) ?? null;
+                    const custo = custoPorLinha.get(l.id);
                     return (
                       <li key={l.id} className="flex items-center gap-3 border-t border-stone-100 px-4 py-2.5">
                         <input
@@ -281,13 +289,20 @@ export default function ListaMercado() {
                           }`}
                         >
                           <span className="font-semibold">{l.rotulo}</span>{' '}
-                          <span>{capitalizar(l.item)}</span>
+                          <span>{nomeItem(l.item)}</span>
                           {l.origens.length > 1 && (
                             <span className="ml-1 text-xs text-stone-400">({l.origens.length} receitas)</span>
                           )}
                         </div>
-                        <div className="flex-shrink-0 text-right text-sm tabular-nums text-stone-500">
-                          {custo !== null ? formatBRL(custo) : '—'}
+                        {/* Preço vindo da tabela embutida fica em itálico e mais claro,
+                            para não passar por valor conferido em nota fiscal. */}
+                        <div
+                          className={`flex-shrink-0 text-right text-sm tabular-nums ${
+                            custo?.estimado ? 'italic text-stone-400' : 'text-stone-500'
+                          }`}
+                          title={custo?.estimado ? 'Preço estimado pelo app' : undefined}
+                        >
+                          {custo?.valor != null ? formatBRL(custo.valor) : '—'}
                         </div>
                         {l.manual && (
                           <button
@@ -339,7 +354,8 @@ export default function ListaMercado() {
               </button>
             </div>
             <p className="text-xs text-stone-400">
-              Considera apenas os itens marcados na checklist ({checked.size} de {total}).
+              Considera apenas os itens marcados na checklist ({checked.size} de {total}). Valores em
+              itálico são estimativas do app; use “Atualizar preços” para valer os da sua nota fiscal.
             </p>
           </div>
         </>

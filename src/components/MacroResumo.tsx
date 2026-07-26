@@ -1,7 +1,7 @@
-// Seletor de dieta + card de resumo de macros/calorias (percentual da meta da dieta),
-// reutilizado nas abas Semana, Mercado e Histórico.
+// Seletor de dieta + card de composição de macros, reutilizado nas abas Semana,
+// Mercado e Histórico.
 
-import { DIETA_ORDEM, DIETAS, type Dieta } from '../lib/diet';
+import { DIETA_ORDEM, DIETAS, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
 
 // Cores vivas, usadas onde precisa de contraste forte (ex.: preenchimento do gráfico de barras).
 export const CORES_MACRO = {
@@ -33,39 +33,49 @@ export function SeletorDieta({ dieta, onChange }: { dieta: Dieta; onChange: (d: 
   );
 }
 
-export interface ValoresMacro {
-  kcal: number;
-  proteina: number;
-  carboidrato: number;
-  gorduraTotal: number;
-}
+export type ValoresMacro = GramasMacro;
 
-function percentual(real: number, ideal: number): number {
-  return ideal > 0 ? Math.round((real / ideal) * 100) : 0;
+function MacroTag({
+  rotulo,
+  atual,
+  meta,
+  estilo,
+}: {
+  rotulo: string;
+  atual: number;
+  meta: number;
+  estilo: string;
+}) {
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${estilo}`}>
+      {rotulo}: {atual}%
+      <span className="ml-1 font-normal opacity-70">(meta {meta}%)</span>
+    </span>
+  );
 }
 
 /**
- * Card com o percentual da meta da dieta (calorias em negrito, macros abreviados em tags
- * pastéis). Sempre percentual — como as receitas nem sempre são feitas para uma pessoa só,
- * um valor absoluto de gramas/kcal não corresponderia à meta diária de ninguém em específico;
- * o percentual da meta se mantém interpretável independentemente de quantas porções/pessoas.
+ * Composição de macros em percentual do total de gramas (proteína + carboidrato +
+ * gordura), com a meta da dieta escolhida ao lado para comparação. Sempre relativo:
+ * os percentuais somam 100 e não dependem de quantas porções ou pessoas a lista cobre.
  */
-export function MacroResumoCard({ titulo, real, ideal }: { titulo: string; real: ValoresMacro; ideal: ValoresMacro }) {
+export function MacroResumoCard({ titulo, real, dieta }: { titulo: string; real: ValoresMacro; dieta: Dieta }) {
+  const pct = composicaoRelativa(real);
+  const meta = DIETAS[dieta];
+  const semDados = pct.proteina + pct.carboidrato + pct.gorduraTotal === 0;
+
   return (
     <div>
       {titulo && <p className="mb-1.5 text-xs font-medium text-stone-500">{titulo}</p>}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-bold">{percentual(real.kcal, ideal.kcal)}% da meta calórica</span>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${MACRO_TAG_ESTILO.carboidrato}`}>
-          Carb.: {percentual(real.carboidrato, ideal.carboidrato)}%
-        </span>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${MACRO_TAG_ESTILO.proteina}`}>
-          Prot.: {percentual(real.proteina, ideal.proteina)}%
-        </span>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${MACRO_TAG_ESTILO.gordura}`}>
-          Gord.: {percentual(real.gorduraTotal, ideal.gorduraTotal)}%
-        </span>
-      </div>
+      {semDados ? (
+        <p className="text-sm text-stone-400">Sem ingredientes com quantidade estimável ainda.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <MacroTag rotulo="Carb." atual={pct.carboidrato} meta={meta.carboidrato} estilo={MACRO_TAG_ESTILO.carboidrato} />
+          <MacroTag rotulo="Prot." atual={pct.proteina} meta={meta.proteina} estilo={MACRO_TAG_ESTILO.proteina} />
+          <MacroTag rotulo="Gord." atual={pct.gorduraTotal} meta={meta.gorduraTotal} estilo={MACRO_TAG_ESTILO.gordura} />
+        </div>
+      )}
     </div>
   );
 }

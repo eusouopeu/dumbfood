@@ -67,6 +67,16 @@ function roundStep(n: number, step: number): number {
   return round(Math.round(n / step) * step);
 }
 
+/**
+ * Arredonda um valor convertido para g/mL: inteiro ou meia unidade exata (ex.: 158,5).
+ * Só vale para medidas que *não* nasceram em gramas — o valor original do autor da
+ * receita é preservado como está; o que é estimado a partir de volume/densidade não
+ * merece precisão de casas decimais.
+ */
+export function arredondarConversao(n: number): number {
+  return roundStep(n, 0.5);
+}
+
 interface Medida {
   quantidade: number | null;
   unidade: string | null;
@@ -105,11 +115,13 @@ export function padronizarMedida(
     if (liquido) {
       return totalMl >= 1000
         ? { quantidade: round(totalMl / 1000), unidade: 'l' }
-        : { quantidade: round(totalMl), unidade: 'ml' };
+        : { quantidade: arredondarConversao(totalMl), unidade: 'ml' };
     }
     if (dens !== undefined) {
       const g = totalMl * dens;
-      return g >= 1000 ? { quantidade: round(g / 1000), unidade: 'kg' } : { quantidade: round(g), unidade: 'g' };
+      return g >= 1000
+        ? { quantidade: round(g / 1000), unidade: 'kg' }
+        : { quantidade: arredondarConversao(g), unidade: 'g' };
     }
     return { quantidade, unidade };
   }

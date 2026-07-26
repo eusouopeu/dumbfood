@@ -76,6 +76,8 @@ export interface PrecoItem {
   precoUnitario: number;
   unidade: 'kg' | 'l' | 'unidade';
   atualizadoEm: number;
+  /** true quando vem da tabela embutida do app, e não de um arquivo importado pelo usuário. */
+  estimado?: boolean;
 }
 
 /** Item já comprado, congelado no momento em que a compra foi salva no histórico. */

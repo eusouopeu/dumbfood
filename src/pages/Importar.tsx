@@ -89,8 +89,9 @@ export default function Importar() {
             {carregando ? 'Buscando…' : 'Importar do link'}
           </button>
           <p className="text-xs text-stone-500">
-            Funciona com sites que publicam dados estruturados (TudoGostoso, Panelinha e a maioria dos blogs de
-            receita). Se não funcionar, use “Colar texto”.
+            Funciona com TudoGostoso, Panelinha, Receiteria, Panelaterapia e a maioria dos blogs de receita. A
+            página é buscada por um intermediário público, então pode levar alguns segundos. Se não funcionar,
+            use “Colar texto”.
           </p>
         </div>
       ) : (
