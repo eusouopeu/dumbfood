@@ -1,7 +1,7 @@
 // Banco local (IndexedDB) via Dexie.
 
 import Dexie, { type Table } from 'dexie';
-import type { Compra, PrecoItem, Recipe, WeekPlan } from '../types';
+import type { Compra, GeladeiraItem, PrecoItem, Recipe, WeekPlan } from '../types';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -10,6 +10,7 @@ export class DumbfoodDB extends Dexie {
   plans!: Table<WeekPlan, string>;
   compras!: Table<Compra, string>;
   precos!: Table<PrecoItem, string>;
+  geladeira!: Table<GeladeiraItem, string>;
 
   constructor() {
     super('dumbfood');
@@ -48,6 +49,14 @@ export class DumbfoodDB extends Dexie {
           if (Array.isArray(r.ingredientes)) r.ingredientes = r.ingredientes.map(reprocessarIngrediente);
         });
       });
+    // v5: ingredientes disponíveis na geladeira/despensa.
+    this.version(5).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+    });
   }
 }
 

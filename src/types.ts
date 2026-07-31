@@ -91,6 +91,15 @@ export interface CompraItem {
   precoEstimado: number | null;
 }
 
+/** Ingrediente que o usuário marcou como disponível na geladeira/despensa. */
+export interface GeladeiraItem {
+  /** Chave normalizada (sem acento, singular) — chave primária. */
+  itemKey: string;
+  /** Nome como o usuário digitou/escolheu, para exibição. */
+  nome: string;
+  adicionadoEm: number;
+}
+
 export interface Compra {
   id: string;
   /** Timestamp da compra (data informada pelo usuário ao salvar, por padrão "hoje"). */

@@ -6,10 +6,12 @@ import Detalhe from './pages/Detalhe';
 import PlanoSemana from './pages/PlanoSemana';
 import ListaMercado from './pages/ListaMercado';
 import Historico from './pages/Historico';
+import Geladeira from './pages/Geladeira';
 
+// A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 const navItens = [
   { to: '/', label: 'Receitas', icon: '📖', end: true },
-  { to: '/importar', label: 'Importar', icon: '➕', end: false },
+  { to: '/geladeira', label: 'Geladeira', icon: '🧊', end: false },
   { to: '/plano', label: 'Semana', icon: '🗓️', end: false },
   { to: '/lista', label: 'Mercado', icon: '🛒', end: false },
   { to: '/historico', label: 'Histórico', icon: '📊', end: false },
@@ -29,6 +31,7 @@ export default function App() {
           <Route path="/" element={<Receitas />} />
           <Route path="/importar" element={<Importar />} />
           <Route path="/receita/:id" element={<Detalhe />} />
+          <Route path="/geladeira" element={<Geladeira />} />
           <Route path="/plano" element={<PlanoSemana />} />
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />

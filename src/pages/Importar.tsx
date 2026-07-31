@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { importarPorUrl, montarPorTexto } from '../lib/importClient';
 import { salvarReceita } from '../db/repo';
 import type { YieldType } from '../types';
@@ -56,6 +56,10 @@ export default function Importar() {
 
   return (
     <div className="space-y-4">
+      {/* A tela não está mais na barra de navegação, então precisa da própria saída. */}
+      <Link to="/" className="inline-block text-sm font-medium text-brand-600">
+        ← Voltar para receitas
+      </Link>
       <h2 className="text-xl font-bold">Importar receita</h2>
 
       <div className="flex gap-1 rounded-xl bg-stone-100 p-1">

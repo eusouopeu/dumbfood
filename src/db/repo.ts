@@ -4,6 +4,7 @@ import type { Compra, NewRecipe, PrecoItem, Recipe, WeekPlan, YieldType } from '
 import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
+import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 
 export function novoId(): string {
   return (
@@ -129,4 +130,25 @@ export async function salvarCompra(compra: Omit<Compra, 'id' | 'criadoEm'>): Pro
 
 export async function removerCompra(id: string): Promise<void> {
   await db.compras.delete(id);
+}
+
+// ---- Geladeira ----
+
+/**
+ * Adiciona um ingrediente à geladeira. Passa pelo mesmo parser das receitas, então
+ * o usuário pode digitar do jeito que pensa ("2 cebolas grandes") que só o nome fica.
+ */
+export async function adicionarNaGeladeira(nomeBruto: string): Promise<void> {
+  const nome = parseIngredient(nomeBruto)?.item ?? '';
+  const itemKey = normalizeItemKey(nome);
+  if (!itemKey) return;
+  await db.geladeira.put({ itemKey, nome, adicionadoEm: Date.now() });
+}
+
+export async function removerDaGeladeira(itemKey: string): Promise<void> {
+  await db.geladeira.delete(itemKey);
+}
+
+export async function limparGeladeira(): Promise<void> {
+  await db.geladeira.clear();
 }
