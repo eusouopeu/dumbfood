@@ -38,13 +38,18 @@ function importApiDevPlugin(): Plugin {
   };
 }
 
+// O build para o APK (Capacitor) é diferente do build para o GitHub Pages: os arquivos
+// são servidos da raiz do próprio pacote, e o service worker do PWA não tem função
+// dentro de um app instalado — quem cuida da atualização ali é o próprio APK.
+const paraApk = process.env.DUMBFOOD_APK === '1';
+
 export default defineConfig(({ command }) => ({
   // GitHub Pages serve o build em /<repo>/, mas o dev server deve continuar na raiz.
-  base: command === 'build' ? '/dumbfood/' : '/',
+  base: command === 'build' && !paraApk ? '/dumbfood/' : '/',
   plugins: [
     react(),
     importApiDevPlugin(),
-    VitePWA({
+    ...(paraApk ? [] : [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon.svg'],
       manifest: {
@@ -65,6 +70,6 @@ export default defineConfig(({ command }) => ({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
       },
-    }),
+    })]),
   ],
 }));

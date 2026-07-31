@@ -9,7 +9,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:apk": "tsc -b && DUMBFOOD_APK=1 vite build",
+    "android:sync": "npm run build:apk && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:assets": "npx capacitor-assets generate --android"
   },
   "dependencies": {
     "dexie": "^4.0.8",
@@ -19,6 +23,10 @@
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

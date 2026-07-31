@@ -57,3 +57,23 @@ Se um site específico bloquear mesmo o acesso server-side, use a aba **“Colar
 ## Deploy
 
 Compatível com hospedagem estática + 1 função serverless (ex.: Vercel): `npm run build` gera o estático em `dist/` e `api/import.ts` vira a função. Para hospedagem 100% estática sem backend, use apenas o fluxo de “Colar texto”.
+
+## App Android (Capacitor)
+
+O mesmo código roda como app nativo Android via [Capacitor](https://capacitorjs.com), empacotado offline (sem depender do GitHub Pages).
+
+```bash
+npm run android:sync   # build (sem service worker) + copia pra android/
+npm run android:open   # abre o projeto no Android Studio
+```
+
+Pelo Android Studio: `Run ▶` instala no emulador/aparelho conectado, ou `Build > Generate Signed Bundle/APK` para gerar o `.apk`/`.aab` de release. Sem abrir o Android Studio, um debug APK pode ser gerado direto:
+
+```bash
+npm run android:sync
+cd android && ./gradlew assembleDebug   # gera android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+- `capacitor.config.ts`: configuração do pacote (appId, nome, `webDir`).
+- `resources/icon.png` e `resources/splash.png`: fontes do ícone e da splash screen — depois de alterar, rode `npm run android:assets` para regerar os arquivos em `android/app/src/main/res/`.
+- A importação por link precisa de rede; o resto do app funciona 100% offline (IndexedDB local).
