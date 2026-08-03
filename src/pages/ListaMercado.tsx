@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { BanknotesIcon, ClipboardDocumentIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { buildShoppingList, resumoLinha, pesoTotalKg } from '../lib/shoppingList';
@@ -224,10 +225,10 @@ export default function ListaMercado() {
 
       <div className="flex flex-wrap gap-2">
         <button onClick={copiar} className="btn-outline">
-          ⧉ Copiar
+          <ClipboardDocumentIcon className="size-4" /> Copiar
         </button>
         <button onClick={() => fileRef.current?.click()} className="btn-outline">
-          💲 Atualizar preços
+          <BanknotesIcon className="size-4" /> Atualizar preços
         </button>
         <input
           ref={fileRef}
@@ -310,7 +311,7 @@ export default function ListaMercado() {
                             className="flex-shrink-0 text-stone-400 hover:text-red-600"
                             aria-label={`remover ${l.item}`}
                           >
-                            ×
+                            <XMarkIcon className="size-4" />
                           </button>
                         )}
                       </li>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { MinusIcon, PlusIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
@@ -99,7 +100,7 @@ export default function PlanoSemana() {
                             className="btn-outline h-7 w-7 !px-0 text-xs"
                             onClick={() => setAlvo(alvo - 1)}
                           >
-                            −
+                            <MinusIcon className="mx-auto size-3.5" />
                           </button>
                           <input
                             type="number"
@@ -112,7 +113,7 @@ export default function PlanoSemana() {
                             className="btn-outline h-7 w-7 !px-0 text-xs"
                             onClick={() => setAlvo(alvo + 1)}
                           >
-                            +
+                            <PlusIcon className="mx-auto size-3.5" />
                           </button>
                           <span className="text-xs text-stone-500">
                             {rotuloRendimento(r.rendimentoBase.tipo, alvo)}
@@ -130,7 +131,7 @@ export default function PlanoSemana() {
 
       <div className="flex gap-2">
         <Link to="/lista" className="btn-primary flex-1">
-          🛒 Gerar lista de mercado
+          <ShoppingCartIcon className="size-4" /> Gerar lista de mercado
         </Link>
         {plano.itens.length > 0 && (
           <button onClick={() => limparPlano()} className="btn-outline">

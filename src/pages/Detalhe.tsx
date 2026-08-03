@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { ArrowLeftIcon, CheckCircleIcon, MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import {
@@ -98,8 +99,8 @@ export default function Detalhe() {
 
   return (
     <div className="space-y-4">
-      <Link to="/" className="text-sm text-brand-600">
-        ← Receitas
+      <Link to="/" className="inline-flex items-center gap-1 text-sm text-brand-600">
+        <ArrowLeftIcon className="size-4" /> Receitas
       </Link>
 
       {recipe.imagem && <img src={recipe.imagem} alt="" className="h-44 w-full rounded-2xl object-cover" />}
@@ -130,7 +131,7 @@ export default function Detalhe() {
               className="text-brand-500 hover:text-brand-700"
               aria-label={`remover ${t}`}
             >
-              ×
+              <XMarkIcon className="size-3.5" />
             </button>
           </span>
         ))}
@@ -165,7 +166,7 @@ export default function Detalhe() {
           <div className="flex items-end gap-2">
             <div className="flex items-center gap-2">
               <button className="btn-outline h-9 w-9 !px-0" onClick={() => setAlvoRend(Math.max(1, alvo - 1))}>
-                −
+                <MinusIcon className="mx-auto size-4" />
               </button>
               <input
                 type="number"
@@ -175,7 +176,7 @@ export default function Detalhe() {
                 onChange={(e) => setAlvoRend(Math.max(1, Number(e.target.value)))}
               />
               <button className="btn-outline h-9 w-9 !px-0" onClick={() => setAlvoRend(alvo + 1)}>
-                +
+                <PlusIcon className="mx-auto size-4" />
               </button>
             </div>
             <select className="input flex-1" value={tipo} onChange={(e) => setTipoRend(e.target.value as YieldType)}>
@@ -309,7 +310,7 @@ export default function Detalhe() {
       <div className="flex flex-wrap gap-2">
         {noPlano ? (
           <button onClick={() => removerDoPlano(recipe.id)} className="btn-outline">
-            ✓ Na semana (remover)
+            <CheckCircleIcon className="size-4" /> Na semana (remover)
           </button>
         ) : (
           <button onClick={() => definirNoPlano(recipe.id, fator)} className="btn-primary">

@@ -1,4 +1,14 @@
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import {
+  BookOpenIcon,
+  CalendarDaysIcon,
+  ChartBarIcon,
+  CubeIcon,
+  FireIcon,
+  ShoppingCartIcon,
+} from '@heroicons/react/24/outline';
 import ErrorBoundary from './components/ErrorBoundary';
 import Receitas from './pages/Receitas';
 import Importar from './pages/Importar';
@@ -7,21 +17,37 @@ import PlanoSemana from './pages/PlanoSemana';
 import ListaMercado from './pages/ListaMercado';
 import Historico from './pages/Historico';
 import Geladeira from './pages/Geladeira';
+import { ShareReceiver } from './lib/shareReceiver';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 const navItens = [
-  { to: '/', label: 'Receitas', icon: '📖', end: true },
-  { to: '/geladeira', label: 'Geladeira', icon: '🧊', end: false },
-  { to: '/plano', label: 'Semana', icon: '🗓️', end: false },
-  { to: '/lista', label: 'Mercado', icon: '🛒', end: false },
-  { to: '/historico', label: 'Histórico', icon: '📊', end: false },
+  { to: '/', label: 'Receitas', icon: BookOpenIcon, end: true },
+  { to: '/geladeira', label: 'Geladeira', icon: CubeIcon, end: false },
+  { to: '/plano', label: 'Semana', icon: CalendarDaysIcon, end: false },
+  { to: '/lista', label: 'Mercado', icon: ShoppingCartIcon, end: false },
+  { to: '/historico', label: 'Histórico', icon: ChartBarIcon, end: false },
 ];
 
 export default function App() {
+  const navigate = useNavigate();
+
+  // Recebe links/textos compartilhados de outros apps (folha de compartilhamento do Android)
+  // e manda direto pra tela de importar. Só existe implementação nativa (Android); no PWA
+  // registerPlugin() nem chega a ser chamado.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = ShareReceiver.addListener('shareReceived', ({ text }) => {
+      navigate('/importar', { state: { sharedText: text } });
+    });
+    return () => {
+      listener.then((h) => h.remove());
+    };
+  }, [navigate]);
+
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col">
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-stone-200 bg-brand-50/80 px-4 py-3 backdrop-blur">
-        <span className="text-2xl">🍳</span>
+        <FireIcon className="size-7 text-brand-600" />
         <h1 className="text-lg font-extrabold tracking-tight text-brand-700">dumbfood</h1>
       </header>
 
@@ -52,7 +78,7 @@ export default function App() {
                   }`
                 }
               >
-                <span className="text-xl">{n.icon}</span>
+                <n.icon className="size-5" />
                 {n.label}
               </NavLink>
             </li>

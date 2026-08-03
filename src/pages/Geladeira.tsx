@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  BookOpenIcon,
+  CakeIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CubeIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { adicionarNaGeladeira, limparGeladeira, removerDaGeladeira } from '../db/repo';
 import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from '../lib/geladeira';
@@ -54,7 +63,7 @@ export default function Geladeira() {
       >
         <input
           className="input"
-          placeholder="🥕 Ex.: ovos, cebola, frango…"
+          placeholder="Ex.: ovos, cebola, frango…"
           list="ingredientes-biblioteca"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
@@ -89,7 +98,7 @@ export default function Geladeira() {
                 title="Remover"
               >
                 {nomeItem(g.nome)}
-                <span className="text-white/70">✕</span>
+                <XMarkIcon className="size-3.5 text-white/70" />
               </button>
             ))}
           </div>
@@ -119,7 +128,7 @@ export default function Geladeira() {
       {/* Resultados */}
       {lista.length === 0 ? (
         <div className="card p-6 text-center">
-          <p className="mb-1 text-4xl">📖</p>
+          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400" />
           <p className="font-semibold">Sua biblioteca está vazia</p>
           <p className="mb-4 text-sm text-stone-500">Importe receitas para poder cruzá-las com a geladeira.</p>
           <Link to="/importar" className="btn-primary">
@@ -128,7 +137,7 @@ export default function Geladeira() {
         </div>
       ) : itens.length === 0 ? (
         <div className="card p-6 text-center text-stone-500">
-          <p className="mb-1 text-4xl">🧊</p>
+          <CubeIcon className="mx-auto mb-1 size-10 text-brand-400" />
           <p>Adicione um ingrediente para começar a afunilar as receitas.</p>
         </div>
       ) : (
@@ -140,7 +149,8 @@ export default function Geladeira() {
                 soCompletas ? 'bg-green-600 text-white' : 'bg-stone-100 text-stone-600'
               }`}
             >
-              ✅ Dá pra fazer agora ({completas})
+              <CheckCircleIcon className="mr-1 inline-block size-4 align-text-bottom" />
+              Dá pra fazer agora ({completas})
             </button>
             <span className="ml-auto text-xs text-stone-400">{visiveis.length} receita(s)</span>
           </div>
@@ -174,11 +184,11 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
   return (
     <div className="card overflow-hidden">
       <Link to={`/receita/${c.recipe.id}`} className="flex gap-3 p-3">
-        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 text-2xl">
+        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100">
           {c.recipe.imagem ? (
             <img src={c.recipe.imagem} alt="" className="h-full w-full object-cover" />
           ) : (
-            '🍲'
+            <CakeIcon className="size-8 text-brand-500" />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -213,9 +223,17 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
         <>
           <button
             onClick={() => setAberto((v) => !v)}
-            className="w-full px-3 py-2 text-left text-xs font-medium text-brand-600"
+            className="inline-flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium text-brand-600"
           >
-            {aberto ? '▾ ocultar o que falta' : '▸ ver o que falta comprar'}
+            {aberto ? (
+              <>
+                <ChevronDownIcon className="size-3.5" /> ocultar o que falta
+              </>
+            ) : (
+              <>
+                <ChevronRightIcon className="size-3.5" /> ver o que falta comprar
+              </>
+            )}
           </button>
           {aberto && (
             <div className="space-y-2 px-3 pb-3 text-sm">

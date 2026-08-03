@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { importarPorUrl, montarPorTexto } from '../lib/importClient';
 import { salvarReceita } from '../db/repo';
 import type { YieldType } from '../types';
@@ -9,6 +10,7 @@ type Aba = 'url' | 'texto';
 export default function Importar() {
   const [aba, setAba] = useState<Aba>('url');
   const navigate = useNavigate();
+  const location = useLocation();
 
   // URL
   const [url, setUrl] = useState('');
@@ -23,11 +25,11 @@ export default function Importar() {
   const [preparo, setPreparo] = useState('');
   const [tempo, setTempo] = useState<number>(0);
 
-  async function importarUrl() {
+  async function importarUrl(entrada: string = url) {
     setErro(null);
     setCarregando(true);
     try {
-      const nova = await importarPorUrl(url.trim());
+      const nova = await importarPorUrl(entrada.trim());
       const salva = await salvarReceita(nova);
       navigate(`/receita/${salva.id}`);
     } catch (e) {
@@ -36,6 +38,18 @@ export default function Importar() {
       setCarregando(false);
     }
   }
+
+  // Chegou aqui por um link compartilhado de outro app (folha de compartilhamento do
+  // Android, ver App.tsx + ShareReceiverPlugin): preenche e já dispara a importação.
+  useEffect(() => {
+    const compartilhado = (location.state as { sharedText?: string } | null)?.sharedText;
+    if (!compartilhado) return;
+    setAba('url');
+    setUrl(compartilhado);
+    importarUrl(compartilhado);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function importarTexto() {
     const nova = montarPorTexto({
@@ -57,8 +71,8 @@ export default function Importar() {
   return (
     <div className="space-y-4">
       {/* A tela não está mais na barra de navegação, então precisa da própria saída. */}
-      <Link to="/" className="inline-block text-sm font-medium text-brand-600">
-        ← Voltar para receitas
+      <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600">
+        <ArrowLeftIcon className="size-4" /> Voltar para receitas
       </Link>
       <h2 className="text-xl font-bold">Importar receita</h2>
 
@@ -89,7 +103,7 @@ export default function Importar() {
             onChange={(e) => setUrl(e.target.value)}
             inputMode="url"
           />
-          <button onClick={importarUrl} disabled={!url.trim() || carregando} className="btn-primary w-full">
+          <button onClick={() => importarUrl()} disabled={!url.trim() || carregando} className="btn-primary w-full">
             {carregando ? 'Buscando…' : 'Importar do link'}
           </button>
           <p className="text-xs text-stone-500">

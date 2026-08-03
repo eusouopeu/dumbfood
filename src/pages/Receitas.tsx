@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
+import {
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  BookOpenIcon,
+  CakeIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { salvarReceita, exportarJSON, importarJSON } from '../db/repo';
@@ -113,7 +120,7 @@ export default function Receitas() {
 
       {recipes.length === 0 ? (
         <div className="card p-6 text-center">
-          <p className="mb-1 text-4xl">🍽️</p>
+          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400" />
           <p className="font-semibold">Nenhuma receita ainda</p>
           <p className="mb-4 text-sm text-stone-500">Importe de um site ou cole os ingredientes.</p>
           <div className="flex flex-col gap-2">
@@ -128,12 +135,15 @@ export default function Receitas() {
       ) : (
         <>
           {/* Busca */}
-          <input
-            className="input"
-            placeholder="🔎 Buscar por nome, ingrediente ou tag…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
+          <div className="relative">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+            <input
+              className="input pl-9"
+              placeholder="Buscar por nome, ingrediente ou tag…"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+          </div>
 
           {/* Filtro de tags */}
           {todasTags.length > 0 && (
@@ -208,10 +218,10 @@ export default function Receitas() {
 
       <div className="flex flex-wrap gap-2 pt-2">
         <button onClick={baixarBackup} className="btn-outline">
-          ⬇︎ Exportar
+          <ArrowDownTrayIcon className="size-4" /> Exportar
         </button>
         <button onClick={() => fileRef.current?.click()} className="btn-outline">
-          ⬆︎ Importar backup
+          <ArrowUpTrayIcon className="size-4" /> Importar backup
         </button>
         <input
           ref={fileRef}
@@ -229,8 +239,12 @@ function CardReceita({ recipe: r, naSemana }: { recipe: Recipe; naSemana: boolea
   const tempo = formatTempo(r.tempoPreparoMin);
   return (
     <Link to={`/receita/${r.id}`} className="card flex gap-3 p-3">
-      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 text-2xl">
-        {r.imagem ? <img src={r.imagem} alt="" className="h-full w-full object-cover" /> : '🍲'}
+      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100">
+        {r.imagem ? (
+          <img src={r.imagem} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <CakeIcon className="size-8 text-brand-500" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{capitalizar(r.titulo)}</p>

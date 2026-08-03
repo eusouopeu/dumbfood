@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { ArrowDownTrayIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { removerCompra } from '../db/repo';
 import { nomeItem } from '../lib/format';
@@ -153,7 +154,11 @@ function AbaCompras({ compras }: { compras: Compra[] }) {
                 </p>
               </div>
               <p className="text-lg font-bold text-brand-700">{formatBRL(c.valorTotalReal)}</p>
-              <span className="text-stone-400">{aberta ? '▲' : '▼'}</span>
+              {aberta ? (
+                <ChevronUpIcon className="size-4 text-stone-400" />
+              ) : (
+                <ChevronDownIcon className="size-4 text-stone-400" />
+              )}
             </button>
 
             {aberta && (
@@ -174,7 +179,7 @@ function AbaCompras({ compras }: { compras: Compra[] }) {
 
             <div className="mt-2 flex gap-2">
               <button onClick={() => exportar(c)} className="btn-outline h-7 px-2 text-xs" title="Exportar CSV">
-                ⬇︎ CSV
+                <ArrowDownTrayIcon className="size-3.5" /> CSV
               </button>
               <button
                 onClick={() => confirm('Remover esta compra do histórico?') && removerCompra(c.id)}
