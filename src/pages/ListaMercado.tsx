@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BanknotesIcon, ClipboardDocumentIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
+  BanknotesIcon,
+  ClipboardDocumentIcon,
+  ShoppingCartIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { buildShoppingList, resumoLinha, pesoTotalKg } from '../lib/shoppingList';
 import { estiloGondola, GONDOLA_ORDER } from '../lib/aisles';
+import { tendenciaPrecoItem } from '../lib/history';
 import { nomeItem } from '../lib/format';
 import { pesoEmGramas } from '../lib/weight';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
@@ -17,7 +25,23 @@ import { PRECOS_BASE } from '../lib/precosBase';
 import { importarPrecos, salvarCompra, novoId } from '../db/repo';
 import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import { toast } from '../lib/toast';
+import { hapticLeve } from '../lib/haptics';
+import { definirPendentesLista } from '../lib/listaStatus';
+import SwipeToDelete from '../components/SwipeToDelete';
+import { LinhaSkeleton } from '../components/Skeleton';
 import type { CompraItem, Ingredient, Recipe, ShoppingLine, ShoppingSection } from '../types';
+
+function ListaSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Lista de mercado</h2>
+      </div>
+      <LinhaSkeleton linhas={6} />
+    </div>
+  );
+}
 
 const CHECK_KEY = 'dumbfood:comprados';
 const EXTRAS_KEY = 'dumbfood:itensExtras';
@@ -55,6 +79,7 @@ function loadExtras(): ItemExtra[] {
 export default function ListaMercado() {
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
   const precos = useLiveQuery(() => db.precos.toArray(), []);
+  const compras = useLiveQuery(() => db.compras.toArray(), []);
   const plano = usePlano();
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [extras, setExtras] = useState<ItemExtra[]>(() => loadExtras());
@@ -110,15 +135,19 @@ export default function ListaMercado() {
   const listaPrecos = useMemo(() => [...(precos ?? []), ...PRECOS_BASE], [precos]);
 
   const custoPorLinha = useMemo(() => {
-    const m = new Map<string, { valor: number | null; estimado: boolean }>();
+    const m = new Map<string, { valor: number | null; estimado: boolean; tendencia: 'alta' | 'baixa' | null }>();
     for (const s of sectionsComExtras) {
       for (const l of s.linhas) {
         const fonte = buscarPreco(normalizeItemKey(l.item), listaPrecos);
-        m.set(l.id, { valor: custoLinha(l, listaPrecos), estimado: fonte?.estimado === true });
+        m.set(l.id, {
+          valor: custoLinha(l, listaPrecos),
+          estimado: fonte?.estimado === true,
+          tendencia: tendenciaPrecoItem(l.item, compras ?? []),
+        });
       }
     }
     return m;
-  }, [sectionsComExtras, listaPrecos]);
+  }, [sectionsComExtras, listaPrecos, compras]);
 
   const nutriTotal = useMemo(() => {
     const pseudo: Ingredient[] = sectionsComExtras
@@ -127,13 +156,22 @@ export default function ListaMercado() {
     return calcularNutricaoTotal(pseudo);
   }, [sectionsComExtras]);
 
-  if (!recipes) return <p className="text-stone-500">Carregando…</p>;
+  // Publica quantos itens ainda faltam marcar, para o badge da barra de navegação.
+  useEffect(() => {
+    const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
+    const marcados = sectionsComExtras.reduce((n, s) => n + s.linhas.filter((l) => checked.has(l.id)).length, 0);
+    definirPendentesLista(total - marcados);
+    return () => definirPendentesLista(0);
+  }, [sectionsComExtras, checked]);
+
+  if (!recipes) return <ListaSkeleton />;
 
   const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
   const pesoTotal = pesoTotalKg(sectionsComExtras);
   const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s, v) => s + (v.valor ?? 0), 0);
 
   function toggle(key: string) {
+    hapticLeve();
     setChecked((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
@@ -150,7 +188,15 @@ export default function ListaMercado() {
   }
 
   function removerExtra(id: string) {
+    const removido = extras.find((e) => e.id === id);
     setExtras((prev) => prev.filter((e) => e.id !== id));
+    hapticLeve();
+    if (removido) {
+      toast(`${nomeItem(removido.item)} removido.`, 'sucesso', {
+        rotulo: 'Desfazer',
+        onClick: () => setExtras((prev) => [...prev, removido]),
+      });
+    }
   }
 
   async function copiar() {
@@ -163,9 +209,9 @@ export default function ListaMercado() {
       .join('\n\n');
     try {
       await navigator.clipboard.writeText(texto);
-      alert('Lista copiada!');
+      toast('Lista copiada!');
     } catch {
-      alert('Não foi possível copiar.');
+      toast('Não foi possível copiar.', 'erro');
     }
   }
 
@@ -174,13 +220,13 @@ export default function ListaMercado() {
       const conteudo = await file.text();
       const itens = parseArquivoPrecos(conteudo, file.name);
       if (itens.length === 0) {
-        alert('Nenhum preço válido encontrado no arquivo.');
+        toast('Nenhum preço válido encontrado no arquivo.', 'erro');
         return;
       }
       const n = await importarPrecos(itens);
-      alert(`${n} preço(s) atualizado(s).`);
+      toast(`${n} preço(s) atualizado(s).`);
     } catch (e) {
-      alert(`Erro ao importar preços: ${(e as Error).message}`);
+      toast(`Erro ao importar preços: ${(e as Error).message}`, 'erro');
     }
   }
 
@@ -198,13 +244,13 @@ export default function ListaMercado() {
       }
     }
     if (itens.length === 0) {
-      alert('Marque ao menos um item da checklist antes de salvar.');
+      toast('Marque ao menos um item da checklist antes de salvar.', 'erro');
       return;
     }
     const valorInformado = Number(valorReal.replace(',', '.'));
     const valorTotalReal = Number.isFinite(valorInformado) && valorInformado > 0 ? valorInformado : valorTotalEstimado;
     await salvarCompra({ data: Date.now(), valorTotalReal, valorTotalEstimado: Math.round(valorTotalEstimado * 100) / 100, itens });
-    alert('Compra salva no histórico!');
+    toast('Compra salva no histórico!');
     setValorReal('');
   }
 
@@ -258,12 +304,15 @@ export default function ListaMercado() {
       </div>
 
       {total === 0 ? (
-        <div className="card p-6 text-center text-stone-500">
-          Nenhuma receita na semana.{' '}
-          <Link to="/plano" className="text-brand-600 underline">
+        <div className="card p-6 text-center">
+          <ShoppingCartIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
+          <p className="font-semibold">Lista vazia</p>
+          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">
+            Nenhuma receita na semana ainda, ou adicione itens manualmente acima.
+          </p>
+          <Link to="/plano" className="btn-primary">
             Selecionar receitas
-          </Link>{' '}
-          ou adicione itens manualmente acima.
+          </Link>
         </div>
       ) : (
         <>
@@ -276,8 +325,8 @@ export default function ListaMercado() {
                   {s.linhas.map((l) => {
                     const isChecked = checked.has(l.id);
                     const custo = custoPorLinha.get(l.id);
-                    return (
-                      <li key={l.id} className="flex items-center gap-3 border-t border-stone-100 px-4 py-2.5">
+                    const linha = (
+                      <li key={l.manual ? undefined : l.id} className="flex items-center gap-3 border-t border-stone-100 dark:border-stone-700 bg-white dark:bg-stone-800 px-4 py-2.5">
                         <input
                           type="checkbox"
                           className="h-5 w-5 accent-brand-500"
@@ -286,35 +335,48 @@ export default function ListaMercado() {
                         />
                         <div
                           className={`min-w-0 flex-1 ${
-                            isChecked ? 'text-stone-400 line-through' : l.manual ? 'text-stone-400' : ''
+                            isChecked ? 'text-stone-400 dark:text-stone-500 line-through' : l.manual ? 'text-stone-400 dark:text-stone-500' : ''
                           }`}
                         >
                           <span className="font-semibold">{l.rotulo}</span>{' '}
                           <span>{nomeItem(l.item)}</span>
                           {l.origens.length > 1 && (
-                            <span className="ml-1 text-xs text-stone-400">({l.origens.length} receitas)</span>
+                            <span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({l.origens.length} receitas)</span>
                           )}
                         </div>
                         {/* Preço vindo da tabela embutida fica em itálico e mais claro,
                             para não passar por valor conferido em nota fiscal. */}
                         <div
-                          className={`flex-shrink-0 text-right text-sm tabular-nums ${
-                            custo?.estimado ? 'italic text-stone-400' : 'text-stone-500'
+                          className={`flex flex-shrink-0 items-center gap-1 text-right text-sm tabular-nums ${
+                            custo?.estimado ? 'italic text-stone-400 dark:text-stone-500' : 'text-stone-500 dark:text-stone-400'
                           }`}
                           title={custo?.estimado ? 'Preço estimado pelo app' : undefined}
                         >
+                          {custo?.tendencia === 'alta' && (
+                            <ArrowTrendingUpIcon className="size-3.5 flex-shrink-0 text-red-500" aria-label="Preço subiu desde a última compra" />
+                          )}
+                          {custo?.tendencia === 'baixa' && (
+                            <ArrowTrendingDownIcon className="size-3.5 flex-shrink-0 text-green-600" aria-label="Preço caiu desde a última compra" />
+                          )}
                           {custo?.valor != null ? formatBRL(custo.valor) : '—'}
                         </div>
                         {l.manual && (
                           <button
                             onClick={() => removerExtra(l.id.replace('extra:', ''))}
-                            className="flex-shrink-0 text-stone-400 hover:text-red-600"
+                            className="flex-shrink-0 text-stone-400 dark:text-stone-500 hover:text-red-600"
                             aria-label={`remover ${l.item}`}
                           >
                             <XMarkIcon className="size-4" />
                           </button>
                         )}
                       </li>
+                    );
+                    return l.manual ? (
+                      <SwipeToDelete key={l.id} onDelete={() => removerExtra(l.id.replace('extra:', ''))}>
+                        {linha}
+                      </SwipeToDelete>
+                    ) : (
+                      linha
                     );
                   })}
                 </ul>
@@ -327,20 +389,20 @@ export default function ListaMercado() {
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
               <div>
                 <p className="text-lg font-bold">{total}</p>
-                <p className="text-xs text-stone-500">ingredientes</p>
+                <p className="text-xs text-stone-500 dark:text-stone-400">ingredientes</p>
               </div>
               <div>
                 <p className="text-lg font-bold">{pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg</p>
-                <p className="text-xs text-stone-500">peso total</p>
+                <p className="text-xs text-stone-500 dark:text-stone-400">peso total</p>
               </div>
               <div>
                 <p className="text-lg font-bold">{formatBRL(valorEstimadoTotal)}</p>
-                <p className="text-xs text-stone-500">valor estimado</p>
+                <p className="text-xs text-stone-500 dark:text-stone-400">valor estimado</p>
               </div>
             </div>
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="block text-xs text-stone-500">Valor real da compra (R$)</label>
+                <label className="block text-xs text-stone-500 dark:text-stone-400">Valor real da compra (R$)</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -354,7 +416,7 @@ export default function ListaMercado() {
                 Salvar no histórico
               </button>
             </div>
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-stone-400 dark:text-stone-500">
               Considera apenas os itens marcados na checklist ({checked.size} de {total}). Valores em
               itálico são estimativas do app; use “Atualizar preços” para valer os da sua nota fiscal.
             </p>

@@ -12,19 +12,19 @@ export const CORES_MACRO = {
 
 // Tons pastéis para as tags de macro nos cards de resumo (fundo claro + texto na mesma cor).
 const MACRO_TAG_ESTILO = {
-  carboidrato: 'bg-purple-100 text-purple-700',
-  proteina: 'bg-sky-100 text-sky-700',
-  gordura: 'bg-yellow-100 text-yellow-800',
+  carboidrato: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  proteina: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
+  gordura: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
 };
 
 export function SeletorDieta({ dieta, onChange }: { dieta: Dieta; onChange: (d: Dieta) => void }) {
   return (
-    <div className="flex gap-0.5 rounded-lg bg-stone-100 p-0.5 text-xs">
+    <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
       {DIETA_ORDEM.map((d) => (
         <button
           key={d}
           onClick={() => onChange(d)}
-          className={`rounded-md px-2 py-1 font-semibold ${dieta === d ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+          className={`rounded-md px-2 py-1 font-semibold ${dieta === d ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
         >
           {DIETAS[d].label}
         </button>
@@ -66,9 +66,9 @@ export function MacroResumoCard({ titulo, real, dieta }: { titulo: string; real:
 
   return (
     <div>
-      {titulo && <p className="mb-1.5 text-xs font-medium text-stone-500">{titulo}</p>}
+      {titulo && <p className="mb-1.5 text-xs font-medium text-stone-500 dark:text-stone-400">{titulo}</p>}
       {semDados ? (
-        <p className="text-sm text-stone-400">Sem ingredientes com quantidade estimável ainda.</p>
+        <p className="text-sm text-stone-400 dark:text-stone-500">Sem ingredientes com quantidade estimável ainda.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-1.5">
           <MacroTag rotulo="Carb." atual={pct.carboidrato} meta={meta.carboidrato} estilo={MACRO_TAG_ESTILO.carboidrato} />

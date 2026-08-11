@@ -71,27 +71,27 @@ export default function Importar() {
   return (
     <div className="space-y-4">
       {/* A tela não está mais na barra de navegação, então precisa da própria saída. */}
-      <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600">
+      <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400">
         <ArrowLeftIcon className="size-4" /> Voltar para receitas
       </Link>
       <h2 className="text-xl font-bold">Importar receita</h2>
 
-      <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+      <div className="flex gap-1 rounded-xl bg-stone-100 dark:bg-stone-800 p-1">
         <button
           onClick={() => setAba('url')}
-          className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'url' ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+          className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'url' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
         >
           Por link
         </button>
         <button
           onClick={() => setAba('texto')}
-          className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'texto' ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+          className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'texto' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
         >
           Colar texto
         </button>
       </div>
 
-      {erro && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
+      {erro && <p className="rounded-xl bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-400">{erro}</p>}
 
       {aba === 'url' ? (
         <div className="card space-y-3 p-4">
@@ -106,7 +106,7 @@ export default function Importar() {
           <button onClick={() => importarUrl()} disabled={!url.trim() || carregando} className="btn-primary w-full">
             {carregando ? 'Buscando…' : 'Importar do link'}
           </button>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-stone-500 dark:text-stone-400">
             Funciona com TudoGostoso, Panelinha, Receiteria, Panelaterapia e a maioria dos blogs de receita. A
             página é buscada por um intermediário público, então pode levar alguns segundos. Se não funcionar,
             use “Colar texto”.

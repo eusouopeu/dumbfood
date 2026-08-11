@@ -16,6 +16,7 @@
     "android:assets": "npx capacitor-assets generate --android"
   },
   "dependencies": {
+    "@capacitor/haptics": "^6.0.3",
     "@heroicons/react": "^2.2.0",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",

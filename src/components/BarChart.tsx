@@ -15,7 +15,7 @@ export default function BarChart({
   formatar?: (n: number) => string;
 }) {
   if (dados.length === 0) {
-    return <p className="py-6 text-center text-sm text-stone-400">Sem dados suficientes para o gráfico.</p>;
+    return <p className="py-6 text-center text-sm text-stone-400 dark:text-stone-500">Sem dados suficientes para o gráfico.</p>;
   }
 
   const largura = 320;

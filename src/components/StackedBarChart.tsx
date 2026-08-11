@@ -17,7 +17,7 @@ const SEGMENTOS: { chave: keyof Omit<PontoMacro, 'label'>; cor: string; nome: st
 
 export default function StackedBarChart({ dados }: { dados: PontoMacro[] }) {
   if (dados.length === 0) {
-    return <p className="py-6 text-center text-sm text-stone-400">Sem dados suficientes para o gráfico.</p>;
+    return <p className="py-6 text-center text-sm text-stone-400 dark:text-stone-500">Sem dados suficientes para o gráfico.</p>;
   }
 
   const largura = 320;
@@ -50,7 +50,7 @@ export default function StackedBarChart({ dados }: { dados: PontoMacro[] }) {
           );
         })}
       </svg>
-      <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-stone-600">
+      <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-stone-600 dark:text-stone-300">
         {SEGMENTOS.map((seg) => (
           <span key={seg.chave} className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: seg.cor }} />

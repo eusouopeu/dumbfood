@@ -32,6 +32,8 @@ export interface Recipe {
   tags: string[];
   /** Tempo de preparo em minutos, quando disponível. */
   tempoPreparoMin?: number;
+  /** Marcada pelo usuário como favorita, para filtro rápido. */
+  favorito?: boolean;
   criadoEm: number;
 }
 

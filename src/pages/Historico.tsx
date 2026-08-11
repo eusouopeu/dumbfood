@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowDownTrayIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, ChartBarIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { removerCompra } from '../db/repo';
 import { nomeItem } from '../lib/format';
@@ -21,6 +21,10 @@ import BarChart from '../components/BarChart';
 import StackedBarChart from '../components/StackedBarChart';
 import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import { confirmar } from '../lib/confirm';
+import { toast } from '../lib/toast';
+import { hapticForte } from '../lib/haptics';
+import { CardListSkeleton } from '../components/Skeleton';
 import type { Compra, CompraItem } from '../types';
 
 type Aba = 'compras' | 'gastos' | 'macros';
@@ -46,7 +50,13 @@ export default function Historico() {
   const [inicioStr, setInicioStr] = useState('');
   const [fimStr, setFimStr] = useState('');
 
-  if (!compras) return <p className="text-stone-500">Carregando…</p>;
+  if (!compras)
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Histórico</h2>
+        <CardListSkeleton linhas={3} />
+      </div>
+    );
 
   const filtradas = inicioStr && fimStr
     ? compras.filter((c) => c.data >= new Date(inicioStr).getTime() && c.data <= new Date(fimStr).getTime() + 86_400_000)
@@ -56,12 +66,12 @@ export default function Historico() {
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Histórico</h2>
 
-      <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+      <div className="flex gap-1 rounded-xl bg-stone-100 dark:bg-stone-800 p-1">
         {(['compras', 'gastos', 'macros'] as Aba[]).map((a) => (
           <button
             key={a}
             onClick={() => setAba(a)}
-            className={`flex-1 rounded-lg py-1.5 text-sm font-semibold capitalize ${aba === a ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+            className={`flex-1 rounded-lg py-1.5 text-sm font-semibold capitalize ${aba === a ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
           >
             {a === 'compras' ? 'Compras' : a === 'gastos' ? 'Gastos' : 'Macros'}
           </button>
@@ -69,19 +79,23 @@ export default function Historico() {
       </div>
 
       {compras.length === 0 ? (
-        <div className="card p-6 text-center text-stone-500">
-          Nenhuma compra salva ainda. Marque os itens na lista de mercado e use “Salvar no histórico”.
+        <div className="card p-6 text-center">
+          <ChartBarIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
+          <p className="font-semibold">Nenhuma compra salva ainda</p>
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            Marque os itens na lista de mercado e use "Salvar no histórico".
+          </p>
         </div>
       ) : (
         <>
           {aba !== 'compras' && (
             <div className="card flex flex-wrap items-end gap-2 p-3">
               <div>
-                <label className="block text-xs text-stone-500">De</label>
+                <label className="block text-xs text-stone-500 dark:text-stone-400">De</label>
                 <input type="date" className="input py-1" value={inicioStr} onChange={(e) => setInicioStr(e.target.value)} />
               </div>
               <div>
-                <label className="block text-xs text-stone-500">Até</label>
+                <label className="block text-xs text-stone-500 dark:text-stone-400">Até</label>
                 <input type="date" className="input py-1" value={fimStr} onChange={(e) => setFimStr(e.target.value)} />
               </div>
               {(inicioStr || fimStr) && (
@@ -95,7 +109,7 @@ export default function Historico() {
                   Limpar período
                 </button>
               )}
-              <span className="ml-auto text-xs text-stone-400">{filtradas.length} compra(s) no período</span>
+              <span className="ml-auto text-xs text-stone-400 dark:text-stone-500">{filtradas.length} compra(s) no período</span>
             </div>
           )}
 
@@ -146,30 +160,30 @@ function AbaCompras({ compras }: { compras: Compra[] }) {
         const itensOrdenados = [...c.itens].sort((a, b) => a.gondola.localeCompare(b.gondola, 'pt-BR') || a.item.localeCompare(b.item, 'pt-BR'));
         return (
           <li key={c.id} className="card p-3">
-            <button onClick={() => toggle(c.id)} className="flex w-full items-center gap-3 text-left">
+            <button onClick={() => toggle(c.id)} aria-expanded={aberta} className="flex w-full items-center gap-3 text-left">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">{new Date(c.data).toLocaleDateString('pt-BR')}</p>
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   {c.itens.length} itens · estimado {formatBRL(c.valorTotalEstimado)}
                 </p>
               </div>
-              <p className="text-lg font-bold text-brand-700">{formatBRL(c.valorTotalReal)}</p>
+              <p className="text-lg font-bold text-brand-700 dark:text-brand-300">{formatBRL(c.valorTotalReal)}</p>
               {aberta ? (
-                <ChevronUpIcon className="size-4 text-stone-400" />
+                <ChevronUpIcon className="size-4 text-stone-400 dark:text-stone-500" />
               ) : (
-                <ChevronDownIcon className="size-4 text-stone-400" />
+                <ChevronDownIcon className="size-4 text-stone-400 dark:text-stone-500" />
               )}
             </button>
 
             {aberta && (
-              <ul className="mt-2 max-h-64 divide-y divide-stone-100 overflow-y-auto border-t border-stone-100 text-sm">
+              <ul className="mt-2 max-h-64 divide-y divide-stone-100 dark:divide-stone-700 overflow-y-auto border-t border-stone-100 dark:border-stone-700 text-sm">
                 {itensOrdenados.map((i, idx) => (
                   <li key={idx} className="flex items-center gap-2 py-1">
-                    <span className="w-16 flex-shrink-0 text-right text-xs font-semibold tabular-nums text-brand-700">
+                    <span className="w-16 flex-shrink-0 text-right text-xs font-semibold tabular-nums text-brand-700 dark:text-brand-300">
                       {formatCompraItemQtd(i)}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{nomeItem(i.item)}</span>
-                    <span className="flex-shrink-0 text-xs tabular-nums text-stone-500">
+                    <span className="flex-shrink-0 text-xs tabular-nums text-stone-500 dark:text-stone-400">
                       {i.precoEstimado !== null ? formatBRL(i.precoEstimado) : '—'}
                     </span>
                   </li>
@@ -182,8 +196,18 @@ function AbaCompras({ compras }: { compras: Compra[] }) {
                 <ArrowDownTrayIcon className="size-3.5" /> CSV
               </button>
               <button
-                onClick={() => confirm('Remover esta compra do histórico?') && removerCompra(c.id)}
-                className="btn-outline h-7 px-2 text-xs text-red-600"
+                onClick={async () => {
+                  const ok = await confirmar('Remover esta compra do histórico?', {
+                    textoConfirmar: 'Remover',
+                    perigo: true,
+                  });
+                  if (ok) {
+                    await removerCompra(c.id);
+                    hapticForte();
+                    toast('Compra removida do histórico.');
+                  }
+                }}
+                className="btn-outline h-7 px-2 text-xs text-red-600 dark:text-red-400"
               >
                 Excluir
               </button>
@@ -199,19 +223,19 @@ function CardResumo({ label, valor }: { label: string; valor: string }) {
   return (
     <div className="card p-3 text-center">
       <p className="text-lg font-bold">{valor}</p>
-      <p className="text-xs text-stone-500">{label}</p>
+      <p className="text-xs text-stone-500 dark:text-stone-400">{label}</p>
     </div>
   );
 }
 
 function SeletorGranularidade({ granularidade, onChange }: { granularidade: Granularidade; onChange: (g: Granularidade) => void }) {
   return (
-    <div className="flex gap-0.5 rounded-lg bg-stone-100 p-0.5 text-xs">
+    <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
       {GRANULARIDADES.map((g) => (
         <button
           key={g.chave}
           onClick={() => onChange(g.chave)}
-          className={`rounded-md px-2 py-1 font-semibold ${granularidade === g.chave ? 'bg-white shadow-sm' : 'text-stone-500'}`}
+          className={`rounded-md px-2 py-1 font-semibold ${granularidade === g.chave ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
         >
           {g.label}
         </button>

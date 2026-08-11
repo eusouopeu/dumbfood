@@ -14,6 +14,11 @@ import { db } from '../db/db';
 import { adicionarNaGeladeira, limparGeladeira, removerDaGeladeira } from '../db/repo';
 import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from '../lib/geladeira';
 import { capitalizar, nomeItem, formatTempo } from '../lib/format';
+import { confirmar } from '../lib/confirm';
+import { toast } from '../lib/toast';
+import { hapticForte, hapticLeve } from '../lib/haptics';
+import { CardListSkeleton } from '../components/Skeleton';
+import PullToRefresh from '../components/PullToRefresh';
 
 export default function Geladeira() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
@@ -42,13 +47,37 @@ export default function Geladeira() {
     setTexto('');
   }
 
-  if (recipes === undefined || geladeira === undefined) return <p className="text-stone-500">Carregando…</p>;
+  async function esvaziar() {
+    const ok = await confirmar('Esvaziar a geladeira? Todos os itens serão removidos.', {
+      textoConfirmar: 'Esvaziar',
+      perigo: true,
+    });
+    if (ok) {
+      await limparGeladeira();
+      hapticForte();
+      toast('Geladeira esvaziada.');
+    }
+  }
+
+  async function atualizar() {
+    await new Promise((r) => setTimeout(r, 400));
+    toast('Geladeira atualizada.', 'info');
+  }
+
+  if (recipes === undefined || geladeira === undefined)
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">O que tem na geladeira?</h2>
+        <CardListSkeleton linhas={3} />
+      </div>
+    );
 
   return (
+    <PullToRefresh onRefresh={atualizar}>
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-bold">O que tem na geladeira?</h2>
-        <p className="text-sm text-stone-500">
+        <p className="text-sm text-stone-500 dark:text-stone-400">
           Adicione o que você tem em casa e veja quais receitas da sua biblioteca aproveitam melhor.
         </p>
       </div>
@@ -85,7 +114,7 @@ export default function Geladeira() {
             <span className="text-sm font-semibold">
               Na geladeira · {itens.length} {itens.length === 1 ? 'item' : 'itens'}
             </span>
-            <button onClick={() => limparGeladeira()} className="text-xs text-brand-600 underline">
+            <button onClick={esvaziar} className="text-xs text-brand-600 dark:text-brand-400 underline">
               esvaziar
             </button>
           </div>
@@ -93,8 +122,16 @@ export default function Geladeira() {
             {itens.map((g) => (
               <button
                 key={g.itemKey}
-                onClick={() => removerDaGeladeira(g.itemKey)}
+                onClick={async () => {
+                  await removerDaGeladeira(g.itemKey);
+                  hapticLeve();
+                  toast(`${nomeItem(g.nome)} removido.`, 'sucesso', {
+                    rotulo: 'Desfazer',
+                    onClick: () => adicionarNaGeladeira(g.nome),
+                  });
+                }}
                 className="inline-flex items-center gap-1 rounded-full bg-brand-500 px-2.5 py-1 text-xs font-medium text-white"
+                aria-label={`Remover ${nomeItem(g.nome)} da geladeira`}
                 title="Remover"
               >
                 {nomeItem(g.nome)}
@@ -108,7 +145,7 @@ export default function Geladeira() {
       {/* Sugestões a partir da biblioteca */}
       {sugestoes.length > 0 && lista.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-stone-500">
+          <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
             {itens.length === 0 ? 'Comece pelos mais usados nas suas receitas:' : 'Adicionar rápido:'}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -116,7 +153,7 @@ export default function Geladeira() {
               <button
                 key={s.itemKey}
                 onClick={() => adicionar(s.nome)}
-                className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600"
+                className="rounded-full bg-stone-100 dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300"
               >
                 + {nomeItem(s.nome)}
               </button>
@@ -128,16 +165,16 @@ export default function Geladeira() {
       {/* Resultados */}
       {lista.length === 0 ? (
         <div className="card p-6 text-center">
-          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400" />
+          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
           <p className="font-semibold">Sua biblioteca está vazia</p>
-          <p className="mb-4 text-sm text-stone-500">Importe receitas para poder cruzá-las com a geladeira.</p>
+          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Importe receitas para poder cruzá-las com a geladeira.</p>
           <Link to="/importar" className="btn-primary">
             Importar receita
           </Link>
         </div>
       ) : itens.length === 0 ? (
-        <div className="card p-6 text-center text-stone-500">
-          <CubeIcon className="mx-auto mb-1 size-10 text-brand-400" />
+        <div className="card p-6 text-center text-stone-500 dark:text-stone-400">
+          <CubeIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
           <p>Adicione um ingrediente para começar a afunilar as receitas.</p>
         </div>
       ) : (
@@ -146,17 +183,17 @@ export default function Geladeira() {
             <button
               onClick={() => setSoCompletas((v) => !v)}
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                soCompletas ? 'bg-green-600 text-white' : 'bg-stone-100 text-stone-600'
+                soCompletas ? 'bg-green-600 dark:bg-green-700 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
               }`}
             >
               <CheckCircleIcon className="mr-1 inline-block size-4 align-text-bottom" />
               Dá pra fazer agora ({completas})
             </button>
-            <span className="ml-auto text-xs text-stone-400">{visiveis.length} receita(s)</span>
+            <span className="ml-auto text-xs text-stone-400 dark:text-stone-500">{visiveis.length} receita(s)</span>
           </div>
 
           {visiveis.length === 0 ? (
-            <p className="card p-6 text-center text-stone-500">
+            <p className="card p-6 text-center text-stone-500 dark:text-stone-400">
               {soCompletas
                 ? 'Nenhuma receita fecha só com o que você tem. Desligue o filtro para ver as mais próximas.'
                 : 'Nenhuma receita da biblioteca usa esses ingredientes.'}
@@ -173,6 +210,7 @@ export default function Geladeira() {
         </>
       )}
     </div>
+    </PullToRefresh>
   );
 }
 
@@ -184,26 +222,26 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
   return (
     <div className="card overflow-hidden">
       <Link to={`/receita/${c.recipe.id}`} className="flex gap-3 p-3">
-        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100">
+        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 dark:bg-brand-900/40">
           {c.recipe.imagem ? (
             <img src={c.recipe.imagem} alt="" className="h-full w-full object-cover" />
           ) : (
-            <CakeIcon className="size-8 text-brand-500" />
+            <CakeIcon className="size-8 text-brand-500 dark:text-brand-400" />
           )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{capitalizar(c.recipe.titulo)}</p>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-stone-500 dark:text-stone-400">
             {c.total} ingredientes{tempo ? ` · ${tempo}` : ''}
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1">
-            <span className="chip bg-green-100 text-green-800">
+            <span className="chip bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
               usa {c.usados.length} de {totalGeladeira} que você tem
             </span>
             {completa ? (
-              <span className="chip bg-green-600 text-white">dá pra fazer agora</span>
+              <span className="chip bg-green-600 dark:bg-green-700 text-white">dá pra fazer agora</span>
             ) : (
-              <span className="chip bg-amber-100 text-amber-800">
+              <span className="chip bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                 faltam {c.falta.length} {c.falta.length === 1 ? 'ingrediente' : 'ingredientes'}
               </span>
             )}
@@ -212,7 +250,7 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
       </Link>
 
       {/* Barra de cobertura: quanto da receita a geladeira já cobre. */}
-      <div className="mx-3 mb-3 h-1.5 overflow-hidden rounded-full bg-stone-100">
+      <div className="mx-3 mb-3 h-1.5 overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
         <div
           className={completa ? 'h-full bg-green-500' : 'h-full bg-brand-400'}
           style={{ width: `${Math.round(c.cobertura * 100)}%` }}
@@ -223,7 +261,7 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
         <>
           <button
             onClick={() => setAberto((v) => !v)}
-            className="inline-flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium text-brand-600"
+            className="inline-flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium text-brand-600 dark:text-brand-400"
           >
             {aberto ? (
               <>
@@ -238,12 +276,12 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
           {aberto && (
             <div className="space-y-2 px-3 pb-3 text-sm">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Falta comprar</p>
-                <p className="text-stone-600">{c.falta.map((i) => nomeItem(i.item)).join(', ')}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Falta comprar</p>
+                <p className="text-stone-600 dark:text-stone-300">{c.falta.map((i) => nomeItem(i.item)).join(', ')}</p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Você já tem</p>
-                <p className="text-stone-600">{c.tem.map((i) => nomeItem(i.item)).join(', ')}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">Você já tem</p>
+                <p className="text-stone-600 dark:text-stone-300">{c.tem.map((i) => nomeItem(i.item)).join(', ')}</p>
               </div>
             </div>
           )}

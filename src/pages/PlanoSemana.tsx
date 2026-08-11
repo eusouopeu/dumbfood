@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { MinusIcon, PlusIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, MinusIcon, PlusIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
@@ -11,6 +11,9 @@ import { capitalizar, rotuloRendimento } from '../lib/format';
 import { calcularNutricaoTotal } from '../lib/nutrition';
 import { useDieta } from '../lib/diet';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import { toast } from '../lib/toast';
+import { hapticLeve } from '../lib/haptics';
+import { CardListSkeleton } from '../components/Skeleton';
 import type { Ingredient } from '../types';
 
 export default function PlanoSemana() {
@@ -28,9 +31,26 @@ export default function PlanoSemana() {
     return calcularNutricaoTotal(todos);
   }, [recipes, plano]);
 
-  if (!recipes) return <p className="text-stone-500">Carregando…</p>;
+  if (!recipes)
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Semana</h2>
+        <CardListSkeleton />
+      </div>
+    );
 
   const fatorDe = (id: string) => plano.itens.find((i) => i.recipeId === id)?.fator;
+
+  async function alternarNoPlano(id: string, titulo: string, marcado: boolean) {
+    hapticLeve();
+    if (marcado) {
+      await definirNoPlano(id, 1);
+      toast(`${capitalizar(titulo)} adicionada à semana!`);
+    } else {
+      await removerDoPlano(id);
+      toast(`${capitalizar(titulo)} removida da semana.`);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -38,7 +58,7 @@ export default function PlanoSemana() {
         <h2 className="text-xl font-bold">Semana</h2>
         <span className="chip">{plano.itens.length} selecionada(s)</span>
       </div>
-      <p className="text-sm text-stone-500">
+      <p className="text-sm text-stone-500 dark:text-stone-400">
         Marque as receitas da semana e ajuste a quantidade. Depois gere a lista de mercado.
       </p>
 
@@ -53,12 +73,15 @@ export default function PlanoSemana() {
       )}
 
       {recipes.length === 0 ? (
-        <div className="card p-6 text-center text-stone-500">
-          Nenhuma receita.{' '}
-          <Link to="/importar" className="text-brand-600 underline">
-            Importe uma
+        <div className="card p-6 text-center">
+          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
+          <p className="font-semibold">Nenhuma receita ainda</p>
+          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">
+            Importe receitas para montar o plano da semana.
+          </p>
+          <Link to="/importar" className="btn-primary">
+            Importar receita
           </Link>
-          .
         </div>
       ) : (
         <ul className="space-y-2">
@@ -66,19 +89,17 @@ export default function PlanoSemana() {
             const fator = fatorDe(r.id);
             const ativo = fator !== undefined;
             return (
-              <li key={r.id} className={`card p-3 ${ativo ? 'ring-2 ring-brand-300' : ''}`}>
+              <li key={r.id} className={`card p-3 ${ativo ? 'ring-2 ring-brand-300 dark:ring-brand-700' : ''}`}>
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
                     className="h-5 w-5 accent-brand-500"
                     checked={ativo}
-                    onChange={(e) =>
-                      e.target.checked ? definirNoPlano(r.id, 1) : removerDoPlano(r.id)
-                    }
+                    onChange={(e) => alternarNoPlano(r.id, r.titulo, e.target.checked)}
                   />
                   <Link to={`/receita/${r.id}`} className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{capitalizar(r.titulo)}</p>
-                    <p className="text-xs text-stone-500">
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
                       base: {r.rendimentoBase.valor}{' '}
                       {rotuloRendimento(r.rendimentoBase.tipo, r.rendimentoBase.valor)}
                     </p>
@@ -87,7 +108,7 @@ export default function PlanoSemana() {
 
                 {ativo && (
                   <div className="mt-2 flex items-center gap-2 pl-8">
-                    <span className="text-xs text-stone-500">fazer para:</span>
+                    <span className="text-xs text-stone-500 dark:text-stone-400">fazer para:</span>
                     {(() => {
                       const alvo = Math.max(1, Math.round(r.rendimentoBase.valor * (fator ?? 1)));
                       const setAlvo = (v: number) => {
@@ -99,6 +120,7 @@ export default function PlanoSemana() {
                           <button
                             className="btn-outline h-7 w-7 !px-0 text-xs"
                             onClick={() => setAlvo(alvo - 1)}
+                            aria-label={`Diminuir quantidade de ${capitalizar(r.titulo)}`}
                           >
                             <MinusIcon className="mx-auto size-3.5" />
                           </button>
@@ -108,14 +130,16 @@ export default function PlanoSemana() {
                             className="input w-14 py-1 text-center text-sm"
                             value={alvo}
                             onChange={(e) => setAlvo(Number(e.target.value))}
+                            aria-label={`Quantidade de ${capitalizar(r.titulo)}`}
                           />
                           <button
                             className="btn-outline h-7 w-7 !px-0 text-xs"
                             onClick={() => setAlvo(alvo + 1)}
+                            aria-label={`Aumentar quantidade de ${capitalizar(r.titulo)}`}
                           >
                             <PlusIcon className="mx-auto size-3.5" />
                           </button>
-                          <span className="text-xs text-stone-500">
+                          <span className="text-xs text-stone-500 dark:text-stone-400">
                             {rotuloRendimento(r.rendimentoBase.tipo, alvo)}
                           </span>
                         </>

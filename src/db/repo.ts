@@ -48,6 +48,24 @@ export async function definirTags(recipe: Recipe, tags: string[]): Promise<void>
   await db.recipes.put({ ...recipe, tags });
 }
 
+/** Alterna o favorito de uma receita. */
+export async function alternarFavorito(recipe: Recipe): Promise<void> {
+  await db.recipes.put({ ...recipe, favorito: !recipe.favorito });
+}
+
+/** Duplica a receita como uma nova, com título marcado como cópia. */
+export async function duplicarReceita(recipe: Recipe): Promise<Recipe> {
+  const copia: Recipe = {
+    ...recipe,
+    id: novoId(),
+    titulo: `${recipe.titulo} (cópia)`,
+    favorito: false,
+    criadoEm: Date.now(),
+  };
+  await db.recipes.put(copia);
+  return copia;
+}
+
 /** Adiciona tags novas (sem duplicar) à receita. */
 export async function adicionarTags(recipe: Recipe, novas: string[]): Promise<void> {
   await db.recipes.put({ ...recipe, tags: mesclarTags(recipe.tags ?? [], novas) });

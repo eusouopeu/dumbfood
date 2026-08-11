@@ -6,14 +6,39 @@ import {
   ArrowUpTrayIcon,
   BookOpenIcon,
   CakeIcon,
+  CheckCircleIcon,
+  DocumentDuplicateIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
+  ShareIcon,
+  Squares2X2Icon,
+  StarIcon as StarOutlineIcon,
+  TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { salvarReceita, exportarJSON, importarJSON } from '../db/repo';
+import {
+  salvarReceita,
+  exportarJSON,
+  importarJSON,
+  alternarFavorito,
+  duplicarReceita,
+  removerReceita,
+  definirNoPlano,
+} from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { deburr } from '../lib/ingredientParser';
 import { capitalizar, rotuloRendimento, formatTempo } from '../lib/format';
+import { toast } from '../lib/toast';
+import { confirmar } from '../lib/confirm';
+import { hapticForte, hapticLeve } from '../lib/haptics';
+import { useLongPress } from '../lib/useLongPress';
+import { CardListSkeleton } from '../components/Skeleton';
+import Highlight from '../components/Highlight';
+import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
+import PullToRefresh from '../components/PullToRefresh';
 import type { Recipe } from '../types';
 
 type Ordem = 'recentes' | 'ingredientes' | 'tempo';
@@ -29,6 +54,13 @@ export default function Receitas() {
   const [tagsSel, setTagsSel] = useState<Set<string>>(new Set());
   const [modoTag, setModoTag] = useState<ModoTag>('ou');
   const [ordem, setOrdem] = useState<Ordem>('recentes');
+  const [soFavoritas, setSoFavoritas] = useState(false);
+  const [menuAberto, setMenuAberto] = useState<Recipe | null>(null);
+
+  // Modo de seleção múltipla: some com o filtro de tags e busca só por simplicidade
+  // de interação (evita selecionar itens que já saíram de vista).
+  const [selecionando, setSelecionando] = useState(false);
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
 
   const todasTags = useMemo(() => {
     const s = new Set<string>();
@@ -38,6 +70,8 @@ export default function Receitas() {
 
   const filtradas = useMemo(() => {
     let lista = [...(recipes ?? [])];
+
+    if (soFavoritas) lista = lista.filter((r) => r.favorito);
 
     // Busca textual (título, ingredientes, tags).
     const q = deburr(busca).toLowerCase().trim();
@@ -74,7 +108,7 @@ export default function Receitas() {
       });
     }
     return lista;
-  }, [recipes, busca, tagsSel, modoTag, ordem]);
+  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas]);
 
   function toggleTag(tag: string) {
     setTagsSel((prev) => {
@@ -82,6 +116,38 @@ export default function Receitas() {
       next.has(tag) ? next.delete(tag) : next.add(tag);
       return next;
     });
+  }
+
+  function toggleSelecionada(id: string) {
+    hapticLeve();
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function sairDaSelecao() {
+    setSelecionando(false);
+    setSelecionadas(new Set());
+  }
+
+  async function adicionarSelecionadasNaSemana() {
+    for (const id of selecionadas) await definirNoPlano(id, 1);
+    toast(`${selecionadas.size} receita(s) adicionada(s) à semana!`);
+    sairDaSelecao();
+  }
+
+  async function excluirSelecionadas() {
+    const ok = await confirmar(`Excluir ${selecionadas.size} receita(s)? Essa ação não pode ser desfeita.`, {
+      textoConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
+    for (const id of selecionadas) await removerReceita(id);
+    hapticForte();
+    toast(`${selecionadas.size} receita(s) excluída(s).`);
+    sairDaSelecao();
   }
 
   async function adicionarExemplos() {
@@ -101,159 +167,336 @@ export default function Receitas() {
     const texto = await file.text();
     try {
       const { recipes: n } = await importarJSON(texto);
-      alert(`Backup importado: ${n} receita(s).`);
+      toast(`Backup importado: ${n} receita(s).`);
     } catch (e) {
-      alert(`Erro ao importar: ${(e as Error).message}`);
+      toast(`Erro ao importar: ${(e as Error).message}`, 'erro');
     }
   }
 
-  if (recipes === undefined) return <p className="text-stone-500">Carregando…</p>;
+  async function compartilhar(r: Recipe) {
+    const texto = `${capitalizar(r.titulo)}\n\n${r.ingredientes.map((i) => `- ${i.raw}`).join('\n')}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: r.titulo, text: texto });
+      } catch {
+        // Usuário cancelou o share nativo — nada a fazer.
+      }
+    } else {
+      await navigator.clipboard.writeText(texto);
+      toast('Receita copiada para a área de transferência.');
+    }
+  }
+
+  function acoesDoMenu(r: Recipe): AcaoSheet[] {
+    return [
+      {
+        rotulo: r.favorito ? 'Remover dos favoritos' : 'Favoritar',
+        icone: r.favorito ? StarSolidIcon : StarOutlineIcon,
+        onClick: () => alternarFavorito(r),
+      },
+      {
+        rotulo: 'Duplicar',
+        icone: DocumentDuplicateIcon,
+        onClick: async () => {
+          await duplicarReceita(r);
+          toast('Receita duplicada.');
+        },
+      },
+      { rotulo: 'Compartilhar', icone: ShareIcon, onClick: () => compartilhar(r) },
+      {
+        rotulo: 'Excluir',
+        icone: TrashIcon,
+        destrutiva: true,
+        onClick: async () => {
+          const ok = await confirmar(`Excluir "${capitalizar(r.titulo)}"? Essa ação não pode ser desfeita.`, {
+            textoConfirmar: 'Excluir',
+            perigo: true,
+          });
+          if (ok) {
+            await removerReceita(r.id);
+            hapticForte();
+            toast('Receita excluída.');
+          }
+        },
+      },
+    ];
+  }
+
+  async function atualizar() {
+    await new Promise((r) => setTimeout(r, 400));
+    toast('Receitas atualizadas.', 'info');
+  }
+
+  if (recipes === undefined)
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Minhas receitas</h2>
+        </div>
+        <CardListSkeleton />
+      </div>
+    );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Minhas receitas</h2>
-        <Link to="/importar" className="btn-primary">
-          + Nova
-        </Link>
-      </div>
-
-      {recipes.length === 0 ? (
-        <div className="card p-6 text-center">
-          <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400" />
-          <p className="font-semibold">Nenhuma receita ainda</p>
-          <p className="mb-4 text-sm text-stone-500">Importe de um site ou cole os ingredientes.</p>
-          <div className="flex flex-col gap-2">
-            <Link to="/importar" className="btn-primary">
-              Importar receita
-            </Link>
-            <button onClick={adicionarExemplos} className="btn-ghost">
-              Adicionar receitas de exemplo
+    <PullToRefresh onRefresh={atualizar}>
+      <div className="space-y-4 pb-16">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Minhas receitas</h2>
+          {recipes.length > 0 && !selecionando && (
+            <button onClick={() => setSelecionando(true)} className="btn-ghost h-8 py-0 text-xs">
+              <Squares2X2Icon className="size-4" /> Selecionar
             </button>
-          </div>
+          )}
         </div>
-      ) : (
-        <>
-          {/* Busca */}
-          <div className="relative">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+
+        {recipes.length === 0 ? (
+          <div className="card p-6 text-center">
+            <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
+            <p className="font-semibold">Nenhuma receita ainda</p>
+            <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Importe de um site ou cole os ingredientes.</p>
+            <div className="flex flex-col gap-2">
+              <Link to="/importar" className="btn-primary">
+                Importar receita
+              </Link>
+              <button onClick={adicionarExemplos} className="btn-ghost">
+                Adicionar receitas de exemplo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Busca */}
+            <div className="relative">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
+              <input
+                className="input pl-9"
+                placeholder="Buscar por nome, ingrediente ou tag…"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+              />
+            </div>
+
+            {/* Favoritas */}
+            <button
+              onClick={() => setSoFavoritas((v) => !v)}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                soFavoritas ? 'bg-amber-400 text-amber-950' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
+              }`}
+            >
+              {soFavoritas ? <StarSolidIcon className="size-3.5" /> : <StarOutlineIcon className="size-3.5" />}
+              Favoritas
+            </button>
+
+            {/* Filtro de tags */}
+            {todasTags.length > 0 && (
+              <div className="card space-y-2 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Filtrar por tags</span>
+                  {tagsSel.size > 1 && (
+                    <div className="flex gap-1 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
+                      <button
+                        onClick={() => setModoTag('ou')}
+                        className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'ou' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
+                      >
+                        qualquer (ou)
+                      </button>
+                      <button
+                        onClick={() => setModoTag('e')}
+                        className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'e' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
+                      >
+                        todas (e)
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {todasTags.map((t) => {
+                    const sel = tagsSel.has(t);
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => toggleTag(t)}
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          sel ? 'bg-brand-500 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                  {tagsSel.size > 0 && (
+                    <button onClick={() => setTagsSel(new Set())} className="px-2 py-1 text-xs text-brand-600 dark:text-brand-400 underline">
+                      limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Ordenação */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-stone-500 dark:text-stone-400">Ordenar:</span>
+              <select className="input py-1" value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}>
+                <option value="recentes">Mais recentes</option>
+                <option value="ingredientes">Nº de ingredientes</option>
+                <option value="tempo">Tempo de preparo</option>
+              </select>
+              <span className="ml-auto text-xs text-stone-400 dark:text-stone-500">{filtradas.length} receita(s)</span>
+            </div>
+
+            {filtradas.length === 0 ? (
+              <p className="card p-6 text-center text-stone-500 dark:text-stone-400">Nenhuma receita corresponde ao filtro.</p>
+            ) : (
+              <ul className="space-y-3">
+                {filtradas.map((r) => (
+                  <li key={r.id}>
+                    <CardReceita
+                      recipe={r}
+                      naSemana={noPlano.has(r.id)}
+                      busca={busca}
+                      selecionando={selecionando}
+                      selecionada={selecionadas.has(r.id)}
+                      onToggleSelecionar={() => toggleSelecionada(r.id)}
+                      onAbrirMenu={() => setMenuAberto(r)}
+                      onToggleFavorito={() => {
+                        hapticLeve();
+                        alternarFavorito(r);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        {!selecionando && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button onClick={baixarBackup} className="btn-outline">
+              <ArrowDownTrayIcon className="size-4" /> Exportar
+            </button>
+            <button onClick={() => fileRef.current?.click()} className="btn-outline">
+              <ArrowUpTrayIcon className="size-4" /> Importar backup
+            </button>
             <input
-              className="input pl-9"
-              placeholder="Buscar por nome, ingrediente ou tag…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && restaurarBackup(e.target.files[0])}
             />
           </div>
+        )}
 
-          {/* Filtro de tags */}
-          {todasTags.length > 0 && (
-            <div className="card space-y-2 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">Filtrar por tags</span>
-                {tagsSel.size > 1 && (
-                  <div className="flex gap-1 rounded-lg bg-stone-100 p-0.5 text-xs">
-                    <button
-                      onClick={() => setModoTag('ou')}
-                      className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'ou' ? 'bg-white shadow-sm' : 'text-stone-500'}`}
-                    >
-                      qualquer (ou)
-                    </button>
-                    <button
-                      onClick={() => setModoTag('e')}
-                      className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'e' ? 'bg-white shadow-sm' : 'text-stone-500'}`}
-                    >
-                      todas (e)
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {todasTags.map((t) => {
-                  const sel = tagsSel.has(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => toggleTag(t)}
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        sel ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
-                {tagsSel.size > 0 && (
-                  <button onClick={() => setTagsSel(new Set())} className="px-2 py-1 text-xs text-brand-600 underline">
-                    limpar
-                  </button>
-                )}
-              </div>
+        {/* FAB: acesso rápido a "Nova receita" mesmo com a lista rolada. */}
+        {!selecionando && (
+          <Link
+            to="/importar"
+            aria-label="Nova receita"
+            className="fixed bottom-24 right-4 z-20 flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600 active:scale-95"
+          >
+            <PlusIcon className="size-7" />
+          </Link>
+        )}
+
+        {/* Barra de ações do modo de seleção múltipla */}
+        {selecionando && (
+          <div className="fixed inset-x-0 bottom-16 z-20 mx-auto flex max-w-2xl items-center gap-2 border-t border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-800">
+            <button onClick={sairDaSelecao} aria-label="Cancelar seleção" className="rounded-full p-2 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-700">
+              <XMarkIcon className="size-5" />
+            </button>
+            <span className="text-sm font-semibold">{selecionadas.size} selecionada(s)</span>
+            <div className="ml-auto flex gap-2">
+              <button
+                onClick={adicionarSelecionadasNaSemana}
+                disabled={selecionadas.size === 0}
+                className="btn-primary h-9 py-0 text-xs"
+              >
+                <CheckCircleIcon className="size-4" /> Add. à semana
+              </button>
+              <button
+                onClick={excluirSelecionadas}
+                disabled={selecionadas.size === 0}
+                className="btn-outline h-9 py-0 text-xs text-red-600 dark:text-red-400"
+              >
+                <TrashIcon className="size-4" /> Excluir
+              </button>
             </div>
-          )}
-
-          {/* Ordenação */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-stone-500">Ordenar:</span>
-            <select className="input py-1" value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}>
-              <option value="recentes">Mais recentes</option>
-              <option value="ingredientes">Nº de ingredientes</option>
-              <option value="tempo">Tempo de preparo</option>
-            </select>
-            <span className="ml-auto text-xs text-stone-400">{filtradas.length} receita(s)</span>
           </div>
+        )}
 
-          {filtradas.length === 0 ? (
-            <p className="card p-6 text-center text-stone-500">Nenhuma receita corresponde ao filtro.</p>
-          ) : (
-            <ul className="space-y-3">
-              {filtradas.map((r) => (
-                <li key={r.id}>
-                  <CardReceita recipe={r} naSemana={noPlano.has(r.id)} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-
-      <div className="flex flex-wrap gap-2 pt-2">
-        <button onClick={baixarBackup} className="btn-outline">
-          <ArrowDownTrayIcon className="size-4" /> Exportar
-        </button>
-        <button onClick={() => fileRef.current?.click()} className="btn-outline">
-          <ArrowUpTrayIcon className="size-4" /> Importar backup
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && restaurarBackup(e.target.files[0])}
-        />
+        {menuAberto && (
+          <ActionSheet
+            titulo={capitalizar(menuAberto.titulo)}
+            acoes={acoesDoMenu(menuAberto)}
+            onFechar={() => setMenuAberto(null)}
+          />
+        )}
       </div>
-    </div>
+    </PullToRefresh>
   );
 }
 
-function CardReceita({ recipe: r, naSemana }: { recipe: Recipe; naSemana: boolean }) {
+function CardReceita({
+  recipe: r,
+  naSemana,
+  busca,
+  selecionando,
+  selecionada,
+  onToggleSelecionar,
+  onAbrirMenu,
+  onToggleFavorito,
+}: {
+  recipe: Recipe;
+  naSemana: boolean;
+  busca: string;
+  selecionando: boolean;
+  selecionada: boolean;
+  onToggleSelecionar: () => void;
+  onAbrirMenu: () => void;
+  onToggleFavorito: () => void;
+}) {
   const tempo = formatTempo(r.tempoPreparoMin);
+  const longPress = useLongPress(onAbrirMenu);
+
   return (
-    <Link to={`/receita/${r.id}`} className="card flex gap-3 p-3">
-      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100">
+    <Link
+      to={selecionando ? '#' : `/receita/${r.id}`}
+      onClick={(e) => {
+        longPress.onClickCapture(e);
+        if (selecionando) {
+          e.preventDefault();
+          onToggleSelecionar();
+        }
+      }}
+      onPointerDown={longPress.onPointerDown}
+      onPointerMove={longPress.onPointerMove}
+      onPointerUp={longPress.onPointerUp}
+      onPointerLeave={longPress.onPointerLeave}
+      className={`card relative flex gap-3 p-3 ${selecionada ? 'ring-2 ring-brand-400' : ''}`}
+    >
+      {selecionando && (
+        <div className="flex items-center">
+          <input type="checkbox" readOnly checked={selecionada} className="h-5 w-5 accent-brand-500" />
+        </div>
+      )}
+      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 dark:bg-brand-900/40">
         {r.imagem ? (
           <img src={r.imagem} alt="" className="h-full w-full object-cover" />
         ) : (
-          <CakeIcon className="size-8 text-brand-500" />
+          <CakeIcon className="size-8 text-brand-500 dark:text-brand-400" />
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{capitalizar(r.titulo)}</p>
-        <p className="text-sm text-stone-500">
+        <p className="truncate pr-6 font-semibold">
+          <Highlight texto={capitalizar(r.titulo)} termo={busca} />
+        </p>
+        <p className="text-sm text-stone-500 dark:text-stone-400">
           {r.rendimentoBase.valor} {rotuloRendimento(r.rendimentoBase.tipo, r.rendimentoBase.valor)} ·{' '}
           {r.ingredientes.length} ingredientes{tempo ? ` · ${tempo}` : ''}
         </p>
         <div className="mt-1 flex flex-wrap gap-1">
-          {naSemana && <span className="chip bg-brand-100 text-brand-700">na semana</span>}
+          {naSemana && <span className="chip bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300">na semana</span>}
           {(r.tags ?? []).map((t) => (
             <span key={t} className="chip">
               {t}
@@ -261,6 +504,19 @@ function CardReceita({ recipe: r, naSemana }: { recipe: Recipe; naSemana: boolea
           ))}
         </div>
       </div>
+      {!selecionando && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavorito();
+          }}
+          aria-label={r.favorito ? `Remover ${capitalizar(r.titulo)} dos favoritos` : `Favoritar ${capitalizar(r.titulo)}`}
+          className="absolute right-2 top-2 rounded-full p-1 text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-700"
+        >
+          {r.favorito ? <StarSolidIcon className="size-5" /> : <StarOutlineIcon className="size-5 text-stone-300 dark:text-stone-600" />}
+        </button>
+      )}
     </Link>
   );
 }
