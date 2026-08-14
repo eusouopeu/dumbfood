@@ -24,6 +24,7 @@ import { parseArquivoPrecos, custoLinha, buscarPreco, formatBRL } from '../lib/p
 import { PRECOS_BASE } from '../lib/precosBase';
 import { importarPrecos, salvarCompra, novoId } from '../db/repo';
 import { useDieta } from '../lib/diet';
+import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
@@ -86,6 +87,9 @@ export default function ListaMercado() {
   const [novoExtraTexto, setNovoExtraTexto] = useState('');
   const [valorReal, setValorReal] = useState('');
   const [dieta, setDieta] = useDieta();
+  const [orcamento, setOrcamento] = useOrcamento();
+  const [orcamentoTexto, setOrcamentoTexto] = useState('');
+  const [editandoOrcamento, setEditandoOrcamento] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -169,6 +173,18 @@ export default function ListaMercado() {
   const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
   const pesoTotal = pesoTotalKg(sectionsComExtras);
   const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s, v) => s + (v.valor ?? 0), 0);
+  const statusOrc = orcamento !== null ? statusOrcamento(valorEstimadoTotal, orcamento) : null;
+
+  function definirOrcamento() {
+    const n = Number(orcamentoTexto.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) {
+      toast('Informe um valor válido.', 'erro');
+      return;
+    }
+    setOrcamento(n);
+    setOrcamentoTexto('');
+    setEditandoOrcamento(false);
+  }
 
   function toggle(key: string) {
     hapticLeve();
@@ -267,6 +283,75 @@ export default function ListaMercado() {
           <SeletorDieta dieta={dieta} onChange={setDieta} />
         </div>
         <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
+      </div>
+
+      <div className="card space-y-2 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="section-heading text-sm">Orçamento da semana</h3>
+          {orcamento !== null && !editandoOrcamento && (
+            <div className="flex gap-2 text-xs">
+              <button
+                onClick={() => {
+                  setOrcamentoTexto(String(orcamento));
+                  setEditandoOrcamento(true);
+                }}
+                className="text-brand-600 dark:text-brand-400 underline"
+              >
+                editar
+              </button>
+              <button onClick={() => setOrcamento(null)} className="text-brand-600 dark:text-brand-400 underline">
+                remover
+              </button>
+            </div>
+          )}
+        </div>
+
+        {orcamento === null || editandoOrcamento ? (
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              definirOrcamento();
+            }}
+          >
+            <input
+              type="text"
+              inputMode="decimal"
+              className="input"
+              placeholder="Ex.: 250 (R$)"
+              value={orcamentoTexto}
+              onChange={(e) => setOrcamentoTexto(e.target.value)}
+              autoFocus={editandoOrcamento}
+            />
+            <button type="submit" className="btn-outline flex-shrink-0">
+              Definir
+            </button>
+          </form>
+        ) : (
+          <>
+            <div className="h-2 overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
+              <div
+                className={
+                  statusOrc === 'estourado' ? 'h-full bg-red-500' : statusOrc === 'perto' ? 'h-full bg-amber-500' : 'h-full bg-green-500'
+                }
+                style={{ width: `${Math.min(100, Math.round((valorEstimadoTotal / orcamento) * 100))}%` }}
+              />
+            </div>
+            <p
+              className={`text-sm ${
+                statusOrc === 'estourado'
+                  ? 'font-semibold text-red-600 dark:text-red-400'
+                  : statusOrc === 'perto'
+                    ? 'font-semibold text-amber-600 dark:text-amber-400'
+                    : 'text-stone-500 dark:text-stone-400'
+              }`}
+            >
+              {formatBRL(valorEstimadoTotal)} de {formatBRL(orcamento)} ({Math.round((valorEstimadoTotal / orcamento) * 100)}%)
+              {statusOrc === 'estourado' && ' — orçamento estourado'}
+              {statusOrc === 'perto' && ' — perto do limite'}
+            </p>
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">

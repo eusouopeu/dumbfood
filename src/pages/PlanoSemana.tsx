@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpenIcon, MinusIcon, PlusIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
+import { BellAlertIcon, BookOpenIcon, MinusIcon, PlusIcon, ShoppingCartIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
@@ -10,16 +10,40 @@ import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
 import { calcularNutricaoTotal } from '../lib/nutrition';
 import { useDieta } from '../lib/diet';
+import { useLembreteCompras } from '../lib/lembretes';
+import { agendarLembreteSemanal, notificacoesNativasDisponiveis, pedirPermissaoNotificacoes } from '../lib/notifications';
+import { sugerirReceitasParaPlano } from '../lib/autoPlano';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
 import type { Ingredient } from '../types';
 
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
+  const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const plano = usePlano();
   const [dieta, setDieta] = useDieta();
+  const [lembreteCompras, setLembreteCompras] = useLembreteCompras();
+  const [alvoAuto, setAlvoAuto] = useState(5);
+
+  useEffect(() => {
+    if (notificacoesNativasDisponiveis()) agendarLembreteSemanal(lembreteCompras);
+  }, [lembreteCompras]);
+
+  async function alternarLembreteCompras(ativo: boolean) {
+    if (ativo) {
+      const concedida = await pedirPermissaoNotificacoes();
+      if (!concedida) {
+        toast('Permissão de notificação negada.', 'erro');
+        return;
+      }
+    }
+    setLembreteCompras({ ...lembreteCompras, ativo });
+    hapticLeve();
+  }
 
   const nutriTotal = useMemo(() => {
     if (!recipes) return calcularNutricaoTotal([]);
@@ -52,6 +76,24 @@ export default function PlanoSemana() {
     }
   }
 
+  /** Completa o plano até `alvoAuto` receitas: prioriza favoritos e o que a geladeira já cobre. */
+  async function montarSemanaAutomaticamente() {
+    const jaSelecionadas = new Set(plano.itens.map((i) => i.recipeId));
+    const faltam = alvoAuto - jaSelecionadas.size;
+    if (faltam <= 0) {
+      toast('O plano já tem essa quantidade de receitas ou mais.', 'info');
+      return;
+    }
+    const sugeridas = sugerirReceitasParaPlano(recipes ?? [], geladeira ?? [], jaSelecionadas, faltam);
+    if (sugeridas.length === 0) {
+      toast('Nenhuma receita nova para sugerir.', 'erro');
+      return;
+    }
+    for (const r of sugeridas) await definirNoPlano(r.id, 1);
+    hapticLeve();
+    toast(`${sugeridas.length} receita(s) adicionada(s) à semana.`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -61,6 +103,62 @@ export default function PlanoSemana() {
       <p className="text-sm text-stone-500 dark:text-stone-400">
         Marque as receitas da semana e ajuste a quantidade. Depois gere a lista de mercado.
       </p>
+
+      {recipes.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-2 p-3">
+          <button onClick={montarSemanaAutomaticamente} className="btn-outline">
+            <SparklesIcon className="size-4" /> Montar semana automaticamente
+          </button>
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            até
+            <input
+              type="number"
+              min={1}
+              max={recipes.length}
+              className="input w-14 py-1 text-center text-sm"
+              value={alvoAuto}
+              onChange={(e) => setAlvoAuto(Math.max(1, Number(e.target.value)))}
+            />
+            receitas
+          </label>
+        </div>
+      )}
+
+      {notificacoesNativasDisponiveis() && (
+        <div className="card space-y-2 p-3 text-sm">
+          <label className="flex items-center gap-3">
+            <BellAlertIcon className="size-5 flex-shrink-0 text-brand-500" />
+            <span className="flex-1 font-medium">Lembrete semanal de compras</span>
+            <input
+              type="checkbox"
+              className="h-5 w-5 flex-shrink-0 accent-brand-500"
+              checked={lembreteCompras.ativo}
+              onChange={(e) => alternarLembreteCompras(e.target.checked)}
+            />
+          </label>
+          {lembreteCompras.ativo && (
+            <div className="flex items-center gap-2 pl-8 text-xs text-stone-500 dark:text-stone-400">
+              <select
+                className="input py-1 text-xs"
+                value={lembreteCompras.diaSemana}
+                onChange={(e) => setLembreteCompras({ ...lembreteCompras, diaSemana: Number(e.target.value) })}
+              >
+                {DIAS_SEMANA.map((d, i) => (
+                  <option key={d} value={i}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="time"
+                className="input py-1 text-xs"
+                value={lembreteCompras.hora}
+                onChange={(e) => setLembreteCompras({ ...lembreteCompras, hora: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {plano.itens.length > 0 && (
         <div className="card p-4">

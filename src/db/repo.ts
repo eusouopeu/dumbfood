@@ -155,16 +155,24 @@ export async function removerCompra(id: string): Promise<void> {
 /**
  * Adiciona um ingrediente à geladeira. Passa pelo mesmo parser das receitas, então
  * o usuário pode digitar do jeito que pensa ("2 cebolas grandes") que só o nome fica.
+ * `validade`, quando informada, é a data (timestamp) em que o item vence.
  */
-export async function adicionarNaGeladeira(nomeBruto: string): Promise<void> {
+export async function adicionarNaGeladeira(nomeBruto: string, validade?: number): Promise<void> {
   const nome = parseIngredient(nomeBruto)?.item ?? '';
   const itemKey = normalizeItemKey(nome);
   if (!itemKey) return;
-  await db.geladeira.put({ itemKey, nome, adicionadoEm: Date.now() });
+  await db.geladeira.put({ itemKey, nome, adicionadoEm: Date.now(), validade });
 }
 
 export async function removerDaGeladeira(itemKey: string): Promise<void> {
   await db.geladeira.delete(itemKey);
+}
+
+/** Define (ou limpa, passando undefined) a validade de um item já na geladeira. */
+export async function definirValidadeGeladeira(itemKey: string, validade: number | undefined): Promise<void> {
+  const item = await db.geladeira.get(itemKey);
+  if (!item) return;
+  await db.geladeira.put({ ...item, validade });
 }
 
 export async function limparGeladeira(): Promise<void> {

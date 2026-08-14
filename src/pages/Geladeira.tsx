@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  BellAlertIcon,
   BookOpenIcon,
   CakeIcon,
+  CalendarDaysIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -11,25 +13,59 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
-import { adicionarNaGeladeira, limparGeladeira, removerDaGeladeira } from '../db/repo';
+import { adicionarNaGeladeira, definirValidadeGeladeira, limparGeladeira, removerDaGeladeira } from '../db/repo';
 import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from '../lib/geladeira';
+import { sugerirSubstitutosParaItem } from '../lib/substitutions';
+import { statusValidade, rotuloValidade } from '../lib/validade';
+import { useLembreteValidade } from '../lib/lembretes';
+import {
+  agendarLembretesValidade,
+  cancelarLembretesValidade,
+  notificacoesNativasDisponiveis,
+  pedirPermissaoNotificacoes,
+} from '../lib/notifications';
 import { capitalizar, nomeItem, formatTempo } from '../lib/format';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
 import { hapticForte, hapticLeve } from '../lib/haptics';
+import { useLongPress } from '../lib/useLongPress';
 import { CardListSkeleton } from '../components/Skeleton';
 import PullToRefresh from '../components/PullToRefresh';
+import type { GeladeiraItem } from '../types';
+
+/** Classes de cor do chip conforme a proximidade da validade. */
+const ESTILO_VALIDADE: Record<string, string> = {
+  vencido: 'bg-red-600 dark:bg-red-700',
+  vence_hoje: 'bg-amber-500 dark:bg-amber-600',
+  proximo: 'bg-amber-500 dark:bg-amber-600',
+  ok: 'bg-brand-500',
+};
 
 export default function Geladeira() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
   const geladeira = useLiveQuery(() => db.geladeira.orderBy('adicionadoEm').toArray(), []);
 
   const [texto, setTexto] = useState('');
+  const [validadeTexto, setValidadeTexto] = useState('');
+  const [editandoValidade, setEditandoValidade] = useState<string | null>(null);
   /** Esconde receitas que ainda precisam de compras. */
   const [soCompletas, setSoCompletas] = useState(false);
+  const [lembreteValidade, setLembreteValidade] = useLembreteValidade();
 
-  const itens = geladeira ?? [];
+  const itensBrutos = geladeira ?? [];
   const lista = recipes ?? [];
+
+  // Itens com validade mais próxima aparecem primeiro — é o que precisa de atenção agora.
+  const itens = useMemo(
+    () =>
+      [...itensBrutos].sort((a, b) => {
+        if (a.validade && b.validade) return a.validade - b.validade;
+        if (a.validade) return -1;
+        if (b.validade) return 1;
+        return a.adicionadoEm - b.adicionadoEm;
+      }),
+    [itensBrutos],
+  );
 
   const sugestoes = useMemo(() => sugestoesDeIngredientes(lista, itens), [lista, itens]);
 
@@ -42,9 +78,38 @@ export default function Geladeira() {
   const visiveis = soCompletas ? combinadas.filter((c) => c.falta.length === 0) : combinadas;
   const completas = combinadas.filter((c) => c.falta.length === 0).length;
 
-  async function adicionar(nome: string) {
-    await adicionarNaGeladeira(nome);
+  // Reagenda as notificações nativas sempre que a geladeira muda, enquanto o
+  // lembrete estiver ligado. No PWA/web isso é no-op (ver notifications.ts).
+  useEffect(() => {
+    if (!lembreteValidade) return;
+    agendarLembretesValidade(itens);
+  }, [lembreteValidade, itens]);
+
+  async function alternarLembreteValidade(ligar: boolean) {
+    if (ligar && notificacoesNativasDisponiveis()) {
+      const concedida = await pedirPermissaoNotificacoes();
+      if (!concedida) {
+        toast('Permissão de notificação negada.', 'erro');
+        return;
+      }
+    }
+    if (!ligar) await cancelarLembretesValidade();
+    setLembreteValidade(ligar);
+    hapticLeve();
+  }
+
+  async function adicionar(nome: string, validade?: string) {
+    const ts = validade ? new Date(`${validade}T00:00:00`).getTime() : undefined;
+    await adicionarNaGeladeira(nome, ts);
     setTexto('');
+    setValidadeTexto('');
+  }
+
+  async function salvarValidade(itemKey: string, valor: string) {
+    const ts = valor ? new Date(`${valor}T00:00:00`).getTime() : undefined;
+    await definirValidadeGeladeira(itemKey, ts);
+    setEditandoValidade(null);
+    toast(ts ? 'Validade atualizada.' : 'Validade removida.');
   }
 
   async function esvaziar() {
@@ -82,20 +147,46 @@ export default function Geladeira() {
         </p>
       </div>
 
+      <label className="card flex items-center gap-3 p-3 text-sm">
+        <BellAlertIcon className="size-5 flex-shrink-0 text-brand-500" />
+        <span className="flex-1">
+          <span className="block font-medium">Avisar quando algo estiver vencendo</span>
+          <span className="block text-xs text-stone-500 dark:text-stone-400">
+            {notificacoesNativasDisponiveis()
+              ? 'Notificação 3 dias antes da validade.'
+              : 'Aviso ao abrir o app (sem notificação do sistema no navegador).'}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          className="h-5 w-5 flex-shrink-0 accent-brand-500"
+          checked={lembreteValidade}
+          onChange={(e) => alternarLembreteValidade(e.target.checked)}
+        />
+      </label>
+
       {/* Entrada de ingredientes */}
       <form
-        className="flex gap-2"
+        className="flex flex-wrap gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (texto.trim()) adicionar(texto);
+          if (texto.trim()) adicionar(texto, validadeTexto);
         }}
       >
         <input
-          className="input"
+          className="input min-w-[8rem] flex-1"
           placeholder="Ex.: ovos, cebola, frango…"
           list="ingredientes-biblioteca"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
+        />
+        <input
+          type="date"
+          className="input w-[9.5rem] shrink-0 text-sm"
+          value={validadeTexto}
+          onChange={(e) => setValidadeTexto(e.target.value)}
+          aria-label="Validade (opcional)"
+          title="Validade (opcional)"
         />
         <datalist id="ingredientes-biblioteca">
           {sugestoes.map((s) => (
@@ -120,26 +211,19 @@ export default function Geladeira() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {itens.map((g) => (
-              <button
-                key={g.itemKey}
-                onClick={async () => {
-                  await removerDaGeladeira(g.itemKey);
-                  hapticLeve();
-                  toast(`${nomeItem(g.nome)} removido.`, 'sucesso', {
-                    rotulo: 'Desfazer',
-                    onClick: () => adicionarNaGeladeira(g.nome),
-                  });
-                }}
-                className="inline-flex items-center gap-1 rounded-full bg-brand-500 px-2.5 py-1 text-xs font-medium text-white"
-                aria-label={`Remover ${nomeItem(g.nome)} da geladeira`}
-                title="Remover"
-              >
-                {nomeItem(g.nome)}
-                <XMarkIcon className="size-3.5 text-white/70" />
-              </button>
+              <ChipGeladeira key={g.itemKey} item={g} onEditarValidade={() => setEditandoValidade(g.itemKey)} />
             ))}
           </div>
+          <p className="text-xs text-stone-400 dark:text-stone-500">Toque para remover · toque e segure para definir validade.</p>
         </div>
+      )}
+
+      {editandoValidade && (
+        <EditorValidade
+          item={itens.find((i) => i.itemKey === editandoValidade)!}
+          onSalvar={(valor) => salvarValidade(editandoValidade, valor)}
+          onFechar={() => setEditandoValidade(null)}
+        />
       )}
 
       {/* Sugestões a partir da biblioteca */}
@@ -214,6 +298,82 @@ export default function Geladeira() {
   );
 }
 
+/** Chip de um item da geladeira: toque remove, toque longo abre o editor de validade. */
+function ChipGeladeira({ item: g, onEditarValidade }: { item: GeladeiraItem; onEditarValidade: () => void }) {
+  const longPress = useLongPress(onEditarValidade);
+  const status = g.validade ? statusValidade(g.validade) : null;
+  const cor = status ? ESTILO_VALIDADE[status] : 'bg-brand-500';
+
+  return (
+    <button
+      onPointerDown={longPress.onPointerDown}
+      onPointerMove={longPress.onPointerMove}
+      onPointerUp={longPress.onPointerUp}
+      onPointerLeave={longPress.onPointerLeave}
+      onClick={async (e) => {
+        longPress.onClickCapture(e);
+        if (e.defaultPrevented) return;
+        await removerDaGeladeira(g.itemKey);
+        hapticLeve();
+        toast(`${nomeItem(g.nome)} removido.`, 'sucesso', {
+          rotulo: 'Desfazer',
+          onClick: () => adicionarNaGeladeira(g.nome, g.validade),
+        });
+      }}
+      className={`inline-flex items-center gap-1 rounded-full ${cor} px-2.5 py-1 text-xs font-medium text-white`}
+      aria-label={`${nomeItem(g.nome)}${g.validade ? `, ${rotuloValidade(g.validade)}` : ''}. Toque para remover, toque e segure para definir validade.`}
+      title={g.validade ? rotuloValidade(g.validade) : 'Remover · toque e segure para definir validade'}
+    >
+      {nomeItem(g.nome)}
+      {g.validade && <CalendarDaysIcon className="size-3.5 text-white/80" />}
+      <XMarkIcon className="size-3.5 text-white/70" />
+    </button>
+  );
+}
+
+function EditorValidade({
+  item,
+  onSalvar,
+  onFechar,
+}: {
+  item: GeladeiraItem;
+  onSalvar: (valor: string) => void;
+  onFechar: () => void;
+}) {
+  const [valor, setValor] = useState(() => (item.validade ? new Date(item.validade).toISOString().slice(0, 10) : ''));
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-stone-900/50" onClick={onFechar}>
+      <div
+        className="w-full max-w-2xl space-y-3 rounded-t-2xl bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl dark:bg-stone-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm font-semibold">Validade de {nomeItem(item.nome)}</p>
+        <input
+          type="date"
+          className="input w-full"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button onClick={() => onSalvar(valor)} className="btn-primary flex-1">
+            Salvar
+          </button>
+          {item.validade && (
+            <button onClick={() => onSalvar('')} className="btn-outline">
+              Remover validade
+            </button>
+          )}
+          <button onClick={onFechar} className="btn-outline">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCombinada; totalGeladeira: number }) {
   const [aberto, setAberto] = useState(false);
   const tempo = formatTempo(c.recipe.tempoPreparoMin);
@@ -277,7 +437,19 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
             <div className="space-y-2 px-3 pb-3 text-sm">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Falta comprar</p>
-                <p className="text-stone-600 dark:text-stone-300">{c.falta.map((i) => nomeItem(i.item)).join(', ')}</p>
+                <ul className="space-y-0.5 text-stone-600 dark:text-stone-300">
+                  {c.falta.map((i) => {
+                    const substitutos = sugerirSubstitutosParaItem(i.item);
+                    return (
+                      <li key={i.item}>
+                        {nomeItem(i.item)}
+                        {substitutos.length > 0 && (
+                          <span className="text-stone-400 dark:text-stone-500"> — ou use {substitutos.join(', ')}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">Você já tem</p>

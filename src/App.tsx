@@ -26,6 +26,9 @@ import { ShareReceiver } from './lib/shareReceiver';
 import { db } from './db/db';
 import { aplicarTema, salvarTema, temaInicial, type Tema } from './lib/theme';
 import { onPendentesLista } from './lib/listaStatus';
+import { useLembreteValidade, podeAvisarHoje, marcarAvisadoHoje } from './lib/lembretes';
+import { statusValidade } from './lib/validade';
+import { toast } from './lib/toast';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 const navItens = [
@@ -68,8 +71,24 @@ export default function App() {
   const [tema, alternarTema] = useTema();
   const geladeiraCount = useLiveQuery(() => db.geladeira.count(), []) ?? 0;
   const [listaPendente, setListaPendente] = useState(0);
+  const [lembreteValidade] = useLembreteValidade();
+  const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
 
   useEffect(() => onPendentesLista(setListaPendente), []);
+
+  // Aviso in-app (equivalente, no PWA/web, à notificação nativa agendada em Geladeira.tsx):
+  // confere uma vez por dia se algo está vencido ou perto de vencer.
+  useEffect(() => {
+    if (!lembreteValidade || !geladeira || !podeAvisarHoje()) return;
+    const criticos = geladeira.filter((g) => g.validade && statusValidade(g.validade) !== 'ok');
+    if (criticos.length === 0) return;
+    marcarAvisadoHoje();
+    toast(
+      `${criticos.length} ${criticos.length === 1 ? 'item vencendo' : 'itens vencendo'} na geladeira.`,
+      'info',
+      { rotulo: 'Ver', onClick: () => navigate('/geladeira') },
+    );
+  }, [lembreteValidade, geladeira, navigate]);
 
   // Recebe links/textos compartilhados de outros apps (folha de compartilhamento do Android)
   // e manda direto pra tela de importar. Só existe implementação nativa (Android); no PWA

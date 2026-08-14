@@ -100,6 +100,8 @@ export interface GeladeiraItem {
   /** Nome como o usuário digitou/escolheu, para exibição. */
   nome: string;
   adicionadoEm: number;
+  /** Data de validade (timestamp), quando o usuário informa. Sem validade = null/undefined. */
+  validade?: number;
 }
 
 export interface Compra {
