@@ -35,6 +35,7 @@ import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import { useLongPress } from '../lib/useLongPress';
+import { combinarReceitas } from '../lib/geladeira';
 import { CardListSkeleton } from '../components/Skeleton';
 import Highlight from '../components/Highlight';
 import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
@@ -43,9 +44,18 @@ import type { Recipe } from '../types';
 
 type Ordem = 'recentes' | 'ingredientes' | 'tempo';
 type ModoTag = 'ou' | 'e';
+type FiltroTempo = 'qualquer' | 'rapido' | 'medio' | 'longo';
+
+const FILTROS_TEMPO: { valor: FiltroTempo; rotulo: string; testar: (min?: number) => boolean }[] = [
+  { valor: 'qualquer', rotulo: 'Qualquer', testar: () => true },
+  { valor: 'rapido', rotulo: 'Até 30 min', testar: (min) => min != null && min <= 30 },
+  { valor: 'medio', rotulo: '30–60 min', testar: (min) => min != null && min > 30 && min <= 60 },
+  { valor: 'longo', rotulo: 'Mais de 1h', testar: (min) => min != null && min > 60 },
+];
 
 export default function Receitas() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
+  const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const plano = usePlano();
   const noPlano = new Set(plano.itens.map((i) => i.recipeId));
   const fileRef = useRef<HTMLInputElement>(null);
@@ -55,7 +65,18 @@ export default function Receitas() {
   const [modoTag, setModoTag] = useState<ModoTag>('ou');
   const [ordem, setOrdem] = useState<Ordem>('recentes');
   const [soFavoritas, setSoFavoritas] = useState(false);
+  const [filtroTempo, setFiltroTempo] = useState<FiltroTempo>('qualquer');
+  const [soPossoFazer, setSoPossoFazer] = useState(false);
   const [menuAberto, setMenuAberto] = useState<Recipe | null>(null);
+
+  // Cobertura da geladeira por receita (para "posso fazer com o que tenho"), só
+  // calculada quando há itens na geladeira — do contrário nada fecharia 100%.
+  const coberturaPorReceita = useMemo(() => {
+    const m = new Map<string, boolean>();
+    if (!recipes || !geladeira || geladeira.length === 0) return m;
+    for (const c of combinarReceitas(recipes, geladeira)) m.set(c.recipe.id, c.falta.length === 0);
+    return m;
+  }, [recipes, geladeira]);
 
   // Modo de seleção múltipla: some com o filtro de tags e busca só por simplicidade
   // de interação (evita selecionar itens que já saíram de vista).
@@ -72,6 +93,12 @@ export default function Receitas() {
     let lista = [...(recipes ?? [])];
 
     if (soFavoritas) lista = lista.filter((r) => r.favorito);
+    if (soPossoFazer) lista = lista.filter((r) => coberturaPorReceita.get(r.id));
+
+    if (filtroTempo !== 'qualquer') {
+      const teste = FILTROS_TEMPO.find((f) => f.valor === filtroTempo)!.testar;
+      lista = lista.filter((r) => teste(r.tempoPreparoMin));
+    }
 
     // Busca textual (título, ingredientes, tags).
     const q = deburr(busca).toLowerCase().trim();
@@ -108,7 +135,7 @@ export default function Receitas() {
       });
     }
     return lista;
-  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas]);
+  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas, filtroTempo, soPossoFazer, coberturaPorReceita]);
 
   function toggleTag(tag: string) {
     setTagsSel((prev) => {
@@ -276,16 +303,45 @@ export default function Receitas() {
               />
             </div>
 
-            {/* Favoritas */}
-            <button
-              onClick={() => setSoFavoritas((v) => !v)}
-              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                soFavoritas ? 'bg-amber-400 text-amber-950' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
-              }`}
-            >
-              {soFavoritas ? <StarSolidIcon className="size-3.5" /> : <StarOutlineIcon className="size-3.5" />}
-              Favoritas
-            </button>
+            {/* Favoritas + posso fazer com o que tenho */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSoFavoritas((v) => !v)}
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                  soFavoritas ? 'bg-amber-400 text-amber-950' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
+                }`}
+              >
+                {soFavoritas ? <StarSolidIcon className="size-3.5" /> : <StarOutlineIcon className="size-3.5" />}
+                Favoritas
+              </button>
+              {geladeira && geladeira.length > 0 && (
+                <button
+                  onClick={() => setSoPossoFazer((v) => !v)}
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                    soPossoFazer ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
+                  }`}
+                >
+                  Posso fazer com o que tenho
+                </button>
+              )}
+            </div>
+
+            {/* Filtro por tempo de preparo */}
+            <div className="flex flex-wrap gap-1.5">
+              {FILTROS_TEMPO.map((f) => (
+                <button
+                  key={f.valor}
+                  onClick={() => setFiltroTempo(f.valor)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                    filtroTempo === f.valor
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                  }`}
+                >
+                  {f.rotulo}
+                </button>
+              ))}
+            </div>
 
             {/* Filtro de tags */}
             {todasTags.length > 0 && (

@@ -3,10 +3,58 @@
 // tela acesa via Screen Wake Lock enquanto estiver aberto (quando suportado).
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellAlertIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  BellAlertIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import { extrairMinutos } from '../lib/timeParser';
 import { tocarBip } from '../lib/beep';
+
+/**
+ * Leitura em voz alta do passo atual, via Web Speech API — mãos livres enquanto
+ * cozinha. Preferência de "ligado" persiste entre receitas; a leitura em si só
+ * dispara passo a passo (nunca em segundo plano) para não ler o app inteiro.
+ */
+const LEITURA_KEY = 'dumbfood:leituraEmVozAlta';
+const suportaLeitura = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+function vozPtBr(): SpeechSynthesisVoice | undefined {
+  const vozes = window.speechSynthesis.getVoices();
+  return vozes.find((v) => v.lang?.toLowerCase().startsWith('pt')) ?? vozes[0];
+}
+
+function useLeituraEmVozAlta(texto: string) {
+  const [ativa, setAtiva] = useState(() => suportaLeitura && localStorage.getItem(LEITURA_KEY) === '1');
+
+  useEffect(() => {
+    if (!suportaLeitura) return;
+    if (ativa) localStorage.setItem(LEITURA_KEY, '1');
+    else localStorage.removeItem(LEITURA_KEY);
+  }, [ativa]);
+
+  useEffect(() => {
+    if (!suportaLeitura) return;
+    window.speechSynthesis.cancel();
+    if (!ativa || !texto) return;
+    const utter = new SpeechSynthesisUtterance(texto);
+    utter.lang = 'pt-BR';
+    const voz = vozPtBr();
+    if (voz) utter.voice = voz;
+    window.speechSynthesis.speak(utter);
+    return () => window.speechSynthesis.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ativa, texto]);
+
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  return { suportada: suportaLeitura, ativa, alternar: () => setAtiva((v) => !v) };
+}
 
 function formatContagem(ms: number): string {
   const total = Math.ceil(ms / 1000);
@@ -75,6 +123,7 @@ export default function CookMode({ titulo, passos, onClose }: { titulo: string; 
   useWakeLock(true);
   const timer = useTimerDoPasso();
   const minutosSugeridos = useMemo(() => extrairMinutos(passos[passo]), [passos, passo]);
+  const leitura = useLeituraEmVozAlta(passos[passo]);
 
   function irPara(i: number) {
     hapticLeve();
@@ -96,9 +145,21 @@ export default function CookMode({ titulo, passos, onClose }: { titulo: string; 
     <div className="fixed inset-0 z-[70] flex flex-col bg-stone-900 text-white">
       <div className="flex items-center justify-between px-4 py-3">
         <p className="truncate text-sm font-semibold text-stone-300">{titulo}</p>
-        <button onClick={onClose} aria-label="Fechar modo cozinha" className="rounded-full p-2 hover:bg-white/10">
-          <XMarkIcon className="size-6" />
-        </button>
+        <div className="flex items-center gap-1">
+          {leitura.suportada && (
+            <button
+              onClick={leitura.alternar}
+              aria-label={leitura.ativa ? 'Desligar leitura em voz alta' : 'Ligar leitura em voz alta'}
+              aria-pressed={leitura.ativa}
+              className={`rounded-full p-2 hover:bg-white/10 ${leitura.ativa ? 'text-brand-400' : ''}`}
+            >
+              {leitura.ativa ? <SpeakerWaveIcon className="size-6" /> : <SpeakerXMarkIcon className="size-6" />}
+            </button>
+          )}
+          <button onClick={onClose} aria-label="Fechar modo cozinha" className="rounded-full p-2 hover:bg-white/10">
+            <XMarkIcon className="size-6" />
+          </button>
+        </div>
       </div>
 
       <button

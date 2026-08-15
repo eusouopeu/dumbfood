@@ -8,6 +8,7 @@ import { round } from '../lib/scale';
 import { formatQtdUnidade } from '../lib/displayQty';
 import { formatBRL } from '../lib/prices';
 import {
+  DIAS_POR_GRANULARIDADE,
   GRANULARIDADES,
   agruparPorPeriodo,
   csvDeCompra,
@@ -20,6 +21,7 @@ import {
 import BarChart from '../components/BarChart';
 import StackedBarChart from '../components/StackedBarChart';
 import { useDieta } from '../lib/diet';
+import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
@@ -246,6 +248,7 @@ function SeletorGranularidade({ granularidade, onChange }: { granularidade: Gran
 
 function AbaGastos({ compras }: { compras: Compra[] }) {
   const [granularidade, setGranularidade] = useGranularidade();
+  const [orcamentoSemanal] = useOrcamento();
   const label = GRANULARIDADES.find((g) => g.chave === granularidade)!.label.toLowerCase();
 
   const inicioAtual = inicioPeriodoAtual(granularidade, Date.now());
@@ -258,6 +261,12 @@ function AbaGastos({ compras }: { compras: Compra[] }) {
     [compras, granularidade],
   );
 
+  // O orçamento é definido semanalmente (lista de mercado); aqui ele é convertido
+  // pela duração da granularidade escolhida, pra dar um teto comparável em qualquer visão.
+  const orcamentoPeriodo =
+    orcamentoSemanal !== null ? orcamentoSemanal * (DIAS_POR_GRANULARIDADE[granularidade] / DIAS_POR_GRANULARIDADE.semana) : null;
+  const statusOrc = orcamentoPeriodo !== null ? statusOrcamento(totalPeriodoAtual, orcamentoPeriodo) : null;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-end">
@@ -269,9 +278,46 @@ function AbaGastos({ compras }: { compras: Compra[] }) {
         <CardResumo label={`preço médio do kg n${label === 'semana' ? 'a' : 'o'} ${label} atual`} valor={`${formatBRL(precoKg)}/kg`} />
       </div>
 
+      {orcamentoPeriodo !== null && (
+        <div className="card space-y-2 p-4">
+          <h3 className="section-heading text-sm">
+            Orçamento n{label === 'semana' ? 'a' : 'o'} {label} atual
+          </h3>
+          <div className="h-2 overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
+            <div
+              className={
+                statusOrc === 'estourado' ? 'h-full bg-red-500' : statusOrc === 'perto' ? 'h-full bg-amber-500' : 'h-full bg-green-500'
+              }
+              style={{ width: `${Math.min(100, Math.round((totalPeriodoAtual / orcamentoPeriodo) * 100))}%` }}
+            />
+          </div>
+          <p
+            className={`text-sm ${
+              statusOrc === 'estourado'
+                ? 'font-semibold text-red-600 dark:text-red-400'
+                : statusOrc === 'perto'
+                  ? 'font-semibold text-amber-600 dark:text-amber-400'
+                  : 'text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            {formatBRL(totalPeriodoAtual)} de {formatBRL(orcamentoPeriodo)} ({Math.round((totalPeriodoAtual / orcamentoPeriodo) * 100)}%)
+            {statusOrc === 'estourado' && ' — orçamento estourado'}
+            {statusOrc === 'perto' && ' — perto do limite'}
+          </p>
+          <p className="text-xs text-stone-400 dark:text-stone-500">
+            Calculado a partir do orçamento semanal definido na Lista de mercado.
+          </p>
+        </div>
+      )}
+
       <div className="card p-4">
         <h3 className="section-heading mb-3 text-sm">Gasto ao longo do tempo</h3>
-        <BarChart dados={dadosChart} formatar={formatBRL} />
+        <BarChart
+          dados={dadosChart}
+          formatar={formatBRL}
+          linhaReferencia={orcamentoPeriodo ?? undefined}
+          rotuloReferencia={orcamentoPeriodo !== null ? `Orçamento: ${formatBRL(orcamentoPeriodo)}` : undefined}
+        />
       </div>
     </div>
   );

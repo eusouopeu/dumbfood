@@ -1,6 +1,6 @@
 // Operações de alto nível sobre o banco.
 
-import type { Compra, NewRecipe, PrecoItem, Recipe, WeekPlan, YieldType } from '../types';
+import type { Compra, Ingredient, NewRecipe, PrecoItem, Recipe, WeekPlan, YieldType } from '../types';
 import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
@@ -69,6 +69,29 @@ export async function duplicarReceita(recipe: Recipe): Promise<Recipe> {
 /** Adiciona tags novas (sem duplicar) à receita. */
 export async function adicionarTags(recipe: Recipe, novas: string[]): Promise<void> {
   await db.recipes.put({ ...recipe, tags: mesclarTags(recipe.tags ?? [], novas) });
+}
+
+/**
+ * Salva a receita com ingredientes ajustados para uma restrição alimentar como uma
+ * nova receita (não sobrescreve o original — a versão "com lactose" continua
+ * disponível), marcada com a tag da restrição.
+ */
+export async function salvarVersaoComRestricao(
+  recipe: Recipe,
+  ingredientesAjustados: Ingredient[],
+  tagRestricao: string,
+): Promise<Recipe> {
+  const copia: Recipe = {
+    ...recipe,
+    id: novoId(),
+    titulo: `${recipe.titulo} (${tagRestricao})`,
+    ingredientes: ingredientesAjustados,
+    tags: mesclarTags(recipe.tags ?? [], [tagRestricao]),
+    favorito: false,
+    criadoEm: Date.now(),
+  };
+  await db.recipes.put(copia);
+  return copia;
 }
 
 export async function removerReceita(id: string): Promise<void> {

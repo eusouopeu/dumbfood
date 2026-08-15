@@ -5,7 +5,9 @@ import {
   ArrowTrendingDownIcon,
   ArrowTrendingUpIcon,
   BanknotesIcon,
+  CameraIcon,
   ClipboardDocumentIcon,
+  ShareIcon,
   ShoppingCartIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -31,6 +33,7 @@ import { hapticLeve } from '../lib/haptics';
 import { definirPendentesLista } from '../lib/listaStatus';
 import SwipeToDelete from '../components/SwipeToDelete';
 import { LinhaSkeleton } from '../components/Skeleton';
+import EscanearNota from '../components/EscanearNota';
 import type { CompraItem, Ingredient, Recipe, ShoppingLine, ShoppingSection } from '../types';
 
 function ListaSkeleton() {
@@ -90,6 +93,7 @@ export default function ListaMercado() {
   const [orcamento, setOrcamento] = useOrcamento();
   const [orcamentoTexto, setOrcamentoTexto] = useState('');
   const [editandoOrcamento, setEditandoOrcamento] = useState(false);
+  const [escaneando, setEscaneando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -231,6 +235,30 @@ export default function ListaMercado() {
     }
   }
 
+  // Texto simples (sem markdown) para WhatsApp: *negrito* nos títulos de gôndola,
+  // checkbox como ☐/☑ pra dar pra ler numa conversa sem nenhuma formatação especial.
+  function textoParaCompartilhar(): string {
+    const linhas = sectionsComExtras.map(
+      (s) =>
+        `*${s.gondola}*\n` +
+        s.linhas.map((l) => `${checked.has(l.id) ? '☑' : '☐'} ${l.rotulo} ${nomeItem(l.item)}`).join('\n'),
+    );
+    return `*Lista de mercado*\n\n${linhas.join('\n\n')}`;
+  }
+
+  async function compartilharWhatsApp() {
+    const texto = textoParaCompartilhar();
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: texto });
+      } catch {
+        // Usuário cancelou o share nativo — nada a fazer.
+      }
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+  }
+
   async function atualizarPrecos(file: File) {
     try {
       const conteudo = await file.text();
@@ -358,8 +386,14 @@ export default function ListaMercado() {
         <button onClick={copiar} className="btn-outline">
           <ClipboardDocumentIcon className="size-4" /> Copiar
         </button>
+        <button onClick={compartilharWhatsApp} className="btn-outline">
+          <ShareIcon className="size-4" /> WhatsApp
+        </button>
         <button onClick={() => fileRef.current?.click()} className="btn-outline">
           <BanknotesIcon className="size-4" /> Atualizar preços
+        </button>
+        <button onClick={() => setEscaneando(true)} className="btn-outline">
+          <CameraIcon className="size-4" /> Escanear nota
         </button>
         <input
           ref={fileRef}
@@ -508,6 +542,8 @@ export default function ListaMercado() {
           </div>
         </>
       )}
+
+      {escaneando && <EscanearNota onClose={() => setEscaneando(false)} />}
     </div>
   );
 }

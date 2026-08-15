@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeftIcon,
+  ArrowsRightLeftIcon,
   CheckCircleIcon,
   MinusIcon,
   PlayCircleIcon,
@@ -33,6 +34,7 @@ import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import CookMode from '../components/CookMode';
+import RestricaoModal from '../components/RestricaoModal';
 import type { YieldType } from '../types';
 
 type Modo = 'rendimento' | 'grama';
@@ -62,6 +64,7 @@ export default function Detalhe() {
   const [novaTag, setNovaTag] = useState('');
   const [tamanho, setTamanho] = useState<TamanhoLeitura>(() => tamanhoSalvo());
   const [cozinhando, setCozinhando] = useState(false);
+  const [restricaoAberta, setRestricaoAberta] = useState(false);
 
   function mudarTamanho(t: TamanhoLeitura) {
     setTamanho(t);
@@ -175,6 +178,10 @@ export default function Detalhe() {
           <PlayCircleIcon className="size-5" /> Modo cozinha
         </button>
       )}
+
+      <button onClick={() => setRestricaoAberta(true)} className="btn-outline w-full">
+        <ArrowsRightLeftIcon className="size-4" /> Ajustar para restrição alimentar
+      </button>
 
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -432,6 +439,18 @@ export default function Detalhe() {
 
       {cozinhando && (
         <CookMode titulo={capitalizar(recipe.titulo)} passos={recipe.modoPreparo} onClose={() => setCozinhando(false)} />
+      )}
+
+      {restricaoAberta && (
+        <RestricaoModal
+          recipe={recipe}
+          onClose={() => setRestricaoAberta(false)}
+          onAplicar={async (novaReceita) => {
+            setRestricaoAberta(false);
+            toast('Nova versão da receita criada!');
+            navigate(`/receita/${novaReceita.id}`);
+          }}
+        />
       )}
     </div>
   );
