@@ -30,7 +30,7 @@ import {
 } from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { deburr } from '../lib/ingredientParser';
-import { capitalizar, rotuloRendimento, formatTempo } from '../lib/format';
+import { capitalizar, formatTempo } from '../lib/format';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
@@ -391,13 +391,19 @@ export default function Receitas() {
 
             {/* Ordenação */}
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-stone-500 dark:text-stone-400">Ordenar:</span>
-              <select className="input py-1" value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}>
+              <span className="flex-shrink-0 text-stone-500 dark:text-stone-400">Ordenar:</span>
+              <select
+                className="input w-auto flex-shrink-0 py-1"
+                value={ordem}
+                onChange={(e) => setOrdem(e.target.value as Ordem)}
+              >
                 <option value="recentes">Mais recentes</option>
                 <option value="ingredientes">Nº de ingredientes</option>
                 <option value="tempo">Tempo de preparo</option>
               </select>
-              <span className="ml-auto text-xs text-stone-400 dark:text-stone-500">{filtradas.length} receita(s)</span>
+              <span className="ml-auto flex-shrink-0 text-xs text-stone-400 dark:text-stone-500">
+                {filtradas.length} receita(s)
+              </span>
             </div>
 
             {filtradas.length === 0 ? (
@@ -548,8 +554,8 @@ function CardReceita({
           <Highlight texto={capitalizar(r.titulo)} termo={busca} />
         </p>
         <p className="text-sm text-stone-500 dark:text-stone-400">
-          {r.rendimentoBase.valor} {rotuloRendimento(r.rendimentoBase.tipo, r.rendimentoBase.valor)} ·{' '}
-          {r.ingredientes.length} ingredientes{tempo ? ` · ${tempo}` : ''}
+          <span className="font-bold text-brand-600 dark:text-brand-400">{r.ingredientes.length} ingredientes</span>
+          {tempo ? ` · ${tempo}` : ''}
         </p>
         <div className="mt-1 flex flex-wrap gap-1">
           {naSemana && <span className="chip bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300">na semana</span>}

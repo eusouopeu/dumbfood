@@ -29,19 +29,19 @@ export type Gondola = (typeof GONDOLA_ORDER)[number];
  * ou fique parecida com a vizinha) — em tons claros/pastéis para não pesar na leitura.
  */
 export const GONDOLA_ESTILO: Record<string, { header: string; borda: string }> = {
-  Hortifruti: { header: 'bg-green-100 text-green-800', borda: 'border-green-700' },
-  Açougue: { header: 'bg-red-100 text-red-800', borda: 'border-red-700' },
-  Peixaria: { header: 'bg-sky-100 text-sky-800', borda: 'border-sky-700' },
-  'Frios e Laticínios': { header: 'bg-yellow-100 text-yellow-800', borda: 'border-yellow-700' },
-  Padaria: { header: 'bg-orange-100 text-orange-800', borda: 'border-orange-700' },
-  Mercearia: { header: 'bg-violet-100 text-violet-800', borda: 'border-violet-700' },
-  'Temperos e Condimentos': { header: 'bg-fuchsia-100 text-fuchsia-800', borda: 'border-fuchsia-700' },
-  'Enlatados e Conservas': { header: 'bg-indigo-100 text-indigo-800', borda: 'border-indigo-700' },
-  'Massas e Grãos': { header: 'bg-lime-100 text-lime-800', borda: 'border-lime-700' },
-  Bebidas: { header: 'bg-teal-100 text-teal-800', borda: 'border-teal-700' },
-  Congelados: { header: 'bg-blue-100 text-blue-800', borda: 'border-blue-700' },
-  'Limpeza e Outros': { header: 'bg-slate-100 text-slate-800', borda: 'border-slate-700' },
-  Outros: { header: 'bg-stone-100 text-stone-800', borda: 'border-stone-700' },
+  Hortifruti: { header: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200', borda: 'border-green-700' },
+  Açougue: { header: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200', borda: 'border-red-700' },
+  Peixaria: { header: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200', borda: 'border-sky-700' },
+  'Frios e Laticínios': { header: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200', borda: 'border-yellow-700' },
+  Padaria: { header: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200', borda: 'border-orange-700' },
+  Mercearia: { header: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200', borda: 'border-violet-700' },
+  'Temperos e Condimentos': { header: 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/40 dark:text-fuchsia-200', borda: 'border-fuchsia-700' },
+  'Enlatados e Conservas': { header: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200', borda: 'border-indigo-700' },
+  'Massas e Grãos': { header: 'bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-200', borda: 'border-lime-700' },
+  Bebidas: { header: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200', borda: 'border-teal-700' },
+  Congelados: { header: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200', borda: 'border-blue-700' },
+  'Limpeza e Outros': { header: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-200', borda: 'border-slate-700' },
+  Outros: { header: 'bg-stone-100 text-stone-800 dark:bg-stone-900/40 dark:text-stone-200', borda: 'border-stone-700' },
 };
 
 export function estiloGondola(gondola: string): { header: string; borda: string } {

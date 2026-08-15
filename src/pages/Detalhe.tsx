@@ -9,6 +9,7 @@ import {
   PlayCircleIcon,
   PlusIcon,
   StarIcon as StarOutlineIcon,
+  XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
@@ -23,11 +24,12 @@ import {
   adicionarTags,
   alternarFavorito,
 } from '../db/repo';
-import { scaleIngredients, fatorParaRendimento, formatQuantidade } from '../lib/scale';
+import { scaleIngredients, fatorParaRendimento } from '../lib/scale';
 import { formatQtdUnidadeAbrev, formatDecimal } from '../lib/displayQty';
 import { padronizarMedida, type MedidaModo } from '../lib/measures';
 import { detectPreheat } from '../lib/preheat';
 import { unitDefByCanonical } from '../lib/units';
+import { pesoEmGramas } from '../lib/weight';
 import { capitalizar, nomeItem, rotuloRendimento, formatTempo } from '../lib/format';
 import { calcularNutricaoTotal, dividirPorPorcoes, percentualVD } from '../lib/nutrition';
 import { toast } from '../lib/toast';
@@ -121,6 +123,8 @@ export default function Detalhe() {
   const tempo = formatTempo(recipe.tempoPreparoMin);
   const porcoesAtuais = Math.max(1, Math.round(base.valor * fator));
   const nutriPorcao = dividirPorPorcoes(calcularNutricaoTotal(escalados), porcoesAtuais);
+  const pesoTotalG = escalados.reduce((soma, ing) => soma + (pesoEmGramas(ing.item, ing.quantidade, ing.unidade) ?? 0), 0);
+  const pesoPorcaoG = Math.round(pesoTotalG / porcoesAtuais);
 
   async function salvarComoPadrao() {
     if (!recipe) return;
@@ -139,9 +143,57 @@ export default function Detalhe() {
 
   return (
     <div className="space-y-4">
-      <Link to="/" className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400">
-        <ArrowLeftIcon className="size-4" /> Receitas
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400">
+          <ArrowLeftIcon className="size-4" /> Receitas
+        </Link>
+        <div className="flex items-center gap-1">
+          {noPlano ? (
+            <button
+              onClick={async () => {
+                await removerDoPlano(recipe.id);
+                toast('Removida da semana.');
+              }}
+              aria-label="Remover da semana"
+              title="Remover da semana"
+              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-stone-800"
+            >
+              <CheckCircleIcon className="size-6" />
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                await definirNoPlano(recipe.id, fator);
+                toast('Adicionada à semana!');
+              }}
+              aria-label="Adicionar à semana"
+              title="Adicionar à semana"
+              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-stone-800"
+            >
+              <PlusIcon className="size-6" />
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              const ok = await confirmar('Excluir esta receita? Essa ação não pode ser desfeita.', {
+                textoConfirmar: 'Excluir',
+                perigo: true,
+              });
+              if (ok) {
+                await removerReceita(recipe.id);
+                hapticForte();
+                toast('Receita excluída.');
+                navigate('/');
+              }
+            }}
+            aria-label="Excluir receita"
+            title="Excluir receita"
+            className="rounded-full p-1.5 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-stone-800"
+          >
+            <XCircleIcon className="size-6" />
+          </button>
+        </div>
+      </div>
 
       {recipe.imagem && <img src={recipe.imagem} alt="" className="h-44 w-full rounded-2xl object-cover" />}
 
@@ -272,21 +324,20 @@ export default function Detalhe() {
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-stone-500 dark:text-stone-400">Fator aplicado: {formatQuantidade(fator)}×</p>
-          {Math.abs(fator - 1) > 0.001 && (
+        {Math.abs(fator - 1) > 0.001 && (
+          <div className="flex justify-end">
             <button onClick={salvarComoPadrao} className="btn-ghost h-7 py-0 text-xs">
               Salvar como padrão
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Ingredientes escalados */}
       <div className="card p-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4 space-y-2">
           <h3 className="section-heading">Ingredientes</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
             {/* Tamanho de leitura: útil para ler a receita a distância do fogão. */}
             <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
               {(Object.keys(TAMANHOS_LEITURA) as TamanhoLeitura[]).map((t) => (
@@ -302,13 +353,13 @@ export default function Detalhe() {
               ))}
             </div>
             <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
-              {(['metrico', 'original', 'recipiente'] as MedidaModo[]).map((m) => (
+              {(['metrico', 'recipiente'] as MedidaModo[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setMedidaModo(m)}
                   className={`rounded-md px-2 py-1 font-semibold ${medidaModo === m ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
                 >
-                  {m === 'original' ? 'Original' : m === 'metrico' ? 'g / L' : 'Recip.'}
+                  {m === 'metrico' ? 'g / L' : 'Recipientes'}
                 </button>
               ))}
             </div>
@@ -364,11 +415,18 @@ export default function Detalhe() {
         <div className="card p-4">
           <h3 className="section-heading">Tabela nutricional</h3>
           <p className="mb-3 mt-1 text-xs text-stone-500 dark:text-stone-400">
-            Por porção ({porcoesAtuais} {rotuloRendimento(tipo, porcoesAtuais)}) · %VD com base em uma dieta de 2.000
-            kcal. Estimativa a partir de ingredientes-chave; temperos e itens sem quantidade definida não entram no
-            cálculo.
+            Por porção ({porcoesAtuais} {rotuloRendimento(tipo, porcoesAtuais)} ou {pesoPorcaoG} g)
           </p>
           <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-stone-200 dark:border-stone-700">
+                <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
+                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">
+                  por {pesoPorcaoG} g
+                </th>
+                <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
+              </tr>
+            </thead>
             <tbody>
               <NutriLinha label="Valor energético" valor={`${formatDecimal(nutriPorcao.kcal)} kcal`} vd={percentualVD('kcal', nutriPorcao.kcal)} />
               <NutriLinha label="Carboidratos" valor={`${formatDecimal(nutriPorcao.carboidrato)} g`} vd={percentualVD('carboidrato', nutriPorcao.carboidrato)} />
@@ -385,57 +443,17 @@ export default function Detalhe() {
       )}
 
       {/* Ações */}
-      <div className="flex flex-wrap gap-2">
-        {noPlano ? (
-          <button
-            onClick={async () => {
-              await removerDoPlano(recipe.id);
-              toast('Removida da semana.');
-            }}
-            className="btn-outline"
-          >
-            <CheckCircleIcon className="size-4" /> Na semana (remover)
-          </button>
-        ) : (
-          <button
-            onClick={async () => {
-              await definirNoPlano(recipe.id, fator);
-              toast('Adicionada à semana!');
-            }}
-            className="btn-primary"
-          >
-            + Adicionar à semana
-          </button>
-        )}
-        {noPlano && (
-          <button
-            onClick={async () => {
-              await definirNoPlano(recipe.id, fator);
-              toast('Quantidade atualizada na semana.');
-            }}
-            className="btn-ghost"
-          >
-            Atualizar quantidade na semana
-          </button>
-        )}
+      {noPlano && (
         <button
           onClick={async () => {
-            const ok = await confirmar('Excluir esta receita? Essa ação não pode ser desfeita.', {
-              textoConfirmar: 'Excluir',
-              perigo: true,
-            });
-            if (ok) {
-              await removerReceita(recipe.id);
-              hapticForte();
-              toast('Receita excluída.');
-              navigate('/');
-            }
+            await definirNoPlano(recipe.id, fator);
+            toast('Quantidade atualizada na semana.');
           }}
-          className="btn-outline ml-auto text-red-600 dark:text-red-400"
+          className="btn-ghost"
         >
-          Excluir
+          Atualizar quantidade na semana
         </button>
-      </div>
+      )}
 
       {cozinhando && (
         <CookMode titulo={capitalizar(recipe.titulo)} passos={recipe.modoPreparo} onClose={() => setCozinhando(false)} />
@@ -474,7 +492,7 @@ function NutriLinha({
       <td className={`py-1.5 ${indent ? 'pl-4 text-stone-500 dark:text-stone-400' : 'font-medium'}`}>{label}</td>
       <td className="py-1.5 text-right tabular-nums">{valor}</td>
       <td className="w-16 py-1.5 text-right text-xs tabular-nums text-stone-500 dark:text-stone-400">
-        {vd !== undefined ? `${formatDecimal(vd)}% VD` : ''}
+        {vd !== undefined ? `${formatDecimal(vd)}%` : ''}
       </td>
     </tr>
   );

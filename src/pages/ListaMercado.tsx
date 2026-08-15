@@ -6,9 +6,14 @@ import {
   ArrowTrendingUpIcon,
   BanknotesIcon,
   CameraIcon,
+  CheckCircleIcon,
   ClipboardDocumentIcon,
+  PencilIcon,
+  PlusIcon,
   ShareIcon,
   ShoppingCartIcon,
+  TrashIcon,
+  XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
@@ -175,6 +180,8 @@ export default function ListaMercado() {
   if (!recipes) return <ListaSkeleton />;
 
   const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
+  const todosIds = sectionsComExtras.flatMap((s) => s.linhas.map((l) => l.id));
+  const todosMarcados = todosIds.length > 0 && todosIds.every((id) => checked.has(id));
   const pesoTotal = pesoTotalKg(sectionsComExtras);
   const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s, v) => s + (v.valor ?? 0), 0);
   const statusOrc = orcamento !== null ? statusOrcamento(valorEstimadoTotal, orcamento) : null;
@@ -197,6 +204,14 @@ export default function ListaMercado() {
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+  }
+
+  // Toggle: marca todos os itens da lista de uma vez, ou desmarca todos se já estiverem todos marcados.
+  function alternarTodos() {
+    hapticLeve();
+    const todosIds = sectionsComExtras.flatMap((s) => s.linhas.map((l) => l.id));
+    const todosMarcados = todosIds.length > 0 && todosIds.every((id) => checked.has(id));
+    setChecked(todosMarcados ? new Set() : new Set(todosIds));
   }
 
   function adicionarExtra() {
@@ -317,18 +332,23 @@ export default function ListaMercado() {
         <div className="flex items-center justify-between gap-2">
           <h3 className="section-heading text-sm">Orçamento da semana</h3>
           {orcamento !== null && !editandoOrcamento && (
-            <div className="flex gap-2 text-xs">
+            <div className="flex flex-col gap-1">
               <button
                 onClick={() => {
                   setOrcamentoTexto(String(orcamento));
                   setEditandoOrcamento(true);
                 }}
-                className="text-brand-600 dark:text-brand-400 underline"
+                aria-label="Editar orçamento"
+                className="rounded-full p-1 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-stone-800"
               >
-                editar
+                <PencilIcon className="size-4" />
               </button>
-              <button onClick={() => setOrcamento(null)} className="text-brand-600 dark:text-brand-400 underline">
-                remover
+              <button
+                onClick={() => setOrcamento(null)}
+                aria-label="Remover orçamento"
+                className="rounded-full p-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-stone-800"
+              >
+                <TrashIcon className="size-4" />
               </button>
             </div>
           )}
@@ -359,9 +379,7 @@ export default function ListaMercado() {
           <>
             <div className="h-2 overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
               <div
-                className={
-                  statusOrc === 'estourado' ? 'h-full bg-red-500' : statusOrc === 'perto' ? 'h-full bg-amber-500' : 'h-full bg-green-500'
-                }
+                className="h-full bg-brand-500"
                 style={{ width: `${Math.min(100, Math.round((valorEstimadoTotal / orcamento) * 100))}%` }}
               />
             </div>
@@ -383,17 +401,17 @@ export default function ListaMercado() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button onClick={copiar} className="btn-outline">
-          <ClipboardDocumentIcon className="size-4" /> Copiar
+        <button onClick={copiar} aria-label="Copiar lista" title="Copiar" className="btn-icon">
+          <ClipboardDocumentIcon className="size-4" />
         </button>
-        <button onClick={compartilharWhatsApp} className="btn-outline">
-          <ShareIcon className="size-4" /> WhatsApp
+        <button onClick={compartilharWhatsApp} aria-label="Compartilhar no WhatsApp" title="WhatsApp" className="btn-icon">
+          <ShareIcon className="size-4" />
         </button>
         <button onClick={() => fileRef.current?.click()} className="btn-outline">
           <BanknotesIcon className="size-4" /> Atualizar preços
         </button>
-        <button onClick={() => setEscaneando(true)} className="btn-outline">
-          <CameraIcon className="size-4" /> Escanear nota
+        <button onClick={() => setEscaneando(true)} aria-label="Escanear nota" title="Escanear nota" className="btn-icon">
+          <CameraIcon className="size-4" />
         </button>
         <input
           ref={fileRef}
@@ -402,9 +420,14 @@ export default function ListaMercado() {
           className="hidden"
           onChange={(e) => e.target.files?.[0] && atualizarPrecos(e.target.files[0])}
         />
-        {checked.size > 0 && (
-          <button onClick={() => setChecked(new Set())} className="btn-outline">
-            Desmarcar tudo
+        {total > 0 && (
+          <button
+            onClick={alternarTodos}
+            aria-label={todosMarcados ? 'Desmarcar tudo' : 'Marcar tudo'}
+            title={todosMarcados ? 'Desmarcar tudo' : 'Marcar tudo'}
+            className="btn-icon"
+          >
+            {todosMarcados ? <XCircleIcon className="size-4" /> : <CheckCircleIcon className="size-4" />}
           </button>
         )}
       </div>
@@ -417,8 +440,8 @@ export default function ListaMercado() {
           onChange={(e) => setNovoExtraTexto(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && adicionarExtra()}
         />
-        <button onClick={adicionarExtra} className="btn-outline flex-shrink-0">
-          + Adicionar
+        <button onClick={adicionarExtra} aria-label="Adicionar item" title="Adicionar" className="btn-icon flex-shrink-0">
+          <PlusIcon className="size-4" />
         </button>
       </div>
 

@@ -18,3 +18,12 @@ Sempre que uma mudança for implementada no app (qualquer alteração de código
 Isso vale automaticamente, sem precisar que o usuário peça a cada vez. Só pule
 esse fluxo se o usuário pedir explicitamente para não commitar/buildar ainda
 (ex.: quando está pedindo uma mudança exploratória ou intermediária).
+
+## Agentes em segundo plano
+
+Para tarefas independentes e bem simples (ex.: pesquisar algo pontual, checar
+um arquivo, gerar um resumo isolado que não depende do restante do trabalho
+em andamento), pode usar agentes em segundo plano (Agent tool) sem precisar
+pedir permissão a cada vez. Reserve isso para tarefas simples e realmente
+independentes — não usar para dividir uma tarefa complexa ou que exija
+contexto acumulado da conversa.

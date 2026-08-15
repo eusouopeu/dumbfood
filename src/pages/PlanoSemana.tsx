@@ -105,11 +105,11 @@ export default function PlanoSemana() {
       </p>
 
       {recipes.length > 0 && (
-        <div className="card flex flex-wrap items-center gap-2 p-3">
-          <button onClick={montarSemanaAutomaticamente} className="btn-outline">
-            <SparklesIcon className="size-4" /> Montar semana automaticamente
+        <div className="card flex flex-nowrap items-center gap-2 p-3">
+          <button onClick={montarSemanaAutomaticamente} className="btn-outline flex-shrink-0">
+            <SparklesIcon className="size-4" /> Montar semana
           </button>
-          <label className="ml-auto flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+          <label className="ml-auto flex flex-shrink-0 items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
             até
             <input
               type="number"
@@ -166,7 +166,7 @@ export default function PlanoSemana() {
             <h3 className="section-heading text-sm">Macros do plano</h3>
             <SeletorDieta dieta={dieta} onChange={setDieta} />
           </div>
-          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
+          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} mostrarProgressoMeta />
         </div>
       )}
 
