@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BookOpenIcon,
   CalendarDaysIcon,
   ChartBarIcon,
+  Cog6ToothIcon,
   CubeIcon,
   FireIcon,
   MoonIcon,
+  PlusIcon,
   ShoppingCartIcon,
   SunIcon,
 } from '@heroicons/react/24/outline';
@@ -22,6 +25,7 @@ import PlanoSemana from './pages/PlanoSemana';
 import ListaMercado from './pages/ListaMercado';
 import Historico from './pages/Historico';
 import Geladeira from './pages/Geladeira';
+import Configuracoes from './pages/Configuracoes';
 import { ShareReceiver } from './lib/shareReceiver';
 import { db } from './db/db';
 import { aplicarTema, salvarTema, temaInicial, type Tema } from './lib/theme';
@@ -68,6 +72,9 @@ function NavBadge({ n }: { n: number }) {
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const localizacaoAtual = useRef(location);
+  localizacaoAtual.current = location;
   const [tema, alternarTema] = useTema();
   const geladeiraCount = useLiveQuery(() => db.geladeira.count(), []) ?? 0;
   const [listaPendente, setListaPendente] = useState(0);
@@ -89,6 +96,22 @@ export default function App() {
       { rotulo: 'Ver', onClick: () => navigate('/geladeira') },
     );
   }, [lembreteValidade, geladeira, navigate]);
+
+  // Gesto/botão de voltar do Android: navega no histórico do app em vez de sair,
+  // e só fecha o app quando já está na tela inicial (comportamento nativo esperado).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = CapacitorApp.addListener('backButton', () => {
+      if (localizacaoAtual.current.pathname === '/') {
+        CapacitorApp.exitApp();
+      } else {
+        navigate(-1);
+      }
+    });
+    return () => {
+      listener.then((h) => h.remove());
+    };
+  }, [navigate]);
 
   // Recebe links/textos compartilhados de outros apps (folha de compartilhamento do Android)
   // e manda direto pra tela de importar. Só existe implementação nativa (Android); no PWA
@@ -113,13 +136,31 @@ export default function App() {
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-stone-200 bg-brand-50/80 px-4 py-3 backdrop-blur dark:border-stone-700 dark:bg-stone-900/80">
         <FireIcon className="size-7 text-brand-600 dark:text-brand-400" />
         <h1 className="text-lg font-extrabold tracking-tight text-brand-700 dark:text-brand-300">dumbfood</h1>
-        <button
-          onClick={alternarTema}
-          aria-label={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
-          className="ml-auto rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
-        >
-          {tema === 'dark' ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <Link
+            to="/importar"
+            aria-label="Nova receita"
+            title="Nova receita"
+            className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
+          >
+            <PlusIcon className="size-5" />
+          </Link>
+          <Link
+            to="/config"
+            aria-label="Configurações"
+            title="Configurações"
+            className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
+          >
+            <Cog6ToothIcon className="size-5" />
+          </Link>
+          <button
+            onClick={alternarTema}
+            aria-label={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+            className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
+          >
+            {tema === 'dark' ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 px-4 py-4 pb-24">
@@ -132,6 +173,7 @@ export default function App() {
           <Route path="/plano" element={<PlanoSemana />} />
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />
+          <Route path="/config" element={<Configuracoes />} />
         </Routes>
         </ErrorBoundary>
       </main>

@@ -57,6 +57,32 @@ describe('parseRecipeFromHtml', () => {
     expect(parseRecipeFromHtml(page)!.modoPreparo).toEqual(['Lave o arroz.', 'Cozinhe.']);
   });
 
+  // O Panelinha usa `type=application/ld+json` sem aspas, e não publica recipeYield
+  // nem totalTime no JSON-LD — esses dados só aparecem num bloco <dt>/<dd> na página.
+  it('lê JSON-LD com atributo type sem aspas e completa rendimento/tempo pelo bloco <dt>/<dd> (Panelinha)', () => {
+    const page = `<html><body>
+      <script id=js_recipe_schema type=application/ld+json>${JSON.stringify({
+        '@context': 'https://schema.org/',
+        '@type': 'Recipe',
+        name: 'Frango com quiabo',
+        recipeIngredient: ['200 g de quiabo (cerca de 20 unidades)', '1 pimentão amarelo'],
+        recipeInstructions: [{ '@type': 'HowToStep', text: 'Cozinhe tudo.' }],
+      })}</script>
+      <dl>
+        <div><dt>Autor</dt> <dd>Panelinha</dd></div>
+        <div><dt>Tempo de preparo</dt> <dd>Até 2h</dd></div>
+        <div><dt>Serve</dt> <dd>Até 6 porções</dd></div>
+      </dl>
+    </body></html>`;
+    const r = parseRecipeFromHtml(page, 'https://panelinha.com.br/receita/frango-com-quiabo');
+    expect(r).not.toBeNull();
+    expect(r!.titulo).toBe('Frango com quiabo');
+    expect(r!.ingredientes).toHaveLength(2);
+    // Sem o fix, o rendimento pegaria "20 unidades" da lista de ingredientes.
+    expect(r!.rendimentoBase).toEqual({ valor: 6, tipo: 'porcoes' });
+    expect(r!.tempoPreparoMin).toBe(120);
+  });
+
   it('lê passos agrupados em HowToSection', () => {
     const page = html({
       '@type': 'Recipe',

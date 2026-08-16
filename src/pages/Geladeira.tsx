@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  BellAlertIcon,
   BookOpenIcon,
   CakeIcon,
   CalendarDaysIcon,
@@ -18,12 +17,7 @@ import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from
 import { sugerirSubstitutosParaItem } from '../lib/substitutions';
 import { statusValidade, rotuloValidade } from '../lib/validade';
 import { useLembreteValidade } from '../lib/lembretes';
-import {
-  agendarLembretesValidade,
-  cancelarLembretesValidade,
-  notificacoesNativasDisponiveis,
-  pedirPermissaoNotificacoes,
-} from '../lib/notifications';
+import { agendarLembretesValidade } from '../lib/notifications';
 import { capitalizar, nomeItem, formatTempo } from '../lib/format';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
@@ -50,7 +44,7 @@ export default function Geladeira() {
   const [editandoValidade, setEditandoValidade] = useState<string | null>(null);
   /** Esconde receitas que ainda precisam de compras. */
   const [soCompletas, setSoCompletas] = useState(false);
-  const [lembreteValidade, setLembreteValidade] = useLembreteValidade();
+  const [lembreteValidade] = useLembreteValidade();
 
   const itensBrutos = geladeira ?? [];
   const lista = recipes ?? [];
@@ -84,19 +78,6 @@ export default function Geladeira() {
     if (!lembreteValidade) return;
     agendarLembretesValidade(itens);
   }, [lembreteValidade, itens]);
-
-  async function alternarLembreteValidade(ligar: boolean) {
-    if (ligar && notificacoesNativasDisponiveis()) {
-      const concedida = await pedirPermissaoNotificacoes();
-      if (!concedida) {
-        toast('Permissão de notificação negada.', 'erro');
-        return;
-      }
-    }
-    if (!ligar) await cancelarLembretesValidade();
-    setLembreteValidade(ligar);
-    hapticLeve();
-  }
 
   async function adicionar(nome: string, validade?: string) {
     const ts = validade ? new Date(`${validade}T00:00:00`).getTime() : undefined;
@@ -146,24 +127,6 @@ export default function Geladeira() {
           Adicione o que você tem em casa e veja quais receitas da sua biblioteca aproveitam melhor.
         </p>
       </div>
-
-      <label className="card flex items-center gap-3 p-3 text-sm">
-        <BellAlertIcon className="size-5 flex-shrink-0 text-brand-500" />
-        <span className="flex-1">
-          <span className="block font-medium">Avisar quando algo estiver vencendo</span>
-          <span className="block text-xs text-stone-500 dark:text-stone-400">
-            {notificacoesNativasDisponiveis()
-              ? 'Notificação 3 dias antes da validade.'
-              : 'Aviso ao abrir o app (sem notificação do sistema no navegador).'}
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          className="h-5 w-5 flex-shrink-0 accent-brand-500"
-          checked={lembreteValidade}
-          onChange={(e) => alternarLembreteValidade(e.target.checked)}
-        />
-      </label>
 
       {/* Entrada de ingredientes */}
       <form

@@ -15,14 +15,21 @@ describe('calcularNutricaoTotal', () => {
     expect(total.kcal).toBe(0);
   });
 
-  it('usa proxy para óleos e cortes de carne semelhantes', () => {
-    const soja = calcularNutricaoTotal(parseIngredientLines(['100 ml de óleo de soja']));
-    const girassol = calcularNutricaoTotal(parseIngredientLines(['100 ml de óleo de girassol']));
-    expect(soja.kcal).toBeCloseTo(girassol.kcal, 5);
-
+  it('usa proxy para cortes de carne semelhantes', () => {
     const maminha = calcularNutricaoTotal(parseIngredientLines(['100 g de maminha']));
     const alcatra = calcularNutricaoTotal(parseIngredientLines(['100 g de alcatra']));
     expect(maminha.proteina).toBeCloseTo(alcatra.proteina, 5);
+  });
+
+  it('exclui ingredientes com "óleo" do cálculo (fritura não penetra no prato)', () => {
+    const soja = calcularNutricaoTotal(parseIngredientLines(['100 ml de óleo de soja']));
+    expect(soja.kcal).toBe(0);
+    const paraFritar = calcularNutricaoTotal(parseIngredientLines(['500 ml de óleo para fritar']));
+    expect(paraFritar.kcal).toBe(0);
+
+    // Azeite não é "óleo de fritura" no mesmo sentido — costuma entrar direto no prato.
+    const azeite = calcularNutricaoTotal(parseIngredientLines(['100 ml de azeite']));
+    expect(azeite.kcal).toBeGreaterThan(0);
   });
 
   it('divide o total por porções', () => {

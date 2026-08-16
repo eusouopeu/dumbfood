@@ -166,7 +166,7 @@ export default function PlanoSemana() {
             <h3 className="section-heading text-sm">Macros do plano</h3>
             <SeletorDieta dieta={dieta} onChange={setDieta} />
           </div>
-          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} mostrarProgressoMeta />
+          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
         </div>
       )}
 
@@ -187,25 +187,40 @@ export default function PlanoSemana() {
             const fator = fatorDe(r.id);
             const ativo = fator !== undefined;
             return (
-              <li key={r.id} className={`card p-3 ${ativo ? 'ring-2 ring-brand-300 dark:ring-brand-700' : ''}`}>
+              <li
+                key={r.id}
+                role="checkbox"
+                aria-checked={ativo}
+                tabIndex={0}
+                onClick={() => alternarNoPlano(r.id, r.titulo, !ativo)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    alternarNoPlano(r.id, r.titulo, !ativo);
+                  }
+                }}
+                className={`card cursor-pointer p-3 ${ativo ? 'ring-2 ring-brand-300 dark:ring-brand-700' : ''}`}
+              >
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    className="h-5 w-5 accent-brand-500"
+                    className="pointer-events-none h-5 w-5 accent-brand-500"
                     checked={ativo}
-                    onChange={(e) => alternarNoPlano(r.id, r.titulo, e.target.checked)}
+                    readOnly
+                    tabIndex={-1}
+                    aria-hidden="true"
                   />
-                  <Link to={`/receita/${r.id}`} className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{capitalizar(r.titulo)}</p>
                     <p className="text-xs text-stone-500 dark:text-stone-400">
                       base: {r.rendimentoBase.valor}{' '}
                       {rotuloRendimento(r.rendimentoBase.tipo, r.rendimentoBase.valor)}
                     </p>
-                  </Link>
+                  </div>
                 </div>
 
                 {ativo && (
-                  <div className="mt-2 flex items-center gap-2 pl-8">
+                  <div className="mt-2 flex items-center gap-2 pl-8" onClick={(e) => e.stopPropagation()}>
                     <span className="text-xs text-stone-500 dark:text-stone-400">fazer para:</span>
                     {(() => {
                       const alvo = Math.max(1, Math.round(r.rendimentoBase.valor * (fator ?? 1)));

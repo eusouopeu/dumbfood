@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
   BookOpenIcon,
   CakeIcon,
   CheckCircleIcon,
+  CubeIcon,
   DocumentDuplicateIcon,
   MagnifyingGlassIcon,
   PlusIcon,
@@ -21,8 +20,6 @@ import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import {
   salvarReceita,
-  exportarJSON,
-  importarJSON,
   alternarFavorito,
   duplicarReceita,
   removerReceita,
@@ -58,7 +55,6 @@ export default function Receitas() {
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const plano = usePlano();
   const noPlano = new Set(plano.itens.map((i) => i.recipeId));
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [busca, setBusca] = useState('');
   const [tagsSel, setTagsSel] = useState<Set<string>>(new Set());
@@ -180,26 +176,6 @@ export default function Receitas() {
   async function adicionarExemplos() {
     for (const r of receitasExemplo()) await salvarReceita(r);
   }
-  async function baixarBackup() {
-    const json = await exportarJSON();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dumbfood-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-  async function restaurarBackup(file: File) {
-    const texto = await file.text();
-    try {
-      const { recipes: n } = await importarJSON(texto);
-      toast(`Backup importado: ${n} receita(s).`);
-    } catch (e) {
-      toast(`Erro ao importar: ${(e as Error).message}`, 'erro');
-    }
-  }
-
   async function compartilhar(r: Recipe) {
     const texto = `${capitalizar(r.titulo)}\n\n${r.ingredientes.map((i) => `- ${i.raw}`).join('\n')}`;
     if (navigator.share) {
@@ -267,12 +243,47 @@ export default function Receitas() {
   return (
     <PullToRefresh onRefresh={atualizar}>
       <div className="space-y-4 pb-16">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-xl font-bold">Minhas receitas</h2>
-          {recipes.length > 0 && !selecionando && (
-            <button onClick={() => setSelecionando(true)} className="btn-ghost h-8 py-0 text-xs">
-              <Squares2X2Icon className="size-4" /> Selecionar
-            </button>
+          {recipes.length > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSoFavoritas((v) => !v)}
+                aria-label={soFavoritas ? 'Mostrar todas as receitas' : 'Mostrar só favoritas'}
+                title="Favoritas"
+                className={`rounded-full p-2 ${
+                  soFavoritas
+                    ? 'bg-amber-400 text-amber-950'
+                    : 'text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800'
+                }`}
+              >
+                {soFavoritas ? <StarSolidIcon className="size-4" /> : <StarOutlineIcon className="size-4" />}
+              </button>
+              {geladeira && geladeira.length > 0 && (
+                <button
+                  onClick={() => setSoPossoFazer((v) => !v)}
+                  aria-label={soPossoFazer ? 'Mostrar todas as receitas' : 'Mostrar só o que posso fazer com o que tenho'}
+                  title="Posso fazer com o que tenho"
+                  className={`rounded-full p-2 ${
+                    soPossoFazer
+                      ? 'bg-brand-500 text-white'
+                      : 'text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800'
+                  }`}
+                >
+                  <CubeIcon className="size-4" />
+                </button>
+              )}
+              {!selecionando && (
+                <button
+                  onClick={() => setSelecionando(true)}
+                  aria-label="Selecionar receitas"
+                  title="Selecionar"
+                  className="rounded-full p-2 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
+                >
+                  <Squares2X2Icon className="size-4" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -303,29 +314,6 @@ export default function Receitas() {
               />
             </div>
 
-            {/* Favoritas + posso fazer com o que tenho */}
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSoFavoritas((v) => !v)}
-                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                  soFavoritas ? 'bg-amber-400 text-amber-950' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
-                }`}
-              >
-                {soFavoritas ? <StarSolidIcon className="size-3.5" /> : <StarOutlineIcon className="size-3.5" />}
-                Favoritas
-              </button>
-              {geladeira && geladeira.length > 0 && (
-                <button
-                  onClick={() => setSoPossoFazer((v) => !v)}
-                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                    soPossoFazer ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300'
-                  }`}
-                >
-                  Posso fazer com o que tenho
-                </button>
-              )}
-            </div>
-
             {/* Filtro por tempo de preparo */}
             <div className="flex flex-wrap gap-1.5">
               {FILTROS_TEMPO.map((f) => (
@@ -346,9 +334,8 @@ export default function Receitas() {
             {/* Filtro de tags */}
             {todasTags.length > 0 && (
               <div className="card space-y-2 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">Filtrar por tags</span>
-                  {tagsSel.size > 1 && (
+                {tagsSel.size > 1 && (
+                  <div className="flex justify-end">
                     <div className="flex gap-1 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
                       <button
                         onClick={() => setModoTag('ou')}
@@ -363,8 +350,8 @@ export default function Receitas() {
                         todas (e)
                       </button>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
                   {todasTags.map((t) => {
                     const sel = tagsSel.has(t);
@@ -430,24 +417,6 @@ export default function Receitas() {
               </ul>
             )}
           </>
-        )}
-
-        {!selecionando && (
-          <div className="flex flex-wrap gap-2 pt-2">
-            <button onClick={baixarBackup} className="btn-outline">
-              <ArrowDownTrayIcon className="size-4" /> Exportar
-            </button>
-            <button onClick={() => fileRef.current?.click()} className="btn-outline">
-              <ArrowUpTrayIcon className="size-4" /> Importar backup
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && restaurarBackup(e.target.files[0])}
-            />
-          </div>
         )}
 
         {/* FAB: acesso rápido a "Nova receita" mesmo com a lista rolada. */}

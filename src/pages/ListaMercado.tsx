@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -7,6 +7,7 @@ import {
   BanknotesIcon,
   CameraIcon,
   CheckCircleIcon,
+  CheckIcon,
   ClipboardDocumentIcon,
   PencilIcon,
   PlusIcon,
@@ -27,9 +28,9 @@ import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 import { padronizarMedida } from '../lib/measures';
 import { formatQtdUnidade } from '../lib/displayQty';
 import { calcularNutricaoTotal } from '../lib/nutrition';
-import { parseArquivoPrecos, custoLinha, buscarPreco, formatBRL } from '../lib/prices';
+import { custoLinha, buscarPreco, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
-import { importarPrecos, salvarCompra, novoId } from '../db/repo';
+import { salvarCompra, novoId } from '../db/repo';
 import { useDieta } from '../lib/diet';
 import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
@@ -39,6 +40,7 @@ import { definirPendentesLista } from '../lib/listaStatus';
 import SwipeToDelete from '../components/SwipeToDelete';
 import { LinhaSkeleton } from '../components/Skeleton';
 import EscanearNota from '../components/EscanearNota';
+import EditarPrecos from '../components/EditarPrecos';
 import type { CompraItem, Ingredient, Recipe, ShoppingLine, ShoppingSection } from '../types';
 
 function ListaSkeleton() {
@@ -85,6 +87,21 @@ function loadExtras(): ItemExtra[] {
   }
 }
 
+const QTD_OVERRIDE_KEY = 'dumbfood:itensQtd';
+
+interface QtdOverride {
+  quantidade: number | null;
+  unidade: string | null;
+}
+
+function loadOverrides(): Record<string, QtdOverride> {
+  try {
+    return JSON.parse(localStorage.getItem(QTD_OVERRIDE_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
 export default function ListaMercado() {
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
   const precos = useLiveQuery(() => db.precos.toArray(), []);
@@ -92,6 +109,9 @@ export default function ListaMercado() {
   const plano = usePlano();
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [extras, setExtras] = useState<ItemExtra[]>(() => loadExtras());
+  const [overrides, setOverrides] = useState<Record<string, QtdOverride>>(() => loadOverrides());
+  const [editandoQtd, setEditandoQtd] = useState<string | null>(null);
+  const [qtdTexto, setQtdTexto] = useState('');
   const [novoExtraTexto, setNovoExtraTexto] = useState('');
   const [valorReal, setValorReal] = useState('');
   const [dieta, setDieta] = useDieta();
@@ -99,7 +119,7 @@ export default function ListaMercado() {
   const [orcamentoTexto, setOrcamentoTexto] = useState('');
   const [editandoOrcamento, setEditandoOrcamento] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [editandoPrecos, setEditandoPrecos] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(CHECK_KEY, JSON.stringify(Array.from(checked)));
@@ -107,6 +127,9 @@ export default function ListaMercado() {
   useEffect(() => {
     localStorage.setItem(EXTRAS_KEY, JSON.stringify(extras));
   }, [extras]);
+  useEffect(() => {
+    localStorage.setItem(QTD_OVERRIDE_KEY, JSON.stringify(overrides));
+  }, [overrides]);
 
   const sections = useMemo(() => {
     if (!recipes) return [] as ShoppingSection[];
@@ -117,12 +140,23 @@ export default function ListaMercado() {
   // Junta as linhas geradas pelas receitas com os itens adicionados manualmente,
   // agrupados por gôndola na mesma ordem. Itens manuais recebem um id próprio
   // (não somam com itens de receita) e ficam marcados para o estilo mais claro.
+  // Aplica correções manuais de quantidade (definidas pelo usuário ao editar um item
+  // já criado), sobrepondo o valor calculado a partir das receitas/itens manuais.
   const sectionsComExtras = useMemo(() => {
+    const aplicarOverride = (l: LinhaLista): LinhaLista => {
+      const ov = overrides[l.id];
+      if (!ov) return l;
+      return {
+        ...l,
+        quantidades: [{ unidade: ov.unidade, quantidade: ov.quantidade }],
+        rotulo: formatQtdUnidade(ov.quantidade, ov.unidade),
+      };
+    };
     const porGondola = new Map<string, LinhaLista[]>();
     for (const s of sections) {
       porGondola.set(
         s.gondola,
-        s.linhas.map((l) => ({ ...l, id: `${s.gondola}:${l.item}`, manual: false })),
+        s.linhas.map((l) => aplicarOverride({ ...l, id: `${s.gondola}:${l.item}`, manual: false })),
       );
     }
     for (const ex of extras) {
@@ -137,11 +171,11 @@ export default function ListaMercado() {
         manual: true,
       };
       const arr = porGondola.get(ex.gondola) ?? [];
-      arr.push(linha);
+      arr.push(aplicarOverride(linha));
       porGondola.set(ex.gondola, arr);
     }
     return GONDOLA_ORDER.filter((g) => porGondola.has(g)).map((g) => ({ gondola: g, linhas: porGondola.get(g)! }));
-  }, [sections, extras]);
+  }, [sections, extras, overrides]);
 
   // Os preços importados pelo usuário vêm primeiro: `buscarPreco` usa o primeiro que casar,
   // então a tabela embutida só entra onde ele ainda não tem nota fiscal.
@@ -161,6 +195,21 @@ export default function ListaMercado() {
     }
     return m;
   }, [sectionsComExtras, listaPrecos, compras]);
+
+  // Itens distintos da lista atual (por chave normalizada), para o editor manual de preços.
+  const itensParaPrecos = useMemo(() => {
+    const vistos = new Set<string>();
+    const nomes: string[] = [];
+    for (const s of sectionsComExtras) {
+      for (const l of s.linhas) {
+        const key = normalizeItemKey(l.item);
+        if (vistos.has(key)) continue;
+        vistos.add(key);
+        nomes.push(l.item);
+      }
+    }
+    return nomes;
+  }, [sectionsComExtras]);
 
   const nutriTotal = useMemo(() => {
     const pseudo: Ingredient[] = sectionsComExtras
@@ -212,6 +261,32 @@ export default function ListaMercado() {
     const todosIds = sectionsComExtras.flatMap((s) => s.linhas.map((l) => l.id));
     const todosMarcados = todosIds.length > 0 && todosIds.every((id) => checked.has(id));
     setChecked(todosMarcados ? new Set() : new Set(todosIds));
+  }
+
+  function iniciarEdicaoQtd(l: LinhaLista) {
+    setEditandoQtd(l.id);
+    setQtdTexto(l.rotulo);
+  }
+
+  function salvarQtd(l: LinhaLista) {
+    const texto = qtdTexto.trim();
+    if (!texto) {
+      setOverrides((prev) => {
+        const { [l.id]: _removido, ...resto } = prev;
+        return resto;
+      });
+      setEditandoQtd(null);
+      hapticLeve();
+      return;
+    }
+    const parsed = parseIngredient(`${texto} de ${l.item}`);
+    if (parsed.quantidade === null) {
+      toast('Não entendi essa quantidade.', 'erro');
+      return;
+    }
+    setOverrides((prev) => ({ ...prev, [l.id]: { quantidade: parsed.quantidade, unidade: parsed.unidade } }));
+    setEditandoQtd(null);
+    hapticLeve();
   }
 
   function adicionarExtra() {
@@ -274,21 +349,6 @@ export default function ListaMercado() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
   }
 
-  async function atualizarPrecos(file: File) {
-    try {
-      const conteudo = await file.text();
-      const itens = parseArquivoPrecos(conteudo, file.name);
-      if (itens.length === 0) {
-        toast('Nenhum preço válido encontrado no arquivo.', 'erro');
-        return;
-      }
-      const n = await importarPrecos(itens);
-      toast(`${n} preço(s) atualizado(s).`);
-    } catch (e) {
-      toast(`Erro ao importar preços: ${(e as Error).message}`, 'erro');
-    }
-  }
-
   async function salvarNoHistorico() {
     const itens: CompraItem[] = [];
     let valorTotalEstimado = 0;
@@ -329,10 +389,10 @@ export default function ListaMercado() {
       </div>
 
       <div className="card space-y-2 p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="relative pr-8">
           <h3 className="section-heading text-sm">Orçamento da semana</h3>
           {orcamento !== null && !editandoOrcamento && (
-            <div className="flex flex-col gap-1">
+            <div className="absolute right-0 top-1/2 flex -translate-y-1/2 flex-col gap-1">
               <button
                 onClick={() => {
                   setOrcamentoTexto(String(orcamento));
@@ -407,19 +467,12 @@ export default function ListaMercado() {
         <button onClick={compartilharWhatsApp} aria-label="Compartilhar no WhatsApp" title="WhatsApp" className="btn-icon">
           <ShareIcon className="size-4" />
         </button>
-        <button onClick={() => fileRef.current?.click()} className="btn-outline">
-          <BanknotesIcon className="size-4" /> Atualizar preços
+        <button onClick={() => setEditandoPrecos(true)} aria-label="Atualizar preços" title="Atualizar preços" className="btn-icon">
+          <BanknotesIcon className="size-4" />
         </button>
         <button onClick={() => setEscaneando(true)} aria-label="Escanear nota" title="Escanear nota" className="btn-icon">
           <CameraIcon className="size-4" />
         </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv,.json,application/json,text/csv"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && atualizarPrecos(e.target.files[0])}
-        />
         {total > 0 && (
           <button
             onClick={alternarTodos}
@@ -475,41 +528,77 @@ export default function ListaMercado() {
                           checked={isChecked}
                           onChange={() => toggle(l.id)}
                         />
-                        <div
-                          className={`min-w-0 flex-1 ${
-                            isChecked ? 'text-stone-400 dark:text-stone-500 line-through' : l.manual ? 'text-stone-400 dark:text-stone-500' : ''
-                          }`}
-                        >
-                          <span className="font-semibold">{l.rotulo}</span>{' '}
-                          <span>{nomeItem(l.item)}</span>
-                          {l.origens.length > 1 && (
-                            <span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({l.origens.length} receitas)</span>
-                          )}
-                        </div>
-                        {/* Preço vindo da tabela embutida fica em itálico e mais claro,
-                            para não passar por valor conferido em nota fiscal. */}
-                        <div
-                          className={`flex flex-shrink-0 items-center gap-1 text-right text-sm tabular-nums ${
-                            custo?.estimado ? 'italic text-stone-400 dark:text-stone-500' : 'text-stone-500 dark:text-stone-400'
-                          }`}
-                          title={custo?.estimado ? 'Preço estimado pelo app' : undefined}
-                        >
-                          {custo?.tendencia === 'alta' && (
-                            <ArrowTrendingUpIcon className="size-3.5 flex-shrink-0 text-red-500" aria-label="Preço subiu desde a última compra" />
-                          )}
-                          {custo?.tendencia === 'baixa' && (
-                            <ArrowTrendingDownIcon className="size-3.5 flex-shrink-0 text-green-600" aria-label="Preço caiu desde a última compra" />
-                          )}
-                          {custo?.valor != null ? formatBRL(custo.valor) : '—'}
-                        </div>
-                        {l.manual && (
-                          <button
-                            onClick={() => removerExtra(l.id.replace('extra:', ''))}
-                            className="flex-shrink-0 text-stone-400 dark:text-stone-500 hover:text-red-600"
-                            aria-label={`remover ${l.item}`}
+                        {editandoQtd === l.id ? (
+                          <form
+                            className="flex min-w-0 flex-1 items-center gap-1.5"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              salvarQtd(l);
+                            }}
                           >
-                            <XMarkIcon className="size-4" />
+                            <input
+                              autoFocus
+                              className="input h-7 min-w-0 flex-1 py-0 text-xs"
+                              value={qtdTexto}
+                              onChange={(e) => setQtdTexto(e.target.value)}
+                              placeholder="ex.: 500 g"
+                            />
+                            <button type="submit" aria-label="Salvar quantidade" className="flex-shrink-0 text-brand-600 dark:text-brand-400">
+                              <CheckIcon className="size-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditandoQtd(null)}
+                              aria-label="Cancelar edição"
+                              className="flex-shrink-0 text-stone-400 dark:text-stone-500"
+                            >
+                              <XMarkIcon className="size-4" />
+                            </button>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicaoQtd(l)}
+                            aria-label={`Editar quantidade de ${nomeItem(l.item)}`}
+                            className={`min-w-0 flex-1 text-left ${
+                              isChecked ? 'text-stone-400 dark:text-stone-500 line-through' : l.manual ? 'text-stone-400 dark:text-stone-500' : ''
+                            }`}
+                          >
+                            <span className="font-semibold">{l.rotulo}</span>{' '}
+                            <span>{nomeItem(l.item)}</span>
+                            {l.origens.length > 1 && (
+                              <span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({l.origens.length} receitas)</span>
+                            )}
                           </button>
+                        )}
+                        {editandoQtd !== l.id && (
+                          <>
+                            {/* Preço vindo da tabela embutida fica em itálico e mais claro,
+                                para não passar por valor conferido em nota fiscal. */}
+                            <div
+                              className={`flex flex-shrink-0 items-center gap-1 text-right text-sm tabular-nums ${
+                                custo?.estimado ? 'italic text-stone-400 dark:text-stone-500' : 'text-stone-500 dark:text-stone-400'
+                              }`}
+                              title={custo?.estimado ? 'Preço estimado pelo app' : undefined}
+                            >
+                              {custo?.tendencia === 'alta' && (
+                                <ArrowTrendingUpIcon className="size-3.5 flex-shrink-0 text-red-500" aria-label="Preço subiu desde a última compra" />
+                              )}
+                              {custo?.tendencia === 'baixa' && (
+                                <ArrowTrendingDownIcon className="size-3.5 flex-shrink-0 text-green-600" aria-label="Preço caiu desde a última compra" />
+                              )}
+                              {custo?.valor != null ? formatBRL(custo.valor) : '—'}
+                            </div>
+                            {l.manual && (
+                              <button
+                                onClick={() => removerExtra(l.id.replace('extra:', ''))}
+                                className="flex-shrink-0 text-stone-400 dark:text-stone-500 hover:text-red-600"
+                                aria-label={`remover ${l.item}`}
+                              >
+                                <XMarkIcon className="size-4" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </li>
                     );
@@ -567,6 +656,9 @@ export default function ListaMercado() {
       )}
 
       {escaneando && <EscanearNota onClose={() => setEscaneando(false)} />}
+      {editandoPrecos && (
+        <EditarPrecos itens={itensParaPrecos} precos={listaPrecos} onClose={() => setEditandoPrecos(false)} />
+      )}
     </div>
   );
 }

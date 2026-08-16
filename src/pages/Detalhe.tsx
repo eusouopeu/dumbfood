@@ -121,10 +121,9 @@ export default function Detalhe() {
   const escalados = scaleIngredients(recipe.ingredientes, fator);
   const noPlano = plano.itens.find((i) => i.recipeId === recipe.id);
   const tempo = formatTempo(recipe.tempoPreparoMin);
-  const porcoesAtuais = Math.max(1, Math.round(base.valor * fator));
-  const nutriPorcao = dividirPorPorcoes(calcularNutricaoTotal(escalados), porcoesAtuais);
   const pesoTotalG = escalados.reduce((soma, ing) => soma + (pesoEmGramas(ing.item, ing.quantidade, ing.unidade) ?? 0), 0);
-  const pesoPorcaoG = Math.round(pesoTotalG / porcoesAtuais);
+  // Tabela nutricional sempre por 100 g, independente do rendimento da receita.
+  const nutriPor100g = dividirPorPorcoes(calcularNutricaoTotal(escalados), pesoTotalG / 100);
 
   async function salvarComoPadrao() {
     if (!recipe) return;
@@ -414,29 +413,25 @@ export default function Detalhe() {
       {escalados.length > 0 && (
         <div className="card p-4">
           <h3 className="section-heading">Tabela nutricional</h3>
-          <p className="mb-3 mt-1 text-xs text-stone-500 dark:text-stone-400">
-            Por porção ({porcoesAtuais} {rotuloRendimento(tipo, porcoesAtuais)} ou {pesoPorcaoG} g)
-          </p>
+          <p className="mb-3 mt-1 text-xs text-stone-500 dark:text-stone-400">Por 100 g</p>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-stone-200 dark:border-stone-700">
                 <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
-                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">
-                  por {pesoPorcaoG} g
-                </th>
+                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">por 100 g</th>
                 <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
               </tr>
             </thead>
             <tbody>
-              <NutriLinha label="Valor energético" valor={`${formatDecimal(nutriPorcao.kcal)} kcal`} vd={percentualVD('kcal', nutriPorcao.kcal)} />
-              <NutriLinha label="Carboidratos" valor={`${formatDecimal(nutriPorcao.carboidrato)} g`} vd={percentualVD('carboidrato', nutriPorcao.carboidrato)} />
-              <NutriLinha label="dos quais açúcares" valor={`${formatDecimal(nutriPorcao.acucares)} g`} indent />
-              <NutriLinha label="Proteínas" valor={`${formatDecimal(nutriPorcao.proteina)} g`} vd={percentualVD('proteina', nutriPorcao.proteina)} />
-              <NutriLinha label="Gorduras totais" valor={`${formatDecimal(nutriPorcao.gorduraTotal)} g`} vd={percentualVD('gorduraTotal', nutriPorcao.gorduraTotal)} />
-              <NutriLinha label="saturadas" valor={`${formatDecimal(nutriPorcao.gorduraSaturada)} g`} vd={percentualVD('gorduraSaturada', nutriPorcao.gorduraSaturada)} indent />
-              <NutriLinha label="insaturadas" valor={`${formatDecimal(Math.max(0, nutriPorcao.gorduraTotal - nutriPorcao.gorduraSaturada))} g`} indent />
-              <NutriLinha label="Colesterol" valor={`${formatDecimal(nutriPorcao.colesterolMg)} mg`} vd={percentualVD('colesterolMg', nutriPorcao.colesterolMg)} />
-              <NutriLinha label="Fibra alimentar" valor={`${formatDecimal(nutriPorcao.fibra)} g`} vd={percentualVD('fibra', nutriPorcao.fibra)} last />
+              <NutriLinha label="Valor energético" valor={`${formatDecimal(nutriPor100g.kcal)} kcal`} vd={percentualVD('kcal', nutriPor100g.kcal)} />
+              <NutriLinha label="Carboidratos" valor={`${formatDecimal(nutriPor100g.carboidrato)} g`} vd={percentualVD('carboidrato', nutriPor100g.carboidrato)} />
+              <NutriLinha label="dos quais açúcares" valor={`${formatDecimal(nutriPor100g.acucares)} g`} indent />
+              <NutriLinha label="Proteínas" valor={`${formatDecimal(nutriPor100g.proteina)} g`} vd={percentualVD('proteina', nutriPor100g.proteina)} />
+              <NutriLinha label="Gorduras totais" valor={`${formatDecimal(nutriPor100g.gorduraTotal)} g`} vd={percentualVD('gorduraTotal', nutriPor100g.gorduraTotal)} />
+              <NutriLinha label="saturadas" valor={`${formatDecimal(nutriPor100g.gorduraSaturada)} g`} vd={percentualVD('gorduraSaturada', nutriPor100g.gorduraSaturada)} indent />
+              <NutriLinha label="insaturadas" valor={`${formatDecimal(Math.max(0, nutriPor100g.gorduraTotal - nutriPor100g.gorduraSaturada))} g`} indent />
+              <NutriLinha label="Colesterol" valor={`${formatDecimal(nutriPor100g.colesterolMg)} mg`} vd={percentualVD('colesterolMg', nutriPor100g.colesterolMg)} />
+              <NutriLinha label="Fibra alimentar" valor={`${formatDecimal(nutriPor100g.fibra)} g`} vd={percentualVD('fibra', nutriPor100g.fibra)} last />
             </tbody>
           </table>
         </div>

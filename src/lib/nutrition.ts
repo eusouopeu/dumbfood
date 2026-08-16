@@ -67,8 +67,17 @@ const TABELA: Array<[string[], Nutrientes100g]> = [
   [['tomate'], { kcal: 18, gorduraTotal: 0.2, gorduraSaturada: 0, colesterolMg: 0, carboidrato: 3.9, acucares: 2.6, proteina: 0.9, fibra: 1.2 }],
 ];
 
+// Óleos usados para fritar (soja, girassol, milho, "óleo para fritar" etc.) raramente
+// entram na receita como o resto dos ingredientes: boa parte fica na frigideira ou é
+// absorvida pelo papel-toalha. Diferente de azeite, que costuma ir direto no prato —
+// por isso o filtro é só na palavra "óleo", não em qualquer gordura.
+function ehOleoDeFritura(key: string): boolean {
+  return key.includes('oleo');
+}
+
 /** Encontra o registro nutricional de um item já normalizado (normalizeItemKey), usando proxies quando necessário. */
 export function nutrientesDe(key: string): Nutrientes100g | undefined {
+  if (ehOleoDeFritura(key)) return undefined;
   for (const [chaves, n] of TABELA) {
     if (chaves.some((k) => key.includes(deburr(k).toLowerCase()))) return n;
   }

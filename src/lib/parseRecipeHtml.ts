@@ -5,14 +5,18 @@ import type { NewRecipe, RecipeYield, YieldType } from '../types';
 import { parseIngredientLines } from './ingredientParser';
 import { decodeEntities } from './decodeEntities';
 import { gerarTags } from './tags';
-import { parseRecipeFromDom } from './parseRecipeDom';
+import { parseRecipeFromDom, extrairRendimentoDoHtml, extrairTempoDoHtml } from './parseRecipeDom';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Extrai todos os blocos <script type="application/ld+json"> do HTML. */
+/**
+ * Extrai todos os blocos <script type="application/ld+json"> do HTML. O valor do
+ * atributo pode vir sem aspas (ex.: Panelinha usa `type=application/ld+json`), então
+ * as aspas em volta de "application/ld+json" são opcionais.
+ */
 function extractJsonLdBlocks(html: string): any[] {
   const blocks: any[] = [];
-  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const re = /<script[^>]*type=["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
     const raw = m[1].trim();
@@ -142,6 +146,7 @@ function parseViaMarcacao(html: string, fonteUrl?: string): NewRecipe | null {
     ingredientes,
     modoPreparo: dom.modoPreparo,
     tags: gerarTags(titulo, ingredientes),
+    tempoPreparoMin: extrairTempoDoHtml(html),
   };
 }
 
@@ -172,14 +177,21 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
   // é melhor importar a receita com os passos do HTML do que sem passo nenhum.
   const modoPreparo = parseInstructions(node.recipeInstructions);
 
+  // Alguns sites (ex.: Panelinha) publicam Recipe em JSON-LD sem recipeYield/totalTime —
+  // esses dados só aparecem na marcação visível da página ("Tempo de preparo", "Serve").
+  const rendimentoLd = node.recipeYield ?? node.yield;
+  const rendimentoBase = rendimentoLd ? parseYield(rendimentoLd) : (extrairRendimentoDoHtml(html) ?? parseYield(undefined));
+  const tempoPreparoMin =
+    parseIsoDurationMin(node.totalTime ?? node.cookTime ?? node.prepTime) ?? extrairTempoDoHtml(html);
+
   return {
     titulo: titulo.trim(),
     fonteUrl,
     imagem,
-    rendimentoBase: parseYield(node.recipeYield ?? node.yield),
+    rendimentoBase,
     ingredientes,
     modoPreparo: modoPreparo.length > 0 ? modoPreparo : parseRecipeFromDom(html).modoPreparo,
     tags: gerarTags(titulo, ingredientes),
-    tempoPreparoMin: parseIsoDurationMin(node.totalTime ?? node.cookTime ?? node.prepTime),
+    tempoPreparoMin,
   };
 }

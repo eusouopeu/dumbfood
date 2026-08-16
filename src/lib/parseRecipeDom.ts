@@ -10,6 +10,7 @@
 
 import type { RecipeYield, YieldType } from '../types';
 import { decodeEntities } from './decodeEntities';
+import { extrairMinutos } from './timeParser';
 
 /** Trecho relevante da página: um título ou uma lista, na ordem em que aparecem. */
 type Bloco =
@@ -133,6 +134,28 @@ function extrairTitulo(html: string): string | undefined {
   return bruto.split(/\s+[|–—]\s+|\s+-\s+(?=[A-ZÀ-Ú])/)[0].trim();
 }
 
+/**
+ * Lê um bloco de estatísticas em formato `<dt>Rótulo</dt> <dd>Valor</dd>`, comum em
+ * sites de receita (ex.: Panelinha: "Tempo de preparo" / "Serve") para complementar
+ * dados que não vêm no JSON-LD nem no texto solto da página.
+ */
+function extrairMetaDtDd(html: string, rotulo: RegExp): string | undefined {
+  const m = html.match(new RegExp(`<dt[^>]*>\\s*(?:${rotulo.source})\\s*</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`, 'i'));
+  return m ? textoDeHtml(m[1]) : undefined;
+}
+
+/** Rendimento a partir do bloco de estatísticas da página (ex.: "Serve: Até 6 porções"). */
+export function extrairRendimentoDoHtml(html: string): RecipeYield | undefined {
+  const texto = extrairMetaDtDd(html, /serve|rendimento/i);
+  return texto ? extrairRendimento(texto) : undefined;
+}
+
+/** Tempo de preparo a partir do bloco de estatísticas da página (ex.: "Tempo de preparo: Até 2h"). */
+export function extrairTempoDoHtml(html: string): number | undefined {
+  const texto = extrairMetaDtDd(html, /tempo de preparo|tempo total/i);
+  return texto ? (extrairMinutos(texto) ?? undefined) : undefined;
+}
+
 /** Procura "8 porções" / "serve 4 pessoas" no texto da página. */
 export function extrairRendimento(texto: string): RecipeYield {
   const m = texto.match(/(\d+)\s*(?:a\s*\d+\s*)?(por[çc][õo]es|por[çc][ãa]o|pessoas?|unidades?|fatias?|peda[çc]os?)/i);
@@ -161,6 +184,6 @@ export function parseRecipeFromDom(html: string): ReceitaDom {
     imagem: metaConteudo(html, 'og:image'),
     ingredientes,
     modoPreparo: coletarPreparo(blocos),
-    rendimento: extrairRendimento(textoDeHtml(limpo).slice(0, 20000)),
+    rendimento: extrairRendimentoDoHtml(html) ?? extrairRendimento(textoDeHtml(limpo).slice(0, 20000)),
   };
 }
