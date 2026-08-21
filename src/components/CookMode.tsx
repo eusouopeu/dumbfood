@@ -118,7 +118,18 @@ function useWakeLock(ativo: boolean) {
   }, [ativo]);
 }
 
-export default function CookMode({ titulo, passos, onClose }: { titulo: string; passos: string[]; onClose: () => void }) {
+export default function CookMode({
+  titulo,
+  passos,
+  onClose,
+  onConcluir,
+}: {
+  titulo: string;
+  passos: string[];
+  onClose: () => void;
+  /** Chamado quando o usuário termina a receita pelo botão "Concluir" (e não ao fechar no X). */
+  onConcluir?: () => void;
+}) {
   const [passo, setPasso] = useState(0);
   useWakeLock(true);
   const timer = useTimerDoPasso();
@@ -217,7 +228,13 @@ export default function CookMode({ titulo, passos, onClose }: { titulo: string; 
           <ChevronLeftIcon className="size-7" />
         </button>
         {passo === passos.length - 1 ? (
-          <button onClick={onClose} className="btn-primary flex-1 py-3 text-base">
+          <button
+            onClick={() => {
+              onClose();
+              onConcluir?.();
+            }}
+            className="btn-primary flex-1 py-3 text-base"
+          >
             Concluir
           </button>
         ) : (

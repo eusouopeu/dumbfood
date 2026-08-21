@@ -5,10 +5,14 @@ PWA para **importar receitas** de sites brasileiros (TudoGostoso, Panelinha/Rita
 ## O que faz
 
 - 📥 **Importa receitas** por link (extrai os dados estruturados `schema.org/Recipe` da página) ou colando o texto dos ingredientes.
+- 🎬 **Receitas de vídeo (TikTok/Reels)**: os ingredientes entram por texto colado ou por **OCR de um print da legenda**, e o vídeo baixado fica guardado no aparelho, tocando dentro do **modo de preparo** — offline.
 - 🔢 **Reescala** as quantidades por **porção/pessoa/unidade** ou **por grama** (usando um ingrediente de referência).
-- 🗓️ **Plano da semana**: selecione quais receitas fazer e em que quantidade.
-- 🛒 **Lista de mercado** unificada: soma ingredientes em comum (convertendo g/kg e ml/l) e agrupa por seção do mercado (Hortifruti, Açougue, Mercearia, etc.), com checkboxes para marcar o que já pegou.
-- 💾 Tudo **offline** no dispositivo (IndexedDB), instalável como app. Exportar/importar JSON para backup.
+- 🗓️ **Plano da semana**: selecione quais receitas fazer, em que quantidade e **em que dia/refeição** (agenda da semana começando por hoje).
+- 🧊 **Geladeira integrada**: o que você já tem sai da lista de compras; o que você compra entra na geladeira; o que você cozinha dá baixa.
+- 🛒 **Lista de mercado** unificada: soma ingredientes em comum (convertendo g/kg e ml/l), agrupa por seção do mercado (Hortifruti, Açougue, Mercearia, etc.) e **arredonda para as embalagens que o mercado vende de fato** (1 kg em vez de 700 g, com a sobra anotada).
+- 💰 **Preços e mercados**: série histórica de preço por item (o que subiu, o que caiu), alerta de preço fora do padrão e estimativa de **quanto a lista sairia em cada mercado** já registrado.
+- 📊 **Tabela nutricional e de vitaminas e minerais** estimadas por 100 g, a partir de uma base local (TACO/USDA) dos ingredientes mais usados.
+- 💾 Tudo **offline** no dispositivo (IndexedDB), instalável como app. Exportar/importar JSON para backup (receitas e plano; os vídeos ficam só no aparelho).
 
 ## Stack
 
@@ -37,13 +41,26 @@ src/
     aisles.ts             classificação de item -> gôndola
     scale.ts              reescala por fator
     shoppingList.ts       agrega + soma + agrupa por gôndola
+    embalagens.ts         arredonda a lista para as embalagens de prateleira
+    geladeira.ts          cruza receitas com o que já tem em casa
+    agenda.ts             distribui o plano em dias da semana e refeições
+    nutrition.ts          tabela nutricional estimada por 100 g
+    micronutrientes.ts    vitaminas e minerais dos 40 ingredientes mais usados
+    precoHistorico.ts     série de preço por item a partir das compras salvas
+    mercados.ts           quanto a lista custaria em cada mercado do histórico
+    ocrLegenda.ts         separa ingredientes/preparo de uma legenda de TikTok
     parseRecipeHtml.ts    extrai schema.org/Recipe (JSON-LD) do HTML
     fetchRecipe.ts        busca a página (server-side) e parseia
+    importCache.ts        cache por URL + limite por IP do endpoint de importação
     importClient.ts       cliente: importar por URL ou por texto
-  pages/         # Receitas, Importar, Detalhe, PlanoSemana, ListaMercado
+  pages/         # Receitas, Importar, Detalhe, PlanoSemana, ListaMercado, Geladeira, Histórico, Configurações
 api/
   import.ts      # função serverless (Vercel): busca a URL e devolve a receita
 ```
+
+As tabelas nutricional e de vitaminas/minerais são **estimativas** por ingrediente-chave
+(valores médios TACO/USDA, com proxies para famílias próximas). Servem para comparar
+receitas e enxergar carências grosseiras, não para prescrição nutricional.
 
 ### Sobre a importação por link
 
@@ -53,6 +70,9 @@ Sites de receita normalmente bloqueiam requisições diretas do navegador (CORS 
 - **Em desenvolvimento:** um middleware do Vite (em `vite.config.ts`) reproduz o mesmo endpoint em `/api/import`, para que `npm run dev` importe por URL sem backend separado.
 
 Se um site específico bloquear mesmo o acesso server-side, use a aba **“Colar texto”** na tela de importação.
+
+O endpoint guarda em memória as receitas já buscadas (24 h) e limita as requisições por IP
+(20/min): receita publicada não muda, e sem o limite a função viraria um proxy de fetch aberto.
 
 ## Deploy
 

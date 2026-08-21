@@ -1,6 +1,6 @@
 // Operações de alto nível sobre o banco.
 
-import type { Compra, Ingredient, NewRecipe, PrecoItem, Recipe, WeekPlan, YieldType } from '../types';
+import type { Compra, GeladeiraItem, Ingredient, NewRecipe, PrecoItem, Recipe, Refeicao, VideoReceita, WeekPlan, YieldType } from '../types';
 import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
@@ -95,18 +95,69 @@ export async function salvarVersaoComRestricao(
 }
 
 export async function removerReceita(id: string): Promise<void> {
+  const receita = await db.recipes.get(id);
   await db.recipes.delete(id);
+  // O vídeo só existe por causa da receita: sem ela, viraria lixo ocupando espaço.
+  if (receita?.videoId) await db.videos.delete(receita.videoId);
   const plano = await getOrCreatePlanoAtual();
   const itens = plano.itens.filter((i) => i.recipeId !== id);
   await db.plans.put({ ...plano, itens });
+}
+
+// ---- Vídeos das receitas ----
+
+/** Teto de tamanho do vídeo: acima disso o IndexedDB começa a pesar no aparelho. */
+export const TAMANHO_MAX_VIDEO = 100 * 1024 * 1024;
+
+/** Guarda o arquivo de vídeo no dispositivo e devolve o id para vincular à receita. */
+export async function salvarVideo(file: File): Promise<string> {
+  if (file.size > TAMANHO_MAX_VIDEO) {
+    throw new Error('Vídeo maior que 100 MB. Corte o trecho do preparo antes de importar.');
+  }
+  const video: VideoReceita = {
+    id: novoId(),
+    blob: file,
+    mime: file.type || 'video/mp4',
+    nome: file.name,
+    tamanho: file.size,
+    criadoEm: Date.now(),
+  };
+  await db.videos.put(video);
+  return video.id;
+}
+
+/** Vincula (ou troca) o vídeo de uma receita, descartando o anterior. */
+export async function definirVideoDaReceita(recipe: Recipe, videoId: string | undefined): Promise<void> {
+  if (recipe.videoId && recipe.videoId !== videoId) await db.videos.delete(recipe.videoId);
+  const { videoId: _antigo, ...resto } = recipe;
+  await db.recipes.put(videoId ? { ...resto, videoId } : resto);
 }
 
 export async function definirNoPlano(recipeId: string, fator: number): Promise<void> {
   const plano = await getOrCreatePlanoAtual();
   const idx = plano.itens.findIndex((i) => i.recipeId === recipeId);
   const itens = [...plano.itens];
-  if (idx >= 0) itens[idx] = { recipeId, fator };
+  // Preserva o agendamento (dia/refeição) ao ajustar só a quantidade.
+  if (idx >= 0) itens[idx] = { ...itens[idx], recipeId, fator };
   else itens.push({ recipeId, fator });
+  await db.plans.put({ ...plano, itens });
+}
+
+/**
+ * Agenda (ou desagenda, passando undefined) a receita em um dia da semana e refeição.
+ * Só mexe no item já existente no plano — agendar não adiciona ao plano por si só.
+ */
+export async function definirAgendamento(
+  recipeId: string,
+  dia: number | undefined,
+  refeicao: Refeicao | undefined,
+): Promise<void> {
+  const plano = await getOrCreatePlanoAtual();
+  const idx = plano.itens.findIndex((i) => i.recipeId === recipeId);
+  if (idx < 0) return;
+  const itens = [...plano.itens];
+  const { dia: _d, refeicao: _r, ...resto } = itens[idx];
+  itens[idx] = { ...resto, ...(dia !== undefined ? { dia } : {}), ...(refeicao !== undefined ? { refeicao } : {}) };
   await db.plans.put({ ...plano, itens });
 }
 
@@ -185,6 +236,35 @@ export async function adicionarNaGeladeira(nomeBruto: string, validade?: number)
   const itemKey = normalizeItemKey(nome);
   if (!itemKey) return;
   await db.geladeira.put({ itemKey, nome, adicionadoEm: Date.now(), validade });
+}
+
+/**
+ * Adiciona vários ingredientes de uma vez (ex.: itens recém-comprados no mercado),
+ * sem sobrescrever a validade já informada de quem já estava na geladeira.
+ * Devolve quantos itens novos entraram.
+ */
+export async function adicionarVariosNaGeladeira(nomesBrutos: string[]): Promise<number> {
+  const agora = Date.now();
+  const novos = new Map<string, GeladeiraItem>();
+  for (const bruto of nomesBrutos) {
+    const nome = parseIngredient(bruto)?.item ?? '';
+    const itemKey = normalizeItemKey(nome);
+    if (!itemKey || novos.has(itemKey)) continue;
+    novos.set(itemKey, { itemKey, nome, adicionadoEm: agora });
+  }
+  if (novos.size === 0) return 0;
+  const existentes = new Set((await db.geladeira.bulkGet(Array.from(novos.keys()))).filter(Boolean).map((g) => g!.itemKey));
+  const inserir = Array.from(novos.values()).filter((g) => !existentes.has(g.itemKey));
+  await db.geladeira.bulkPut(inserir);
+  return inserir.length;
+}
+
+/** Dá baixa de vários itens da geladeira de uma vez (ex.: ingredientes usados ao cozinhar). */
+export async function baixarDaGeladeira(itemKeys: string[]): Promise<number> {
+  const unicos = Array.from(new Set(itemKeys.filter(Boolean)));
+  if (unicos.length === 0) return 0;
+  await db.geladeira.bulkDelete(unicos);
+  return unicos.length;
 }
 
 export async function removerDaGeladeira(itemKey: string): Promise<void> {

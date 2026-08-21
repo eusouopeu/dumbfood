@@ -1,7 +1,7 @@
 // Banco local (IndexedDB) via Dexie.
 
 import Dexie, { type Table } from 'dexie';
-import type { Compra, GeladeiraItem, PrecoItem, Recipe, WeekPlan } from '../types';
+import type { Compra, GeladeiraItem, PrecoItem, Recipe, VideoReceita, WeekPlan } from '../types';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -11,6 +11,7 @@ export class DumbfoodDB extends Dexie {
   compras!: Table<Compra, string>;
   precos!: Table<PrecoItem, string>;
   geladeira!: Table<GeladeiraItem, string>;
+  videos!: Table<VideoReceita, string>;
 
   constructor() {
     super('dumbfood');
@@ -56,6 +57,27 @@ export class DumbfoodDB extends Dexie {
       compras: 'id, data',
       precos: 'itemKey, item',
       geladeira: 'itemKey, adicionadoEm',
+    });
+    // v6: compras passam a registrar em qual mercado foram feitas (comparação entre
+    // estabelecimentos e série histórica de preço por item). Compras antigas ficam sem
+    // mercado — o índice aceita registros sem a chave.
+    this.version(6).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+    });
+    // v7: vídeos das receitas (TikTok e afins) guardados no dispositivo, para tocar
+    // dentro do modo de preparo mesmo offline. O blob fica fora da tabela de receitas
+    // para não carregar megabytes de vídeo em toda leitura da lista.
+    this.version(7).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
     });
   }
 }

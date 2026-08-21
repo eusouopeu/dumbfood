@@ -23,7 +23,9 @@ import {
   definirTags,
   adicionarTags,
   alternarFavorito,
+  baixarDaGeladeira,
 } from '../db/repo';
+import { combinarReceita } from '../lib/geladeira';
 import { scaleIngredients, fatorParaRendimento } from '../lib/scale';
 import { formatQtdUnidadeAbrev, formatDecimal } from '../lib/displayQty';
 import { padronizarMedida, type MedidaModo } from '../lib/measures';
@@ -32,10 +34,13 @@ import { unitDefByCanonical } from '../lib/units';
 import { pesoEmGramas } from '../lib/weight';
 import { capitalizar, nomeItem, rotuloRendimento, formatTempo } from '../lib/format';
 import { calcularNutricaoTotal, dividirPorPorcoes, percentualVD } from '../lib/nutrition';
+import { CAMPOS_MICRO, calcularMicroTotal, coberturaMicro, dividirMicro, percentualVDMicro } from '../lib/micronutrientes';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import CookMode from '../components/CookMode';
+import Secao from '../components/Secao';
+import VideoReceita from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
 import type { YieldType } from '../types';
 
@@ -124,6 +129,8 @@ export default function Detalhe() {
   const pesoTotalG = escalados.reduce((soma, ing) => soma + (pesoEmGramas(ing.item, ing.quantidade, ing.unidade) ?? 0), 0);
   // Tabela nutricional sempre por 100 g, independente do rendimento da receita.
   const nutriPor100g = dividirPorPorcoes(calcularNutricaoTotal(escalados), pesoTotalG / 100);
+  const microPor100g = dividirMicro(calcularMicroTotal(escalados), pesoTotalG / 100);
+  const cobertura = coberturaMicro(escalados);
 
   async function salvarComoPadrao() {
     if (!recipe) return;
@@ -131,6 +138,27 @@ export default function Detalhe() {
     setAlvoRend(null);
     setTipoRend(null);
     setModo('rendimento');
+  }
+
+  /**
+   * Fecha o ciclo geladeira -> receita: ao terminar de cozinhar, os ingredientes que
+   * estavam na geladeira e foram usados aqui deixam de estar disponíveis. Só pergunta
+   * quando há de fato o que dar baixa.
+   */
+  async function darBaixaNaGeladeira() {
+    if (!recipe) return;
+    const geladeira = await db.geladeira.toArray();
+    const { usados } = combinarReceita(recipe, geladeira);
+    if (usados.length === 0) return;
+    const nomes = geladeira.filter((g) => usados.includes(g.itemKey)).map((g) => nomeItem(g.nome));
+    const ok = await confirmar(
+      `Dar baixa na geladeira dos ingredientes usados? (${nomes.join(', ')})`,
+      { textoConfirmar: 'Dar baixa' },
+    );
+    if (!ok) return;
+    const n = await baixarDaGeladeira(usados);
+    hapticLeve();
+    toast(`${n} ${n === 1 ? 'item removido' : 'itens removidos'} da geladeira.`);
   }
 
   async function addTag() {
@@ -333,9 +361,8 @@ export default function Detalhe() {
       </div>
 
       {/* Ingredientes escalados */}
-      <div className="card p-4">
+      <Secao chave="ingredientes" titulo="Ingredientes" subtitulo={`${escalados.length} itens`}>
         <div className="mb-4 space-y-2">
-          <h3 className="section-heading">Ingredientes</h3>
           <div className="flex items-center justify-between gap-2">
             {/* Tamanho de leitura: útil para ler a receita a distância do fogão. */}
             <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
@@ -377,7 +404,7 @@ export default function Detalhe() {
             );
           })}
         </ul>
-      </div>
+      </Secao>
 
       {/* Faça antes de começar: passo de pré-aquecimento, resumido (sem emoji nem citação da etapa) */}
       {preheat && (
@@ -395,35 +422,44 @@ export default function Detalhe() {
         </div>
       )}
 
-      {recipe.modoPreparo.length > 0 && (
-        <div className="card p-4">
-          <h3 className="section-heading mb-4">Modo de preparo</h3>
-          <ol className="space-y-5">
-            {recipe.modoPreparo.map((p, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex-shrink-0 font-extrabold text-brand-600 dark:text-brand-400">{i + 1}.</span>
-                <span className="leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>{p}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+      {/* Sempre visível: receita de vídeo chega sem passos em texto, e é aqui que o
+          usuário anexa (ou troca) o vídeo do preparo. */}
+      <Secao
+        chave="preparo"
+        titulo="Modo de preparo"
+        subtitulo={
+          recipe.modoPreparo.length > 0
+            ? `${recipe.modoPreparo.length} passos`
+            : recipe.videoId
+              ? 'vídeo'
+              : 'sem passos'
+        }
+      >
+        <VideoReceita recipe={recipe} />
+        <ol className="space-y-5">
+          {recipe.modoPreparo.map((p, i) => (
+            <li key={i} className="flex gap-3">
+              <span className="flex-shrink-0 font-extrabold text-brand-600 dark:text-brand-400">{i + 1}.</span>
+              <span className="leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>{p}</span>
+            </li>
+          ))}
+        </ol>
+      </Secao>
 
       {/* Tabela nutricional estimada, a partir de ingredientes-chave */}
       {escalados.length > 0 && (
-        <div className="card p-4">
-          <h3 className="section-heading">Tabela nutricional</h3>
-          <p className="mb-3 mt-1 text-xs text-stone-500 dark:text-stone-400">Por 100 g</p>
+        <Secao chave="nutricional" titulo="Tabela nutricional" subtitulo="Por 100 g">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-stone-200 dark:border-stone-700">
                 <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
-                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">por 100 g</th>
+                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">100 g</th>
                 <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
               </tr>
             </thead>
             <tbody>
-              <NutriLinha label="Valor energético" valor={`${formatDecimal(nutriPor100g.kcal)} kcal`} vd={percentualVD('kcal', nutriPor100g.kcal)} />
+              {/* Caloria com casa decimal não ajuda ninguém a decidir nada: arredonda pra cima. */}
+              <NutriLinha label="Valor energético" valor={`${Math.ceil(nutriPor100g.kcal)} kcal`} vd={percentualVD('kcal', nutriPor100g.kcal)} />
               <NutriLinha label="Carboidratos" valor={`${formatDecimal(nutriPor100g.carboidrato)} g`} vd={percentualVD('carboidrato', nutriPor100g.carboidrato)} />
               <NutriLinha label="dos quais açúcares" valor={`${formatDecimal(nutriPor100g.acucares)} g`} indent />
               <NutriLinha label="Proteínas" valor={`${formatDecimal(nutriPor100g.proteina)} g`} vd={percentualVD('proteina', nutriPor100g.proteina)} />
@@ -434,7 +470,37 @@ export default function Detalhe() {
               <NutriLinha label="Fibra alimentar" valor={`${formatDecimal(nutriPor100g.fibra)} g`} vd={percentualVD('fibra', nutriPor100g.fibra)} last />
             </tbody>
           </table>
-        </div>
+        </Secao>
+      )}
+
+      {/* Vitaminas e minerais, mesma base de cálculo da tabela nutricional */}
+      {escalados.length > 0 && (
+        <Secao chave="micronutrientes" titulo="Vitaminas e minerais" subtitulo="Por 100 g">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-stone-200 dark:border-stone-700">
+                <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
+                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">100 g</th>
+                <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CAMPOS_MICRO.map(({ chave, label, unidade }, i) => (
+                <NutriLinha
+                  key={chave}
+                  label={label}
+                  valor={`${formatDecimal(microPor100g[chave])} ${unidade}`}
+                  vd={percentualVDMicro(chave, microPor100g[chave])}
+                  last={i === CAMPOS_MICRO.length - 1}
+                />
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
+            Estimativa a partir de {cobertura.conhecidos} de {cobertura.total} ingredientes reconhecidos
+            (TACO/USDA). O que a tabela não conhece entra como zero, então o valor real tende a ser maior.
+          </p>
+        </Secao>
       )}
 
       {/* Ações */}
@@ -451,7 +517,12 @@ export default function Detalhe() {
       )}
 
       {cozinhando && (
-        <CookMode titulo={capitalizar(recipe.titulo)} passos={recipe.modoPreparo} onClose={() => setCozinhando(false)} />
+        <CookMode
+          titulo={capitalizar(recipe.titulo)}
+          passos={recipe.modoPreparo}
+          onClose={() => setCozinhando(false)}
+          onConcluir={darBaixaNaGeladeira}
+        />
       )}
 
       {restricaoAberta && (

@@ -4,7 +4,7 @@
 import type { Compra } from '../types';
 import { nutrientesDeGramas, somarNutrientes, type Nutrientes100g } from './nutrition';
 import { round } from './scale';
-import { normalizeItemKey } from './ingredientParser';
+import { seriePrecoItem } from './precoHistorico';
 
 export type Granularidade = 'semana' | 'mes' | 'trimestre' | 'ano';
 
@@ -164,27 +164,14 @@ export function macroPercentualPorPeriodo(
 
 /**
  * Compara o preço unitário pago pelo item nas duas ocorrências mais recentes do
- * histórico (por kg ou por unidade, conforme como foi registrado) e indica se
- * subiu ou desceu. `null` quando não há duas ocorrências comparáveis.
+ * histórico e indica se subiu ou desceu. `null` quando não há duas ocorrências
+ * comparáveis (ver seriePrecoItem, que já descarta bases misturadas).
  */
 export function tendenciaPrecoItem(itemNome: string, compras: Compra[]): 'alta' | 'baixa' | null {
-  const chave = normalizeItemKey(itemNome);
-  const ocorrencias: { data: number; precoUnitario: number; porKg: boolean }[] = [];
-
-  for (const c of [...compras].sort((a, b) => b.data - a.data)) {
-    for (const i of c.itens) {
-      if (normalizeItemKey(i.item) !== chave || i.precoEstimado === null) continue;
-      if (i.quantidadeG !== null && i.quantidadeG > 0) {
-        ocorrencias.push({ data: c.data, precoUnitario: i.precoEstimado / (i.quantidadeG / 1000), porKg: true });
-      } else if (i.quantidadeUnidades !== null && i.quantidadeUnidades > 0) {
-        ocorrencias.push({ data: c.data, precoUnitario: i.precoEstimado / i.quantidadeUnidades, porKg: false });
-      }
-    }
-    if (ocorrencias.length >= 2) break;
-  }
-
-  const [atual, anterior] = ocorrencias;
-  if (!atual || !anterior || atual.porKg !== anterior.porKg) return null;
+  const serie = seriePrecoItem(itemNome, compras);
+  const atual = serie.at(-1);
+  const anterior = serie.at(-2);
+  if (!atual || !anterior) return null;
   if (atual.precoUnitario > anterior.precoUnitario * 1.03) return 'alta';
   if (atual.precoUnitario < anterior.precoUnitario * 0.97) return 'baixa';
   return null;
@@ -197,7 +184,8 @@ function csvEscape(v: unknown): string {
 
 /** Gera o CSV de uma compra (linha de resumo + itens). */
 export function csvDeCompra(compra: Compra): string {
-  const resumo = `# Compra de ${new Date(compra.data).toLocaleDateString('pt-BR')} — total real: ${compra.valorTotalReal.toFixed(2)} — total estimado: ${compra.valorTotalEstimado.toFixed(2)}`;
+  const mercado = compra.mercado ? ` — mercado: ${compra.mercado}` : '';
+  const resumo = `# Compra de ${new Date(compra.data).toLocaleDateString('pt-BR')}${mercado} — total real: ${compra.valorTotalReal.toFixed(2)} — total estimado: ${compra.valorTotalEstimado.toFixed(2)}`;
   const linhas = [
     ['item', 'gondola', 'peso_g', 'unidades', 'preco_estimado'],
     ...compra.itens.map((i) => [i.item, i.gondola, i.quantidadeG ?? '', i.quantidadeUnidades ?? '', i.precoEstimado ?? '']),

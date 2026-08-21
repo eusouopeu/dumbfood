@@ -12,21 +12,38 @@ function importApiDevPlugin(): Plugin {
         try {
           const reqUrl = new URL(req.url ?? '', 'http://localhost');
           const target = reqUrl.searchParams.get('url');
+          res.setHeader('content-type', 'application/json');
           if (!target) {
             res.statusCode = 400;
-            res.setHeader('content-type', 'application/json');
             res.end(JSON.stringify({ error: 'Parâmetro "url" é obrigatório.' }));
+            return;
+          }
+          // Mesmo cache/limite da função serverless, para o dev reproduzir o comportamento real.
+          const cacheMod = await server.ssrLoadModule('/src/lib/importCache.ts');
+          const cacheada = cacheMod.lerDoCache(target);
+          if (cacheada) {
+            res.statusCode = 200;
+            res.setHeader('x-cache', 'HIT');
+            res.end(JSON.stringify(cacheada));
+            return;
+          }
+          const limite = cacheMod.registrarRequisicao(req.socket?.remoteAddress ?? 'dev');
+          if (!limite.permitido) {
+            res.statusCode = 429;
+            res.setHeader('retry-after', String(limite.esperarSegundos));
+            res.end(JSON.stringify({ error: `Muitas importações seguidas. Tente de novo em ${limite.esperarSegundos}s.` }));
             return;
           }
           const { fetchAndParseRecipe } = await server.ssrLoadModule('/src/lib/fetchRecipe.ts');
           const recipe = await fetchAndParseRecipe(target);
-          res.setHeader('content-type', 'application/json');
           if (!recipe) {
             res.statusCode = 422;
             res.end(JSON.stringify({ error: 'Não foi possível extrair uma receita desta página.' }));
             return;
           }
+          cacheMod.gravarNoCache(target, recipe);
           res.statusCode = 200;
+          res.setHeader('x-cache', 'MISS');
           res.end(JSON.stringify(recipe));
         } catch (err) {
           res.statusCode = 500;

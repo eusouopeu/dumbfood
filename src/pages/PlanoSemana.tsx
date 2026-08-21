@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BellAlertIcon, BookOpenIcon, MinusIcon, PlusIcon, ShoppingCartIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { BellAlertIcon, BookOpenIcon, CalendarDaysIcon, MinusIcon, PlusIcon, ShoppingCartIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
+import { definirAgendamento, definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
 import { round } from '../lib/scale';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
@@ -17,9 +17,8 @@ import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
-import type { Ingredient } from '../types';
-
-const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+import { DIAS_CURTOS, DIAS_SEMANA, REFEICOES, agruparPorDia, rotuloRefeicao } from '../lib/agenda';
+import type { Ingredient, PlanItem, Refeicao } from '../types';
 
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
@@ -44,6 +43,13 @@ export default function PlanoSemana() {
     setLembreteCompras({ ...lembreteCompras, ativo });
     hapticLeve();
   }
+
+  // A agenda começa no dia de hoje: é isso que o usuário quer ver ao abrir a aba.
+  const hoje = new Date().getDay();
+  const agenda = useMemo(() => {
+    const porId = new Map((recipes ?? []).map((r) => [r.id, r]));
+    return agruparPorDia(plano.itens, porId, hoje);
+  }, [recipes, plano, hoje]);
 
   const nutriTotal = useMemo(() => {
     if (!recipes) return calcularNutricaoTotal([]);
@@ -161,6 +167,55 @@ export default function PlanoSemana() {
       )}
 
       {plano.itens.length > 0 && (
+        <div className="card space-y-2 p-4">
+          <div className="flex items-center gap-2">
+            <CalendarDaysIcon className="size-4 text-brand-500" />
+            <h3 className="section-heading text-sm">Agenda da semana</h3>
+            {agenda.semDia.length > 0 && (
+              <span className="ml-auto text-xs text-stone-400 dark:text-stone-500">
+                {agenda.semDia.length} sem dia
+              </span>
+            )}
+          </div>
+          <ul className="divide-y divide-stone-100 dark:divide-stone-700">
+            {agenda.dias.map(({ dia, itens }) => (
+              <li key={dia} className="flex gap-3 py-1.5 text-sm">
+                <span
+                  className={`w-16 flex-shrink-0 font-semibold ${
+                    dia === hoje ? 'text-brand-600 dark:text-brand-400' : 'text-stone-500 dark:text-stone-400'
+                  }`}
+                >
+                  {DIAS_CURTOS[dia]}
+                  {dia === hoje && <span className="ml-1 text-[10px] uppercase">hoje</span>}
+                </span>
+                {itens.length === 0 ? (
+                  <span className="text-stone-300 dark:text-stone-600">—</span>
+                ) : (
+                  <span className="min-w-0 flex-1 space-y-0.5">
+                    {itens.map(({ item, recipe }) => (
+                      <span key={recipe.id} className="block truncate">
+                        {item.refeicao && (
+                          <span className="mr-1 text-xs text-stone-400 dark:text-stone-500">
+                            {rotuloRefeicao(item.refeicao)}:
+                          </span>
+                        )}
+                        {capitalizar(recipe.titulo)}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {agenda.semDia.length > 0 && (
+            <p className="text-xs text-stone-400 dark:text-stone-500">
+              Sem dia definido: {agenda.semDia.map(({ recipe }) => capitalizar(recipe.titulo)).join(', ')}.
+            </p>
+          )}
+        </div>
+      )}
+
+      {plano.itens.length > 0 && (
         <div className="card p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h3 className="section-heading text-sm">Macros do plano</h3>
@@ -260,6 +315,8 @@ export default function PlanoSemana() {
                     })()}
                   </div>
                 )}
+
+                {ativo && <SeletorAgendamento recipeId={r.id} item={plano.itens.find((i) => i.recipeId === r.id)} />}
               </li>
             );
           })}
@@ -276,6 +333,52 @@ export default function PlanoSemana() {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Dia da semana + refeição de uma receita já no plano. Fica na própria linha da
+ * receita para agendar sem sair da tela; "—" desagenda.
+ */
+function SeletorAgendamento({ recipeId, item }: { recipeId: string; item: PlanItem | undefined }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 pl-8" onClick={(e) => e.stopPropagation()}>
+      <span className="text-xs text-stone-500 dark:text-stone-400">quando:</span>
+      <select
+        className="input w-28 py-1 text-xs"
+        aria-label="Dia da semana"
+        value={item?.dia ?? ''}
+        onChange={(e) => {
+          const v = e.target.value;
+          definirAgendamento(recipeId, v === '' ? undefined : Number(v), item?.refeicao);
+          hapticLeve();
+        }}
+      >
+        <option value="">— dia</option>
+        {DIAS_SEMANA.map((d, i) => (
+          <option key={d} value={i}>
+            {d}
+          </option>
+        ))}
+      </select>
+      <select
+        className="input w-24 py-1 text-xs"
+        aria-label="Refeição"
+        value={item?.refeicao ?? ''}
+        onChange={(e) => {
+          const v = e.target.value;
+          definirAgendamento(recipeId, item?.dia, v === '' ? undefined : (v as Refeicao));
+          hapticLeve();
+        }}
+      >
+        <option value="">— refeição</option>
+        {REFEICOES.map((r) => (
+          <option key={r.chave} value={r.chave}>
+            {r.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

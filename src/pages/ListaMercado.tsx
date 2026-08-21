@@ -6,9 +6,12 @@ import {
   ArrowTrendingUpIcon,
   BanknotesIcon,
   CameraIcon,
+  BuildingStorefrontIcon,
   CheckCircleIcon,
   CheckIcon,
   ClipboardDocumentIcon,
+  CubeIcon,
+  ExclamationTriangleIcon,
   PencilIcon,
   PlusIcon,
   ShareIcon,
@@ -22,6 +25,11 @@ import { usePlano } from '../db/usePlano';
 import { buildShoppingList, resumoLinha, pesoTotalKg } from '../lib/shoppingList';
 import { estiloGondola, GONDOLA_ORDER } from '../lib/aisles';
 import { tendenciaPrecoItem } from '../lib/history';
+import { precoForaDoPadrao, seriePrecoItem } from '../lib/precoHistorico';
+import { compararMercados, mercadosDoHistorico } from '../lib/mercados';
+import { arredondarLinha } from '../lib/embalagens';
+import { ingredienteAtendido } from '../lib/geladeira';
+import { useArredondarEmbalagem, useDescontarGeladeira } from '../lib/preferencias';
 import { nomeItem } from '../lib/format';
 import { pesoEmGramas } from '../lib/weight';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
@@ -30,7 +38,8 @@ import { formatQtdUnidade } from '../lib/displayQty';
 import { calcularNutricaoTotal } from '../lib/nutrition';
 import { custoLinha, buscarPreco, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
-import { salvarCompra, novoId } from '../db/repo';
+import { salvarCompra, novoId, adicionarVariosNaGeladeira } from '../db/repo';
+import { confirmar } from '../lib/confirm';
 import { useDieta } from '../lib/diet';
 import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
@@ -69,6 +78,10 @@ interface LinhaLista {
   rotulo: string;
   origens: string[];
   manual: boolean;
+  /** Ex.: "2 × 1 kg — sobram 300 g"; vazio quando a quantidade não foi arredondada. */
+  detalhe: string;
+  /** Item já disponível na geladeira/despensa. */
+  naGeladeira: boolean;
 }
 
 function loadChecked(): Set<string> {
@@ -106,6 +119,7 @@ export default function ListaMercado() {
   const recipes = useLiveQuery(() => db.recipes.toArray(), []);
   const precos = useLiveQuery(() => db.precos.toArray(), []);
   const compras = useLiveQuery(() => db.compras.toArray(), []);
+  const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const plano = usePlano();
   const [checked, setChecked] = useState<Set<string>>(() => loadChecked());
   const [extras, setExtras] = useState<ItemExtra[]>(() => loadExtras());
@@ -120,6 +134,9 @@ export default function ListaMercado() {
   const [editandoOrcamento, setEditandoOrcamento] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
   const [editandoPrecos, setEditandoPrecos] = useState(false);
+  const [mercado, setMercado] = useState('');
+  const [descontarGeladeira, setDescontarGeladeira] = useDescontarGeladeira();
+  const [arredondarEmbalagem, setArredondarEmbalagem] = useArredondarEmbalagem();
 
   useEffect(() => {
     localStorage.setItem(CHECK_KEY, JSON.stringify(Array.from(checked)));
@@ -152,11 +169,25 @@ export default function ListaMercado() {
         rotulo: formatQtdUnidade(ov.quantidade, ov.unidade),
       };
     };
+    // Arredonda para o que o mercado vende de fato (1 kg em vez de 700 g). Vem depois do
+    // override para respeitar também a quantidade que o usuário digitou à mão.
+    const aplicarEmbalagem = (l: LinhaLista): LinhaLista => {
+      if (!arredondarEmbalagem) return l;
+      const arredondada = arredondarLinha(l.item, l.quantidades);
+      return { ...l, quantidades: arredondada.quantidades, rotulo: arredondada.rotulo, detalhe: arredondada.detalhe };
+    };
+    const marcarGeladeira = (l: LinhaLista): LinhaLista => {
+      if (l.manual || !geladeira || geladeira.length === 0) return l;
+      const key = normalizeItemKey(l.item);
+      return { ...l, naGeladeira: geladeira.some((g) => ingredienteAtendido(g.itemKey, key)) };
+    };
+    const preparar = (l: LinhaLista) => marcarGeladeira(aplicarEmbalagem(aplicarOverride(l)));
+
     const porGondola = new Map<string, LinhaLista[]>();
     for (const s of sections) {
       porGondola.set(
         s.gondola,
-        s.linhas.map((l) => aplicarOverride({ ...l, id: `${s.gondola}:${l.item}`, manual: false })),
+        s.linhas.map((l) => preparar({ ...l, id: `${s.gondola}:${l.item}`, manual: false, detalhe: '', naGeladeira: false })),
       );
     }
     for (const ex of extras) {
@@ -169,38 +200,83 @@ export default function ListaMercado() {
         rotulo: formatQtdUnidade(med.quantidade, med.unidade),
         origens: [],
         manual: true,
+        detalhe: '',
+        naGeladeira: false,
       };
       const arr = porGondola.get(ex.gondola) ?? [];
-      arr.push(aplicarOverride(linha));
+      arr.push(preparar(linha));
       porGondola.set(ex.gondola, arr);
     }
     return GONDOLA_ORDER.filter((g) => porGondola.has(g)).map((g) => ({ gondola: g, linhas: porGondola.get(g)! }));
-  }, [sections, extras, overrides]);
+  }, [sections, extras, overrides, arredondarEmbalagem, geladeira]);
+
+  // O que a geladeira já cobre sai da lista de compras (e das somas) e vira um bloco à
+  // parte — comprar de novo o que está na despensa é justamente o que o app deveria evitar.
+  const { secoesParaComprar, jaTenho } = useMemo(() => {
+    if (!descontarGeladeira) return { secoesParaComprar: sectionsComExtras, jaTenho: [] as LinhaLista[] };
+    const jaTenho: LinhaLista[] = [];
+    const secoes = sectionsComExtras
+      .map((s) => ({
+        gondola: s.gondola,
+        linhas: s.linhas.filter((l) => {
+          if (!l.naGeladeira) return true;
+          jaTenho.push(l);
+          return false;
+        }),
+      }))
+      .filter((s) => s.linhas.length > 0);
+    return { secoesParaComprar: secoes, jaTenho };
+  }, [sectionsComExtras, descontarGeladeira]);
 
   // Os preços importados pelo usuário vêm primeiro: `buscarPreco` usa o primeiro que casar,
   // então a tabela embutida só entra onde ele ainda não tem nota fiscal.
   const listaPrecos = useMemo(() => [...(precos ?? []), ...PRECOS_BASE], [precos]);
 
   const custoPorLinha = useMemo(() => {
-    const m = new Map<string, { valor: number | null; estimado: boolean; tendencia: 'alta' | 'baixa' | null }>();
-    for (const s of sectionsComExtras) {
+    const m = new Map<
+      string,
+      { valor: number | null; estimado: boolean; tendencia: 'alta' | 'baixa' | null; foraDoPadrao: 'alto' | 'baixo' | null }
+    >();
+    for (const s of secoesParaComprar) {
       for (const l of s.linhas) {
         const fonte = buscarPreco(normalizeItemKey(l.item), listaPrecos);
+        const valor = custoLinha(l, listaPrecos);
+        // Converte o custo da linha para preço unitário e compara com a mediana histórica:
+        // é o aviso de "esse não é o preço de sempre" antes de a compra ser salva.
+        const { gramas, unidades } = resumoLinha(l);
+        const serie = seriePrecoItem(l.item, compras ?? []);
+        const unitario =
+          valor === null
+            ? null
+            : gramas !== null && gramas > 0
+              ? valor / (gramas / 1000)
+              : unidades !== null && unidades > 0
+                ? valor / unidades
+                : null;
         m.set(l.id, {
-          valor: custoLinha(l, listaPrecos),
+          valor,
           estimado: fonte?.estimado === true,
           tendencia: tendenciaPrecoItem(l.item, compras ?? []),
+          foraDoPadrao: unitario === null ? null : precoForaDoPadrao(unitario, serie),
         });
       }
     }
     return m;
-  }, [sectionsComExtras, listaPrecos, compras]);
+  }, [secoesParaComprar, listaPrecos, compras]);
+
+  // Quanto essa mesma lista custaria em cada mercado já registrado no histórico (rec. 7).
+  const comparacao = useMemo(
+    () => compararMercados(secoesParaComprar.flatMap((s) => s.linhas), compras ?? []),
+    [secoesParaComprar, compras],
+  );
+
+  const mercadosConhecidos = useMemo(() => mercadosDoHistorico(compras ?? []), [compras]);
 
   // Itens distintos da lista atual (por chave normalizada), para o editor manual de preços.
   const itensParaPrecos = useMemo(() => {
     const vistos = new Set<string>();
     const nomes: string[] = [];
-    for (const s of sectionsComExtras) {
+    for (const s of secoesParaComprar) {
       for (const l of s.linhas) {
         const key = normalizeItemKey(l.item);
         if (vistos.has(key)) continue;
@@ -209,29 +285,29 @@ export default function ListaMercado() {
       }
     }
     return nomes;
-  }, [sectionsComExtras]);
+  }, [secoesParaComprar]);
 
   const nutriTotal = useMemo(() => {
-    const pseudo: Ingredient[] = sectionsComExtras
+    const pseudo: Ingredient[] = secoesParaComprar
       .flatMap((s) => s.linhas)
       .flatMap((l) => l.quantidades.map((q) => ({ raw: '', item: l.item, quantidade: q.quantidade, unidade: q.unidade, gondola: l.gondola })));
     return calcularNutricaoTotal(pseudo);
-  }, [sectionsComExtras]);
+  }, [secoesParaComprar]);
 
   // Publica quantos itens ainda faltam marcar, para o badge da barra de navegação.
   useEffect(() => {
-    const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
-    const marcados = sectionsComExtras.reduce((n, s) => n + s.linhas.filter((l) => checked.has(l.id)).length, 0);
+    const total = secoesParaComprar.reduce((n, s) => n + s.linhas.length, 0);
+    const marcados = secoesParaComprar.reduce((n, s) => n + s.linhas.filter((l) => checked.has(l.id)).length, 0);
     definirPendentesLista(total - marcados);
     return () => definirPendentesLista(0);
-  }, [sectionsComExtras, checked]);
+  }, [secoesParaComprar, checked]);
 
   if (!recipes) return <ListaSkeleton />;
 
-  const total = sectionsComExtras.reduce((n, s) => n + s.linhas.length, 0);
-  const todosIds = sectionsComExtras.flatMap((s) => s.linhas.map((l) => l.id));
+  const total = secoesParaComprar.reduce((n, s) => n + s.linhas.length, 0);
+  const todosIds = secoesParaComprar.flatMap((s) => s.linhas.map((l) => l.id));
   const todosMarcados = todosIds.length > 0 && todosIds.every((id) => checked.has(id));
-  const pesoTotal = pesoTotalKg(sectionsComExtras);
+  const pesoTotal = pesoTotalKg(secoesParaComprar);
   const valorEstimadoTotal = Array.from(custoPorLinha.values()).reduce((s, v) => s + (v.valor ?? 0), 0);
   const statusOrc = orcamento !== null ? statusOrcamento(valorEstimadoTotal, orcamento) : null;
 
@@ -258,7 +334,7 @@ export default function ListaMercado() {
   // Toggle: marca todos os itens da lista de uma vez, ou desmarca todos se já estiverem todos marcados.
   function alternarTodos() {
     hapticLeve();
-    const todosIds = sectionsComExtras.flatMap((s) => s.linhas.map((l) => l.id));
+    const todosIds = secoesParaComprar.flatMap((s) => s.linhas.map((l) => l.id));
     const todosMarcados = todosIds.length > 0 && todosIds.every((id) => checked.has(id));
     setChecked(todosMarcados ? new Set() : new Set(todosIds));
   }
@@ -310,7 +386,7 @@ export default function ListaMercado() {
   }
 
   async function copiar() {
-    const texto = sectionsComExtras
+    const texto = secoesParaComprar
       .map(
         (s) =>
           `## ${s.gondola}\n` +
@@ -328,7 +404,7 @@ export default function ListaMercado() {
   // Texto simples (sem markdown) para WhatsApp: *negrito* nos títulos de gôndola,
   // checkbox como ☐/☑ pra dar pra ler numa conversa sem nenhuma formatação especial.
   function textoParaCompartilhar(): string {
-    const linhas = sectionsComExtras.map(
+    const linhas = secoesParaComprar.map(
       (s) =>
         `*${s.gondola}*\n` +
         s.linhas.map((l) => `${checked.has(l.id) ? '☑' : '☐'} ${l.rotulo} ${nomeItem(l.item)}`).join('\n'),
@@ -352,7 +428,7 @@ export default function ListaMercado() {
   async function salvarNoHistorico() {
     const itens: CompraItem[] = [];
     let valorTotalEstimado = 0;
-    for (const s of sectionsComExtras) {
+    for (const s of secoesParaComprar) {
       for (const l of s.linhas) {
         if (!checked.has(l.id)) continue;
         const { gramas, unidades } = resumoLinha(l);
@@ -368,9 +444,29 @@ export default function ListaMercado() {
     }
     const valorInformado = Number(valorReal.replace(',', '.'));
     const valorTotalReal = Number.isFinite(valorInformado) && valorInformado > 0 ? valorInformado : valorTotalEstimado;
-    await salvarCompra({ data: Date.now(), valorTotalReal, valorTotalEstimado: Math.round(valorTotalEstimado * 100) / 100, itens });
+    await salvarCompra({
+      data: Date.now(),
+      mercado: mercado.trim() || undefined,
+      valorTotalReal,
+      valorTotalEstimado: Math.round(valorTotalEstimado * 100) / 100,
+      itens,
+    });
     toast('Compra salva no histórico!');
     setValorReal('');
+
+    // O que acabou de ser comprado está, por definição, na despensa: fecha o ciclo
+    // mercado -> geladeira sem obrigar o usuário a redigitar item por item.
+    const ok = await confirmar(`Adicionar os ${itens.length} itens comprados à geladeira?`, {
+      textoConfirmar: 'Adicionar',
+    });
+    if (!ok) return;
+    const novos = await adicionarVariosNaGeladeira(itens.map((i) => i.item));
+    hapticLeve();
+    toast(
+      novos === 0
+        ? 'Todos os itens já estavam na geladeira.'
+        : `${novos} ${novos === 1 ? 'item adicionado' : 'itens adicionados'} à geladeira.`,
+    );
   }
 
   return (
@@ -460,6 +556,65 @@ export default function ListaMercado() {
         )}
       </div>
 
+      {comparacao.length > 0 && (
+        <div className="card space-y-2 p-4">
+          <div className="flex items-center gap-2">
+            <BuildingStorefrontIcon className="size-4 text-brand-500" />
+            <h3 className="section-heading text-sm">Quanto sairia em cada mercado</h3>
+          </div>
+          <ul className="space-y-1.5">
+            {comparacao.map((c, i) => (
+              <li key={c.mercado} className="flex items-baseline gap-2 text-sm">
+                <span className={`min-w-0 flex-1 truncate ${i === 0 ? 'font-semibold' : ''}`}>{c.mercado}</span>
+                <span className="flex-shrink-0 text-xs text-stone-400 dark:text-stone-500">
+                  {c.itensCobertos}/{c.itensTotal} itens
+                </span>
+                <span className={`flex-shrink-0 tabular-nums ${i === 0 ? 'font-bold text-brand-700 dark:text-brand-300' : ''}`}>
+                  {formatBRL(c.total)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-stone-400 dark:text-stone-500">
+            A partir do último preço pago em cada mercado. Cada um cobre um conjunto diferente de
+            itens — compare também a coluna de cobertura, não só o total.
+          </p>
+        </div>
+      )}
+
+      <div className="card space-y-2 p-3 text-sm">
+        <label className="flex items-center gap-3">
+          <CubeIcon className="size-5 flex-shrink-0 text-brand-500" />
+          <span className="flex-1">
+            <span className="block font-medium">Descontar o que já tenho</span>
+            <span className="block text-xs text-stone-500 dark:text-stone-400">
+              Separa da lista os itens que estão na geladeira.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 flex-shrink-0 accent-brand-500"
+            checked={descontarGeladeira}
+            onChange={(e) => setDescontarGeladeira(e.target.checked)}
+          />
+        </label>
+        <label className="flex items-center gap-3">
+          <ShoppingCartIcon className="size-5 flex-shrink-0 text-brand-500" />
+          <span className="flex-1">
+            <span className="block font-medium">Arredondar para embalagens</span>
+            <span className="block text-xs text-stone-500 dark:text-stone-400">
+              700 g de farinha viram 1 pacote de 1 kg.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 flex-shrink-0 accent-brand-500"
+            checked={arredondarEmbalagem}
+            onChange={(e) => setArredondarEmbalagem(e.target.checked)}
+          />
+        </label>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <button onClick={copiar} aria-label="Copiar lista" title="Copiar" className="btn-icon">
           <ClipboardDocumentIcon className="size-4" />
@@ -511,7 +666,7 @@ export default function ListaMercado() {
         </div>
       ) : (
         <>
-          {sectionsComExtras.map((s) => {
+          {secoesParaComprar.map((s) => {
             const estilo = estiloGondola(s.gondola);
             return (
               <div key={s.gondola} className={`card overflow-hidden border-2 ${estilo.borda}`}>
@@ -569,6 +724,9 @@ export default function ListaMercado() {
                             {l.origens.length > 1 && (
                               <span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({l.origens.length} receitas)</span>
                             )}
+                            {l.detalhe && (
+                              <span className="block text-xs text-stone-400 dark:text-stone-500">{l.detalhe}</span>
+                            )}
                           </button>
                         )}
                         {editandoQtd !== l.id && (
@@ -586,6 +744,12 @@ export default function ListaMercado() {
                               )}
                               {custo?.tendencia === 'baixa' && (
                                 <ArrowTrendingDownIcon className="size-3.5 flex-shrink-0 text-green-600" aria-label="Preço caiu desde a última compra" />
+                              )}
+                              {custo?.foraDoPadrao === 'alto' && (
+                                <ExclamationTriangleIcon
+                                  className="size-3.5 flex-shrink-0 text-amber-500"
+                                  aria-label="Preço bem acima da mediana histórica deste item"
+                                />
                               )}
                               {custo?.valor != null ? formatBRL(custo.valor) : '—'}
                             </div>
@@ -615,6 +779,27 @@ export default function ListaMercado() {
             );
           })}
 
+          {jaTenho.length > 0 && (
+            <div className="card space-y-2 p-4">
+              <div className="flex items-center gap-2">
+                <CubeIcon className="size-4 text-brand-500" />
+                <h3 className="section-heading text-sm">Você já tem ({jaTenho.length})</h3>
+              </div>
+              <ul className="space-y-1 text-sm text-stone-500 dark:text-stone-400">
+                {jaTenho.map((l) => (
+                  <li key={l.id} className="flex gap-2">
+                    <span className="font-semibold">{l.rotulo}</span>
+                    <span className="min-w-0 flex-1 truncate">{nomeItem(l.item)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-stone-400 dark:text-stone-500">
+                Fora da lista e das somas porque está na geladeira. A geladeira não guarda
+                quantidade — confira se o que você tem dá para as receitas da semana.
+              </p>
+            </div>
+          )}
+
           {/* Resumo + salvar no histórico */}
           <div className="card space-y-3 p-4">
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
@@ -633,8 +818,11 @@ export default function ListaMercado() {
             </div>
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="block text-xs text-stone-500 dark:text-stone-400">Valor real da compra (R$)</label>
+                <label className="block text-xs text-stone-500 dark:text-stone-400" htmlFor="valor-real">
+                  Valor real da compra (R$)
+                </label>
                 <input
+                  id="valor-real"
                   type="text"
                   inputMode="decimal"
                   className="input"
@@ -643,10 +831,29 @@ export default function ListaMercado() {
                   onChange={(e) => setValorReal(e.target.value)}
                 />
               </div>
-              <button onClick={salvarNoHistorico} className="btn-primary">
-                Salvar no histórico
-              </button>
+              <div className="flex-1">
+                <label className="block text-xs text-stone-500 dark:text-stone-400" htmlFor="mercado">
+                  Mercado
+                </label>
+                <input
+                  id="mercado"
+                  type="text"
+                  className="input"
+                  list="mercados-conhecidos"
+                  placeholder="onde você comprou"
+                  value={mercado}
+                  onChange={(e) => setMercado(e.target.value)}
+                />
+                <datalist id="mercados-conhecidos">
+                  {mercadosConhecidos.map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+              </div>
             </div>
+            <button onClick={salvarNoHistorico} className="btn-primary w-full">
+              Salvar no histórico
+            </button>
             <p className="text-xs text-stone-400 dark:text-stone-500">
               Considera apenas os itens marcados na checklist ({checked.size} de {total}). Valores em
               itálico são estimativas do app; use “Atualizar preços” para valer os da sua nota fiscal.

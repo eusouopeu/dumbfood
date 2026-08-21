@@ -34,16 +34,25 @@ export interface Recipe {
   tempoPreparoMin?: number;
   /** Marcada pelo usuário como favorita, para filtro rápido. */
   favorito?: boolean;
+  /** Id do vídeo guardado no dispositivo (tabela `videos`), exibido no modo de preparo. */
+  videoId?: string;
   criadoEm: number;
 }
 
 /** Receita recém-importada, ainda sem id/persistência. */
 export type NewRecipe = Omit<Recipe, 'id' | 'criadoEm'>;
 
+/** Refeição do dia em que a receita está agendada. */
+export type Refeicao = 'cafe' | 'almoco' | 'jantar' | 'lanche';
+
 export interface PlanItem {
   recipeId: string;
   /** Fator de reescala aplicado à receita neste plano. */
   fator: number;
+  /** Dia da semana agendado (0 = domingo .. 6 = sábado, como Date#getDay()); ausente = sem dia. */
+  dia?: number;
+  /** Refeição do dia; ausente = sem refeição definida. */
+  refeicao?: Refeicao;
 }
 
 export interface WeekPlan {
@@ -108,8 +117,23 @@ export interface Compra {
   id: string;
   /** Timestamp da compra (data informada pelo usuário ao salvar, por padrão "hoje"). */
   data: number;
+  /** Estabelecimento onde a compra foi feita; ausente nas compras salvas antes desse campo existir. */
+  mercado?: string;
   valorTotalReal: number;
   valorTotalEstimado: number;
   itens: CompraItem[];
+  criadoEm: number;
+}
+
+/** Vídeo da receita (ex.: baixado do TikTok), guardado no próprio dispositivo. */
+export interface VideoReceita {
+  id: string;
+  /** Arquivo em si; fica no IndexedDB para o vídeo tocar offline, como o resto do app. */
+  blob: Blob;
+  mime: string;
+  /** Nome original do arquivo, só para exibição. */
+  nome: string;
+  /** Tamanho em bytes, para avisar sobre espaço ocupado sem precisar ler o blob. */
+  tamanho: number;
   criadoEm: number;
 }

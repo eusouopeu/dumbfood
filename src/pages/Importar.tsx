@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { importarPorUrl, montarPorTexto } from '../lib/importClient';
-import { salvarReceita } from '../db/repo';
+import { salvarReceita, salvarVideo, definirVideoDaReceita } from '../db/repo';
+import { extrairLegenda } from '../lib/ocrLegenda';
+import { formatTamanho } from '../lib/video';
+import LerLegenda from '../components/LerLegenda';
 import type { YieldType } from '../types';
 
-type Aba = 'url' | 'texto';
+type Aba = 'url' | 'texto' | 'video';
 
 export default function Importar() {
   const [aba, setAba] = useState<Aba>('url');
@@ -24,6 +27,10 @@ export default function Importar() {
   const [ingredientes, setIngredientes] = useState('');
   const [preparo, setPreparo] = useState('');
   const [tempo, setTempo] = useState<number>(0);
+
+  // Vídeo (TikTok e afins)
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [linkVideo, setLinkVideo] = useState('');
 
   async function importarUrl(entrada: string = url) {
     setErro(null);
@@ -44,14 +51,22 @@ export default function Importar() {
   useEffect(() => {
     const compartilhado = (location.state as { sharedText?: string } | null)?.sharedText;
     if (!compartilhado) return;
+    navigate(location.pathname, { replace: true, state: null });
+    // Link de TikTok/Reels não tem receita em texto na página: não adianta tentar
+    // importar por URL. Abre direto o fluxo de vídeo, já com o link preenchido.
+    if (/tiktok\.com|instagram\.com\/(reel|p)\//i.test(compartilhado)) {
+      setAba('video');
+      setLinkVideo(compartilhado.trim());
+      return;
+    }
     setAba('url');
     setUrl(compartilhado);
     importarUrl(compartilhado);
-    navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function importarTexto() {
+    setErro(null);
     const nova = montarPorTexto({
       titulo,
       rendimentoValor: rendValor,
@@ -59,13 +74,38 @@ export default function Importar() {
       ingredientesTexto: ingredientes,
       modoPreparoTexto: preparo,
       tempoPreparoMin: tempo,
+      fonteUrl: aba === 'video' ? linkVideo : undefined,
     });
     if (nova.ingredientes.length === 0) {
       setErro('Cole ao menos um ingrediente.');
       return;
     }
     const salva = await salvarReceita(nova);
+    // O vídeo é salvo depois da receita: se o arquivo falhar (tamanho, formato), a
+    // receita já está guardada e o usuário pode anexar o vídeo direto na tela dela.
+    if (videoFile) {
+      try {
+        const videoId = await salvarVideo(videoFile);
+        await definirVideoDaReceita(salva, videoId);
+      } catch (e) {
+        setErro((e as Error).message);
+        return;
+      }
+    }
     navigate(`/receita/${salva.id}`);
+  }
+
+  /** Preenche o formulário com o que der para separar da legenda lida/colada. */
+  function aplicarLegenda(texto: string) {
+    const { titulo: t, ingredientes: ings, preparo: passos } = extrairLegenda(texto);
+    if (ings.length === 0 && passos.length === 0) {
+      setErro('Não achei ingredientes nessa legenda. Cole o texto manualmente abaixo.');
+      return;
+    }
+    setErro(null);
+    if (t && !titulo.trim()) setTitulo(t);
+    if (ings.length > 0) setIngredientes((atual) => [atual.trim(), ings.join('\n')].filter(Boolean).join('\n'));
+    if (passos.length > 0) setPreparo((atual) => [atual.trim(), passos.join('\n')].filter(Boolean).join('\n'));
   }
 
   return (
@@ -88,6 +128,12 @@ export default function Importar() {
           className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'texto' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
         >
           Colar texto
+        </button>
+        <button
+          onClick={() => setAba('video')}
+          className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${aba === 'video' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
+        >
+          Vídeo
         </button>
       </div>
 
@@ -113,6 +159,49 @@ export default function Importar() {
           </p>
         </div>
       ) : (
+        <>
+        {aba === 'video' && (
+          <div className="card space-y-3 p-4">
+            <h3 className="section-heading text-sm">Vídeo da receita</h3>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Receita de TikTok: baixe o vídeo pelo próprio app (“Salvar vídeo”) e escolha o arquivo
+              aqui. Ele fica guardado no aparelho e toca dentro do modo de preparo, mesmo sem internet.
+            </p>
+            <label className="btn-outline w-full cursor-pointer justify-center">
+              <VideoCameraIcon className="size-4" />
+              {videoFile ? 'Trocar vídeo' : 'Escolher vídeo do aparelho'}
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {videoFile && (
+              <p className="truncate text-xs text-stone-500 dark:text-stone-400">
+                {videoFile.name} · {formatTamanho(videoFile.size)}
+              </p>
+            )}
+            <div>
+              <label className="block text-sm font-medium">Link do vídeo (opcional)</label>
+              <input
+                className="input"
+                inputMode="url"
+                placeholder="https://www.tiktok.com/@perfil/video/..."
+                value={linkVideo}
+                onChange={(e) => setLinkVideo(e.target.value)}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-sm font-medium">Ingredientes pela legenda</p>
+              <LerLegenda onTexto={aplicarLegenda} />
+              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                Tire um print da legenda do vídeo: o texto é lido no aparelho e cai nos campos abaixo
+                para você revisar. Também dá para colar a legenda direto no campo de ingredientes.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="card space-y-3 p-4">
           <div>
             <label className="block text-sm font-medium">Título</label>
@@ -161,6 +250,7 @@ export default function Importar() {
             <label className="block text-sm font-medium">Modo de preparo (opcional)</label>
             <textarea
               className="input min-h-[100px]"
+              placeholder={aba === 'video' ? 'Deixe vazio se o preparo está só no vídeo.' : undefined}
               value={preparo}
               onChange={(e) => setPreparo(e.target.value)}
             />
@@ -169,6 +259,7 @@ export default function Importar() {
             Salvar receita
           </button>
         </div>
+        </>
       )}
     </div>
   );
