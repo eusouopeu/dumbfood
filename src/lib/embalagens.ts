@@ -121,6 +121,13 @@ export interface LinhaArredondada {
   rotulo: string;
   /** Ex.: "2 × 1 kg — sobram 300 g". Vazio quando nada foi arredondado. */
   detalhe: string;
+  /**
+   * O que sobra da embalagem depois de atender as receitas, já na unidade de exibição.
+   * É o que entra na geladeira quando a compra é salva: comprar 1 kg para uma receita
+   * de 700 g deixa 300 g em casa, e ignorar isso faz a lista da semana seguinte pedir
+   * farinha de novo.
+   */
+  sobras: { quantidade: number; unidade: string }[];
 }
 
 /**
@@ -133,6 +140,7 @@ export function arredondarLinha(item: string, quantidades: ShoppingLine['quantid
   const saida: ShoppingLine['quantidades'] = [];
   const partes: string[] = [];
   const detalhes: string[] = [];
+  const sobras: LinhaArredondada['sobras'] = [];
 
   for (const q of quantidades) {
     if (q.quantidade === null) {
@@ -178,7 +186,8 @@ export function arredondarLinha(item: string, quantidades: ShoppingLine['quantid
     detalhes.push(
       `${escolha.pacotes} × ${formatQtdUnidade(unidadePacote.quantidade, unidadePacote.unidade)} — sobram ${formatQtdUnidade(sobra.quantidade, sobra.unidade)}`,
     );
+    sobras.push(sobra);
   }
 
-  return { quantidades: saida, rotulo: partes.join(' + '), detalhe: detalhes.join(' · ') };
+  return { quantidades: saida, rotulo: partes.join(' + '), detalhe: detalhes.join(' · '), sobras };
 }

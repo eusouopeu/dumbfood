@@ -8,7 +8,7 @@ import { definirAgendamento, definirNoPlano, removerDoPlano, limparPlano } from 
 import { round } from '../lib/scale';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
-import { calcularNutricaoTotal } from '../lib/nutrition';
+import { calcularNutricaoTotal, type Nutrientes100g } from '../lib/nutrition';
 import { useDieta } from '../lib/diet';
 import { useLembreteCompras } from '../lib/lembretes';
 import { agendarLembreteSemanal, notificacoesNativasDisponiveis, pedirPermissaoNotificacoes } from '../lib/notifications';
@@ -50,6 +50,25 @@ export default function PlanoSemana() {
     const porId = new Map((recipes ?? []).map((r) => [r.id, r]));
     return agruparPorDia(plano.itens, porId, hoje);
   }, [recipes, plano, hoje]);
+
+  /**
+   * Nutrição do que está agendado em cada dia. O total da semana não responde "como vai
+   * ser o meu dia": três receitas caindo todas na quinta é uma quinta bem diferente de
+   * três receitas espalhadas. Só entra receita com dia definido.
+   */
+  const nutriPorDia = useMemo(() => {
+    const porId = new Map((recipes ?? []).map((r) => [r.id, r]));
+    const mapa = new Map<number, Nutrientes100g>();
+    for (const { dia, itens } of agenda.dias) {
+      if (itens.length === 0) continue;
+      const ingredientes: Ingredient[] = itens.flatMap(({ item }) => {
+        const r = porId.get(item.recipeId);
+        return r ? scaleIngredients(r.ingredientes, item.fator) : [];
+      });
+      mapa.set(dia, calcularNutricaoTotal(ingredientes));
+    }
+    return mapa;
+  }, [recipes, agenda]);
 
   const nutriTotal = useMemo(() => {
     if (!recipes) return calcularNutricaoTotal([]);
@@ -202,6 +221,7 @@ export default function PlanoSemana() {
                         {capitalizar(recipe.titulo)}
                       </span>
                     ))}
+                    <NutricaoDoDia nutri={nutriPorDia.get(dia)} />
                   </span>
                 )}
               </li>
@@ -380,5 +400,20 @@ function SeletorAgendamento({ recipeId, item }: { recipeId: string; item: PlanIt
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * Resumo nutricional de um dia da agenda: energia e os três macros em grama. Estimado
+ * a partir da mesma base de ingredientes da tabela nutricional da receita — serve para
+ * enxergar o dia desequilibrado, não para prescrição.
+ */
+function NutricaoDoDia({ nutri }: { nutri: Nutrientes100g | undefined }) {
+  if (!nutri || nutri.kcal <= 0) return null;
+  return (
+    <span className="block text-xs text-stone-400 dark:text-stone-500">
+      ≈ {Math.round(nutri.kcal).toLocaleString('pt-BR')} kcal · P {Math.round(nutri.proteina)} g · C{' '}
+      {Math.round(nutri.carboidrato)} g · G {Math.round(nutri.gorduraTotal)} g
+    </span>
   );
 }

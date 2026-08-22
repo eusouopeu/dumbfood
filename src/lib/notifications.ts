@@ -106,3 +106,48 @@ export async function agendarLembreteSemanal(config: LembreteComprasConfig): Pro
     ],
   });
 }
+
+// ---- Timers do modo cozinha ----
+//
+// O timer conta na tela enquanto o app está aberto, mas cozinhar é justamente quando o
+// aparelho fica bloqueado no balcão: sem uma notificação agendada no sistema, o alarme
+// simplesmente não toca. Ids em faixa própria para cancelar sem tocar nos outros avisos.
+const BASE_ID_TIMER = 20_000;
+const FAIXA_ID_TIMER = 100;
+
+function idDeTimer(indice: number): number {
+  return BASE_ID_TIMER + (indice % FAIXA_ID_TIMER);
+}
+
+/** Agenda o alarme do sistema para um timer de cozinha (no-op fora do app nativo). */
+export async function agendarTimerCozinha(indice: number, fimEm: number, rotulo: string): Promise<void> {
+  if (!notificacoesNativasDisponiveis()) return;
+  const id = idDeTimer(indice);
+  await LocalNotifications.cancel({ notifications: [{ id }] });
+  if (fimEm <= Date.now()) return;
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id,
+        title: 'Timer da receita',
+        body: rotulo,
+        schedule: { at: new Date(fimEm), allowWhileIdle: true },
+      },
+    ],
+  });
+}
+
+export async function cancelarTimerCozinha(indice: number): Promise<void> {
+  if (!notificacoesNativasDisponiveis()) return;
+  await LocalNotifications.cancel({ notifications: [{ id: idDeTimer(indice) }] });
+}
+
+/** Cancela todos os alarmes de timer (ao fechar o modo cozinha). */
+export async function cancelarTimersCozinha(): Promise<void> {
+  if (!notificacoesNativasDisponiveis()) return;
+  const pendentes = await LocalNotifications.getPending();
+  const ids = pendentes.notifications
+    .filter((n) => n.id >= BASE_ID_TIMER && n.id < BASE_ID_TIMER + FAIXA_ID_TIMER)
+    .map((n) => ({ id: n.id }));
+  if (ids.length > 0) await LocalNotifications.cancel({ notifications: ids });
+}

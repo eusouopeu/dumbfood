@@ -135,3 +135,47 @@ export function sugestoesDeIngredientes(
     .sort((a, b) => b.usos - a.usos || a.nome.localeCompare(b.nome, 'pt-BR'))
     .slice(0, limite);
 }
+
+/**
+ * Receitas que aproveitam o que está para vencer, mais urgente primeiro. É a ponte
+ * entre o aviso de validade ("3 itens vencendo") e a decisão que ele deveria provocar
+ * ("faça isto hoje"): sem ela o aviso só informa que a comida vai estragar.
+ *
+ * `statusDoItem` recebe a validade e diz se o item está na janela de risco — injetado
+ * para o módulo continuar puro (sem depender do relógio) e testável.
+ */
+export interface ReceitaUrgente {
+  recipe: Recipe;
+  /** Itens da geladeira vencendo que esta receita usa, do mais urgente ao menos. */
+  vencendo: GeladeiraItem[];
+  /** Ingredientes que ainda faltam comprar. */
+  falta: Ingredient[];
+}
+
+export function receitasParaAproveitar(
+  recipes: Recipe[],
+  geladeira: GeladeiraItem[],
+  emRisco: (item: GeladeiraItem) => boolean,
+  limite = 3,
+): ReceitaUrgente[] {
+  const criticos = geladeira.filter((g) => g.validade != null && emRisco(g));
+  if (criticos.length === 0) return [];
+
+  return recipes
+    .map((recipe) => {
+      const { usados, falta } = combinarReceita(recipe, geladeira);
+      const vencendo = criticos
+        .filter((g) => usados.includes(g.itemKey))
+        .sort((a, b) => (a.validade ?? 0) - (b.validade ?? 0));
+      return { recipe, vencendo, falta };
+    })
+    .filter((r) => r.vencendo.length > 0)
+    // Mais itens salvos primeiro; empate vai para a que exige menos compras e vence antes.
+    .sort(
+      (a, b) =>
+        b.vencendo.length - a.vencendo.length ||
+        a.falta.length - b.falta.length ||
+        (a.vencendo[0].validade ?? 0) - (b.vencendo[0].validade ?? 0),
+    )
+    .slice(0, limite);
+}

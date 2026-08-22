@@ -1,7 +1,7 @@
 // Extrai uma receita a partir do HTML de uma página, usando schema.org/Recipe (JSON-LD).
 // Puro (sem rede), para ser testável e reutilizável no servidor.
 
-import type { NewRecipe, RecipeYield, YieldType } from '../types';
+import type { NewRecipe, RecipeYield, SecaoPreparo, YieldType } from '../types';
 import { parseIngredientLines } from './ingredientParser';
 import { decodeEntities } from './decodeEntities';
 import { gerarTags } from './tags';
@@ -114,6 +114,23 @@ function parseInstructions(value: any): string[] {
   return [];
 }
 
+/**
+ * Separa o preparo em partes quando o site publica HowToSection (uma seção por etapa
+ * da receita: massa, recheio, cobertura). Devolve [] quando não há seções — aí o preparo
+ * é uma lista só.
+ */
+function parseInstructionSections(value: any): SecaoPreparo[] {
+  const nos = Array.isArray(value) ? value : [value];
+  const secoes: SecaoPreparo[] = [];
+  for (const no of nos) {
+    if (!no || typeof no !== 'object' || !typeIncludes(no, 'howtosection')) continue;
+    const passos = parseInstructions(no.itemListElement ?? no.steps);
+    if (passos.length === 0) continue;
+    secoes.push({ titulo: decodeEntities(firstString(no.name) ?? '').trim(), passos });
+  }
+  return secoes.length > 1 || (secoes.length === 1 && secoes[0].titulo) ? secoes : [];
+}
+
 /** Converte duração ISO 8601 (ex.: "PT1H30M") em minutos. */
 function parseIsoDurationMin(value: any): number | undefined {
   const s = Array.isArray(value) ? value.find((v) => typeof v === 'string') : value;
@@ -145,6 +162,7 @@ function parseViaMarcacao(html: string, fonteUrl?: string): NewRecipe | null {
     rendimentoBase: dom.rendimento,
     ingredientes,
     modoPreparo: dom.modoPreparo,
+    ...(dom.secoesPreparo.length > 0 ? { secoesPreparo: dom.secoesPreparo } : {}),
     tags: gerarTags(titulo, ingredientes),
     tempoPreparoMin: extrairTempoDoHtml(html),
   };
@@ -176,6 +194,7 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
   // Se o JSON-LD não trouxer o preparo em formato reconhecível, tenta a marcação —
   // é melhor importar a receita com os passos do HTML do que sem passo nenhum.
   const modoPreparo = parseInstructions(node.recipeInstructions);
+  const secoesPreparo = parseInstructionSections(node.recipeInstructions);
 
   // Alguns sites (ex.: Panelinha) publicam Recipe em JSON-LD sem recipeYield/totalTime —
   // esses dados só aparecem na marcação visível da página ("Tempo de preparo", "Serve").
@@ -184,13 +203,19 @@ export function parseRecipeFromHtml(html: string, fonteUrl?: string): NewRecipe 
   const tempoPreparoMin =
     parseIsoDurationMin(node.totalTime ?? node.cookTime ?? node.prepTime) ?? extrairTempoDoHtml(html);
 
+  // Sem preparo utilizável no JSON-LD, a marcação da página é a fonte — e é lá que
+  // ficam as partes separadas das receitas de duas etapas (massa + recheio).
+  const doDom = modoPreparo.length > 0 ? null : parseRecipeFromDom(html);
+  const secoes = secoesPreparo.length > 0 ? secoesPreparo : (doDom?.secoesPreparo ?? []);
+
   return {
     titulo: titulo.trim(),
     fonteUrl,
     imagem,
     rendimentoBase,
     ingredientes,
-    modoPreparo: modoPreparo.length > 0 ? modoPreparo : parseRecipeFromDom(html).modoPreparo,
+    modoPreparo: doDom ? doDom.modoPreparo : modoPreparo,
+    ...(secoes.length > 0 ? { secoesPreparo: secoes } : {}),
     tags: gerarTags(titulo, ingredientes),
     tempoPreparoMin,
   };

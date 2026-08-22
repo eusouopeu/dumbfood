@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { combinarReceita, combinarReceitas, ingredienteAtendido, sugestoesDeIngredientes } from './geladeira';
+import {
+  combinarReceita,
+  combinarReceitas,
+  ingredienteAtendido,
+  receitasParaAproveitar,
+  sugestoesDeIngredientes,
+} from './geladeira';
 import { parseIngredientLines, normalizeItemKey } from './ingredientParser';
 import type { GeladeiraItem, Recipe } from '../types';
 
@@ -123,5 +129,43 @@ describe('sugestoesDeIngredientes', () => {
 
   it('respeita o limite', () => {
     expect(sugestoesDeIngredientes(receitas, [], 2)).toHaveLength(2);
+  });
+});
+
+describe('receitasParaAproveitar', () => {
+  const geladeira: GeladeiraItem[] = [
+    { itemKey: 'frango', nome: 'frango', adicionadoEm: 0, validade: 1 },
+    { itemKey: 'cebola', nome: 'cebola', adicionadoEm: 0, validade: 999 },
+    { itemKey: 'arroz', nome: 'arroz', adicionadoEm: 0 },
+  ];
+  const vencendo = (g: GeladeiraItem) => g.validade === 1;
+
+  const receita = (id: string, itens: string[]): Recipe => ({
+    id,
+    titulo: id,
+    rendimentoBase: { valor: 1, tipo: 'porcoes' },
+    ingredientes: itens.map((item) => ({ raw: item, quantidade: 1, unidade: null, item, gondola: 'Outros' })),
+    modoPreparo: [],
+    tags: [],
+    criadoEm: 0,
+  });
+
+  it('só sugere receitas que usam algo em risco', () => {
+    const r = receitasParaAproveitar([receita('a', ['frango', 'arroz']), receita('b', ['cebola'])], geladeira, vencendo);
+    expect(r.map((x) => x.recipe.id)).toEqual(['a']);
+    expect(r[0].vencendo[0].itemKey).toBe('frango');
+  });
+
+  it('não sugere nada quando não há item vencendo', () => {
+    expect(receitasParaAproveitar([receita('a', ['frango'])], geladeira, () => false)).toEqual([]);
+  });
+
+  it('põe na frente a receita que exige menos compras', () => {
+    const r = receitasParaAproveitar(
+      [receita('longa', ['frango', 'creme de leite', 'vinho']), receita('curta', ['frango', 'arroz'])],
+      geladeira,
+      vencendo,
+    );
+    expect(r[0].recipe.id).toBe('curta');
   });
 });

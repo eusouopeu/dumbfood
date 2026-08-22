@@ -55,6 +55,47 @@ function importApiDevPlugin(): Plugin {
   };
 }
 
+// Dev-only middleware equivalente a `api/nfce.ts`: lê a NFC-e do portal da Fazenda
+// a partir da URL do QR Code do cupom.
+function nfceApiDevPlugin(): Plugin {
+  return {
+    name: 'dumbfood-nfce-api-dev',
+    configureServer(server) {
+      server.middlewares.use('/api/nfce', async (req, res) => {
+        res.setHeader('content-type', 'application/json');
+        try {
+          const reqUrl = new URL(req.url ?? '', 'http://localhost');
+          const target = reqUrl.searchParams.get('url');
+          if (!target) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Parâmetro "url" é obrigatório.' }));
+            return;
+          }
+          const cacheMod = await server.ssrLoadModule('/src/lib/importCache.ts');
+          const limite = cacheMod.registrarRequisicao(req.socket?.remoteAddress ?? 'dev');
+          if (!limite.permitido) {
+            res.statusCode = 429;
+            res.end(JSON.stringify({ error: `Muitas consultas seguidas. Tente de novo em ${limite.esperarSegundos}s.` }));
+            return;
+          }
+          const { fetchAndParseNfce } = await server.ssrLoadModule('/src/lib/fetchNfce.ts');
+          const nota = await fetchAndParseNfce(target);
+          if (nota.itens.length === 0) {
+            res.statusCode = 422;
+            res.end(JSON.stringify({ error: 'Não foi possível ler os itens dessa nota.' }));
+            return;
+          }
+          res.statusCode = 200;
+          res.end(JSON.stringify(nota));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: (err as Error).message }));
+        }
+      });
+    },
+  };
+}
+
 // O build para o APK (Capacitor) é diferente do build para o GitHub Pages: os arquivos
 // são servidos da raiz do próprio pacote, e o service worker do PWA não tem função
 // dentro de um app instalado — quem cuida da atualização ali é o próprio APK.
@@ -66,6 +107,7 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     importApiDevPlugin(),
+    nfceApiDevPlugin(),
     ...(paraApk ? [] : [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon.svg'],

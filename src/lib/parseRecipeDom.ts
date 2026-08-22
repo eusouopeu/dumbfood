@@ -67,8 +67,68 @@ function pareceListaDeIngredientes(itens: string[]): boolean {
   return bons / itens.length >= 0.6;
 }
 
-const TITULO_INGREDIENTES = /ingredientes|como fazer|voc[êe] vai precisar/i;
-const TITULO_PREPARO = /modo de (?:preparo|fazer)|preparo|instru[çc][õo]es|como preparar|passo a passo/i;
+const TITULO_INGREDIENTES = /^\s*ingredientes|voc[êe] vai precisar/i;
+const TITULO_PREPARO = /modo de (?:preparo|fazer)|^\s*preparo|^\s*como fazer|instru[çc][õo]es|como preparar|passo a passo/i;
+
+/**
+ * Título que nomeia uma *parte* da receita ("Para a massa", "Recheio", "Calda"), e não
+ * uma seção nova da página. É o que o Panelinha usa em receitas de duas partes: cada
+ * parte tem o próprio par ingredientes + modo de preparo. Ao encontrar um desses, a
+ * leitura continua no mesmo contexto — só muda o nome da parte corrente. Qualquer
+ * outro título ("Veja também", "Comentários") encerra a captura.
+ */
+const TITULO_PARTE =
+  /^(?:para (?:a|o|as|os) |massa|recheio|cobertura|calda|molho|creme|caramelo|glace|ganache|farofa|marinada|montagem|finaliza[çc][ãa]o)/i;
+
+export interface SecaoPreparoDom {
+  titulo: string;
+  passos: string[];
+}
+
+interface Coleta {
+  ingredientes: string[];
+  secoes: SecaoPreparoDom[];
+}
+
+/** Uma lista sob um título "Ingredientes" já é, por posição, lista de ingredientes. */
+function pareceItemDeIngrediente(itens: string[]): boolean {
+  return itens.length > 0 && itens.every((i) => i.length <= 200);
+}
+
+/**
+ * Percorre a página guiada pelos títulos: acumula os ingredientes de todas as partes
+ * numa lista só (é assim que a lista de mercado soma) e mantém um modo de preparo por
+ * parte. Devolve ingredientes vazios quando a página não tem títulos reconhecíveis —
+ * aí quem resolve é a heurística de vizinhança (`coletarIngredientes`).
+ */
+function coletarPorTitulos(blocos: Bloco[]): Coleta {
+  const ingredientes: string[] = [];
+  const secoes: SecaoPreparoDom[] = [];
+  let contexto: 'ingredientes' | 'preparo' | null = null;
+  let parte = '';
+
+  for (const bloco of blocos) {
+    if (bloco.tipo === 'titulo') {
+      if (TITULO_INGREDIENTES.test(bloco.texto)) contexto = 'ingredientes';
+      else if (TITULO_PREPARO.test(bloco.texto)) contexto = 'preparo';
+      else if (TITULO_PARTE.test(bloco.texto)) parte = bloco.texto.trim();
+      else contexto = null;
+      continue;
+    }
+    if (contexto === 'ingredientes' && pareceItemDeIngrediente(bloco.itens)) {
+      ingredientes.push(...bloco.itens);
+    } else if (contexto === 'preparo') {
+      const passos = bloco.itens.filter((p) => p.length > 2);
+      if (passos.length === 0) continue;
+      const atual = secoes[secoes.length - 1];
+      // Listas seguidas sob o mesmo título continuam a mesma parte do preparo.
+      if (atual && atual.titulo === parte) atual.passos.push(...passos);
+      else secoes.push({ titulo: parte, passos });
+    }
+  }
+
+  return { ingredientes, secoes };
+}
 
 /**
  * Junta a primeira lista de ingredientes com as que vêm logo em seguida — receitas
@@ -169,21 +229,44 @@ export function extrairRendimento(texto: string): RecipeYield {
 export interface ReceitaDom {
   titulo?: string;
   imagem?: string;
+  /** Ingredientes de todas as partes da receita, numa lista só. */
   ingredientes: string[];
+  /** Passos de todas as partes, achatados na ordem em que aparecem. */
   modoPreparo: string[];
+  /** Preparo por parte ("Para a massa", "Para o recheio"); vazio quando a receita é única. */
+  secoesPreparo: SecaoPreparoDom[];
   rendimento: RecipeYield;
+}
+
+/**
+ * Só vale manter as partes separadas quando existe mais de uma, ou quando a única
+ * tem nome — uma seção anônima é a receita inteira e já está em `modoPreparo`.
+ */
+function secoesRelevantes(secoes: SecaoPreparoDom[]): SecaoPreparoDom[] {
+  if (secoes.length > 1) return secoes;
+  if (secoes.length === 1 && secoes[0].titulo) return secoes;
+  return [];
 }
 
 /** Extrai o que der da marcação da página; `ingredientes` vazio significa que não deu. */
 export function parseRecipeFromDom(html: string): ReceitaDom {
   const limpo = limparHtml(html);
   const blocos = extrairBlocos(limpo);
-  const ingredientes = coletarIngredientes(blocos);
+
+  // Caminho principal: leitura guiada pelos títulos, que é o que separa as partes de uma
+  // receita em duas etapas (massa/recheio). Páginas sem títulos reconhecíveis caem na
+  // heurística antiga, de listas vizinhas.
+  const porTitulos = coletarPorTitulos(blocos);
+  const ingredientes = porTitulos.ingredientes.length > 0 ? porTitulos.ingredientes : coletarIngredientes(blocos);
+  const secoes = porTitulos.secoes;
+  const passos = secoes.flatMap((sec) => sec.passos);
+
   return {
     titulo: extrairTitulo(html),
     imagem: metaConteudo(html, 'og:image'),
     ingredientes,
-    modoPreparo: coletarPreparo(blocos),
+    modoPreparo: passos.length > 0 ? passos : coletarPreparo(blocos),
+    secoesPreparo: passos.length > 0 ? secoesRelevantes(secoes) : [],
     rendimento: extrairRendimentoDoHtml(html) ?? extrairRendimento(textoDeHtml(limpo).slice(0, 20000)),
   };
 }

@@ -4,15 +4,17 @@ PWA para **importar receitas** de sites brasileiros (TudoGostoso, Panelinha/Rita
 
 ## O que faz
 
-- 📥 **Importa receitas** por link (extrai os dados estruturados `schema.org/Recipe` da página) ou colando o texto dos ingredientes.
+- 📥 **Importa receitas** por link (extrai os dados estruturados `schema.org/Recipe` da página) ou colando o texto dos ingredientes. Receitas em **duas partes** (massa + recheio, como no Panelinha) entram com os ingredientes somados numa lista só e um **modo de preparo por parte**.
 - 🎬 **Receitas de vídeo (TikTok/Reels)**: os ingredientes entram por texto colado ou por **OCR de um print da legenda**, e o vídeo baixado fica guardado no aparelho, tocando dentro do **modo de preparo** — offline.
 - 🔢 **Reescala** as quantidades por **porção/pessoa/unidade** ou **por grama** (usando um ingrediente de referência).
 - 🗓️ **Plano da semana**: selecione quais receitas fazer, em que quantidade e **em que dia/refeição** (agenda da semana começando por hoje).
 - 🧊 **Geladeira integrada**: o que você já tem sai da lista de compras; o que você compra entra na geladeira; o que você cozinha dá baixa.
 - 🛒 **Lista de mercado** unificada: soma ingredientes em comum (convertendo g/kg e ml/l), agrupa por seção do mercado (Hortifruti, Açougue, Mercearia, etc.) e **arredonda para as embalagens que o mercado vende de fato** (1 kg em vez de 700 g, com a sobra anotada).
 - 💰 **Preços e mercados**: série histórica de preço por item (o que subiu, o que caiu), alerta de preço fora do padrão e estimativa de **quanto a lista sairia em cada mercado** já registrado.
+- 🧾 **Nota fiscal**: leitura do **QR Code da NFC-e** (item, quantidade e valor vindos da SEFAZ, sem erro de leitura) ou, sem internet, OCR de uma foto do cupom.
+- ⏲️ **Modo cozinha** com vários **timers simultâneos**, que tocam também com o app fechado (notificação do sistema, no Android).
 - 📊 **Tabela nutricional e de vitaminas e minerais** estimadas por 100 g, a partir de uma base local (TACO/USDA) dos ingredientes mais usados.
-- 💾 Tudo **offline** no dispositivo (IndexedDB), instalável como app. Exportar/importar JSON para backup (receitas e plano; os vídeos ficam só no aparelho).
+- 💾 Tudo **offline** no dispositivo (IndexedDB), instalável como app. O **backup JSON** leva receitas, plano, histórico de compras, preços, geladeira, a lista em andamento e as preferências — e a restauração pode **mesclar** ou **substituir** (só os vídeos ficam de fora, por tamanho).
 
 ## Stack
 
@@ -42,7 +44,10 @@ src/
     scale.ts              reescala por fator
     shoppingList.ts       agrega + soma + agrupa por gôndola
     embalagens.ts         arredonda a lista para as embalagens de prateleira
-    geladeira.ts          cruza receitas com o que já tem em casa
+    geladeira.ts          cruza receitas com o que já tem em casa (+ o que usar antes de vencer)
+    prazos.ts             validade sugerida por tipo de ingrediente
+    useListaCompras.ts    todo o cálculo da lista de mercado (hook)
+    nfce.ts               QR Code da NFC-e -> itens e preços da nota
     agenda.ts             distribui o plano em dias da semana e refeições
     nutrition.ts          tabela nutricional estimada por 100 g
     micronutrientes.ts    vitaminas e minerais dos 40 ingredientes mais usados
@@ -56,6 +61,7 @@ src/
   pages/         # Receitas, Importar, Detalhe, PlanoSemana, ListaMercado, Geladeira, Histórico, Configurações
 api/
   import.ts      # função serverless (Vercel): busca a URL e devolve a receita
+  nfce.ts        # função serverless (Vercel): consulta a NFC-e no portal da Fazenda
 ```
 
 As tabelas nutricional e de vitaminas/minerais são **estimativas** por ingrediente-chave
@@ -76,7 +82,7 @@ O endpoint guarda em memória as receitas já buscadas (24 h) e limita as requis
 
 ## Deploy
 
-Compatível com hospedagem estática + 1 função serverless (ex.: Vercel): `npm run build` gera o estático em `dist/` e `api/import.ts` vira a função. Para hospedagem 100% estática sem backend, use apenas o fluxo de “Colar texto”.
+Compatível com hospedagem estática + funções serverless (ex.: Vercel): `npm run build` gera o estático em `dist/` e os arquivos de `api/` viram as funções. Sem backend, a importação por link e a leitura da NFC-e caem nos proxies públicos (`lib/fetchViaProxy.ts`), e o fluxo de “Colar texto” continua funcionando offline.
 
 ## App Android (Capacitor)
 

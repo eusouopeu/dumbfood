@@ -20,6 +20,12 @@ export interface Ingredient {
   gondola: string;
 }
 
+/** Uma parte do preparo, quando a receita tem mais de um modo de preparo. */
+export interface SecaoPreparo {
+  titulo: string;
+  passos: string[];
+}
+
 export interface Recipe {
   id: string;
   titulo: string;
@@ -36,6 +42,12 @@ export interface Recipe {
   favorito?: boolean;
   /** Id do vídeo guardado no dispositivo (tabela `videos`), exibido no modo de preparo. */
   videoId?: string;
+  /**
+   * Preparo dividido em partes (ex.: "Para a massa" / "Para o recheio"), quando o site
+   * publica mais de um modo de preparo. `modoPreparo` continua sendo a lista achatada,
+   * na ordem das seções — é ela que o modo cozinha e o resto do app usam.
+   */
+  secoesPreparo?: SecaoPreparo[];
   criadoEm: number;
 }
 
@@ -111,6 +123,39 @@ export interface GeladeiraItem {
   adicionadoEm: number;
   /** Data de validade (timestamp), quando o usuário informa. Sem validade = null/undefined. */
   validade?: number;
+  /**
+   * Quanto se tem do item, quando dá para saber (ex.: a sobra da embalagem comprada:
+   * 1 kg de farinha para uma receita que pedia 700 g deixa 300 g na despensa).
+   * Ausente = "tem, não sei quanto", que é o comportamento original da geladeira.
+   */
+  quantidade?: number;
+  /** Unidade da quantidade (g, kg, ml, l ou null para contagem). */
+  unidade?: string | null;
+}
+
+/** Item adicionado à mão na lista de mercado (fora das receitas do plano). */
+export interface ItemExtra extends Ingredient {
+  id: string;
+}
+
+/** Quantidade corrigida à mão pelo usuário em uma linha da lista. */
+export interface QtdOverride {
+  quantidade: number | null;
+  unidade: string | null;
+}
+
+/**
+ * Estado da lista de mercado em andamento (o que já foi marcado, itens manuais,
+ * quantidades corrigidas e linhas escondidas). Fica no banco, e não em localStorage,
+ * para ser reativo, entrar no backup e sobreviver a uma limpeza de cache no meio da compra.
+ */
+export interface ListaEstado {
+  id: string;
+  comprados: string[];
+  extras: ItemExtra[];
+  overrides: Record<string, QtdOverride>;
+  /** Ids de linhas vindas das receitas que o usuário removeu da lista desta semana. */
+  ocultos: string[];
 }
 
 export interface Compra {

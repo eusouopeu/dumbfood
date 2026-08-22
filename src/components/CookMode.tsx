@@ -15,6 +15,7 @@ import {
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import { extrairMinutos } from '../lib/timeParser';
 import { tocarBip } from '../lib/beep';
+import { agendarTimerCozinha, cancelarTimerCozinha, cancelarTimersCozinha } from '../lib/notifications';
 
 /**
  * Leitura em voz alta do passo atual, via Web Speech API — mãos livres enquanto
@@ -63,36 +64,61 @@ function formatContagem(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-/** Timer opcional do passo atual: independente da navegação entre passos, para
- * seguir contando enquanto o usuário lê o próximo passo (ex.: "asse por 40 min"). */
-function useTimerDoPasso() {
-  const [fimEm, setFimEm] = useState<number | null>(null);
+interface TimerCozinha {
+  id: number;
+  fimEm: number;
+  rotulo: string;
+}
+
+/**
+ * Timers do modo cozinha. São vários porque receita real tem mais de uma coisa no fogo
+ * ao mesmo tempo (molho fervendo enquanto a massa assa), e cada um segue contando
+ * independentemente da navegação entre os passos.
+ *
+ * Além da contagem na tela, cada timer agenda uma notificação no sistema: cozinhar é
+ * justamente quando o aparelho fica bloqueado no balcão, e aí o alarme só toca se o
+ * Android souber dele. Ver lib/notifications.ts (no-op fora do app nativo).
+ */
+function useTimers() {
+  const [timers, setTimers] = useState<TimerCozinha[]>([]);
   const [, forcarTick] = useState(0);
-  const disparado = useRef(false);
+  const proximoId = useRef(1);
+  const disparados = useRef(new Set<number>());
 
   useEffect(() => {
-    if (fimEm === null) return;
-    disparado.current = false;
+    if (timers.length === 0) return;
     const id = setInterval(() => forcarTick((t) => t + 1), 250);
     return () => clearInterval(id);
-  }, [fimEm]);
+  }, [timers.length]);
 
-  const restanteMs = fimEm !== null ? Math.max(0, fimEm - Date.now()) : null;
-
+  // Toca uma única vez por timer, quando ele zera com o app aberto.
   useEffect(() => {
-    if (restanteMs === 0 && !disparado.current) {
-      disparado.current = true;
-      hapticForte();
-      tocarBip();
+    const agora = Date.now();
+    for (const t of timers) {
+      if (t.fimEm <= agora && !disparados.current.has(t.id)) {
+        disparados.current.add(t.id);
+        hapticForte();
+        tocarBip();
+      }
     }
-  }, [restanteMs]);
+  });
 
-  return {
-    restanteMs,
-    tocando: restanteMs === 0,
-    iniciar: (minutos: number) => setFimEm(Date.now() + minutos * 60_000),
-    cancelar: () => setFimEm(null),
-  };
+  useEffect(() => () => void cancelarTimersCozinha(), []);
+
+  function iniciar(minutos: number, rotulo: string) {
+    const id = proximoId.current++;
+    const fimEm = Date.now() + minutos * 60_000;
+    setTimers((atuais) => [...atuais, { id, fimEm, rotulo }]);
+    agendarTimerCozinha(id, fimEm, rotulo);
+  }
+
+  function cancelar(id: number) {
+    setTimers((atuais) => atuais.filter((t) => t.id !== id));
+    disparados.current.delete(id);
+    cancelarTimerCozinha(id);
+  }
+
+  return { timers, iniciar, cancelar };
 }
 
 function useWakeLock(ativo: boolean) {
@@ -122,17 +148,14 @@ export default function CookMode({
   titulo,
   passos,
   onClose,
-  onConcluir,
 }: {
   titulo: string;
   passos: string[];
   onClose: () => void;
-  /** Chamado quando o usuário termina a receita pelo botão "Concluir" (e não ao fechar no X). */
-  onConcluir?: () => void;
 }) {
   const [passo, setPasso] = useState(0);
   useWakeLock(true);
-  const timer = useTimerDoPasso();
+  const { timers, iniciar, cancelar } = useTimers();
   const minutosSugeridos = useMemo(() => extrairMinutos(passos[passo]), [passos, passo]);
   const leitura = useLeituraEmVozAlta(passos[passo]);
 
@@ -183,26 +206,31 @@ export default function CookMode({
         <p className="max-w-xl text-3xl font-semibold leading-snug">{passos[passo]}</p>
       </button>
 
-      {(timer.restanteMs !== null || minutosSugeridos !== null) && (
-        <div className="flex items-center justify-center pb-4">
-          {timer.restanteMs !== null ? (
-            <div
-              className={`flex items-center gap-3 rounded-full px-5 py-2.5 ${
-                timer.tocando ? 'animate-pulse bg-red-600' : 'bg-white/10'
-              }`}
-            >
-              {timer.tocando ? <BellAlertIcon className="size-5" /> : <ClockIcon className="size-5 text-brand-400" />}
-              <span className="min-w-[3ch] font-mono text-xl font-bold tabular-nums">{formatContagem(timer.restanteMs)}</span>
-              <button
-                onClick={timer.cancelar}
-                className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/20"
+      {(timers.length > 0 || minutosSugeridos !== null) && (
+        <div className="flex flex-wrap items-center justify-center gap-2 px-4 pb-4">
+          {timers.map((t) => {
+            const restante = Math.max(0, t.fimEm - Date.now());
+            const tocando = restante === 0;
+            return (
+              <div
+                key={t.id}
+                className={`flex items-center gap-2 rounded-full px-4 py-2 ${tocando ? 'animate-pulse bg-red-600' : 'bg-white/10'}`}
               >
-                {timer.tocando ? 'Ok' : 'Cancelar'}
-              </button>
-            </div>
-          ) : (
+                {tocando ? <BellAlertIcon className="size-5" /> : <ClockIcon className="size-5 text-brand-400" />}
+                <span className="min-w-[3ch] font-mono text-lg font-bold tabular-nums">{formatContagem(restante)}</span>
+                <span className="max-w-[8rem] truncate text-xs text-white/70">{t.rotulo}</span>
+                <button
+                  onClick={() => cancelar(t.id)}
+                  className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold hover:bg-white/20"
+                >
+                  {tocando ? 'Ok' : 'Cancelar'}
+                </button>
+              </div>
+            );
+          })}
+          {minutosSugeridos !== null && (
             <button
-              onClick={() => minutosSugeridos && timer.iniciar(minutosSugeridos)}
+              onClick={() => iniciar(minutosSugeridos, `Passo ${passo + 1} de ${titulo}`)}
               className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
             >
               <ClockIcon className="size-4 text-brand-400" />
@@ -229,10 +257,7 @@ export default function CookMode({
         </button>
         {passo === passos.length - 1 ? (
           <button
-            onClick={() => {
-              onClose();
-              onConcluir?.();
-            }}
+            onClick={onClose}
             className="btn-primary flex-1 py-3 text-base"
           >
             Concluir

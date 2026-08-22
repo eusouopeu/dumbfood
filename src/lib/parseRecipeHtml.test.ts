@@ -96,3 +96,44 @@ describe('parseRecipeFromHtml', () => {
     expect(parseRecipeFromHtml(page)!.modoPreparo).toEqual(['Bata.', 'Derreta.']);
   });
 });
+
+describe('preparo em seções (HowToSection)', () => {
+  it('separa as partes da receita e mantém o preparo achatado em ordem', () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'Recipe',
+      name: 'Cheesecake',
+      recipeIngredient: ['1 xícara de farinha', '1 ricota'],
+      recipeYield: '8 porções',
+      recipeInstructions: [
+        {
+          '@type': 'HowToSection',
+          name: 'Para a massa',
+          itemListElement: [
+            { '@type': 'HowToStep', text: 'Misture a farinha com a manteiga.' },
+            { '@type': 'HowToStep', text: 'Leve à geladeira.' },
+          ],
+        },
+        {
+          '@type': 'HowToSection',
+          name: 'Para o recheio',
+          itemListElement: [{ '@type': 'HowToStep', text: 'Bata a ricota com o açúcar.' }],
+        },
+      ],
+    })}</script>`;
+    const recipe = parseRecipeFromHtml(html, 'https://exemplo/cheesecake');
+    expect(recipe!.secoesPreparo).toHaveLength(2);
+    expect(recipe!.secoesPreparo![1].titulo).toBe('Para o recheio');
+    expect(recipe!.modoPreparo).toHaveLength(3);
+    expect(recipe!.modoPreparo[2]).toContain('ricota');
+  });
+
+  it('receita de preparo único não ganha seções', () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'Recipe',
+      name: 'Arroz',
+      recipeIngredient: ['2 xícaras de arroz'],
+      recipeInstructions: ['Refogue o arroz.', 'Cozinhe por 15 minutos.'],
+    })}</script>`;
+    expect(parseRecipeFromHtml(html)!.secoesPreparo).toBeUndefined();
+  });
+});

@@ -1,7 +1,19 @@
 // Operações de alto nível sobre o banco.
 
-import type { Compra, GeladeiraItem, Ingredient, NewRecipe, PrecoItem, Recipe, Refeicao, VideoReceita, WeekPlan, YieldType } from '../types';
-import { db, PLANO_ATUAL_ID, getOrCreatePlanoAtual } from './db';
+import type {
+  Compra,
+  GeladeiraItem,
+  Ingredient,
+  ListaEstado,
+  NewRecipe,
+  PrecoItem,
+  Recipe,
+  Refeicao,
+  VideoReceita,
+  WeekPlan,
+  YieldType,
+} from '../types';
+import { db, LISTA_ATUAL_ID, PLANO_ATUAL_ID, getOrCreatePlanoAtual, listaEstadoVazio } from './db';
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
@@ -172,32 +184,146 @@ export async function limparPlano(): Promise<void> {
 
 // ---- Backup ----
 
+/**
+ * Backup versão 2: leva *tudo* que o usuário construiu — não só receitas e plano.
+ * O histórico de compras e a série de preços são justamente o que não dá para
+ * reconstruir depois de trocar de aparelho.
+ *
+ * Fora do arquivo ficam só os vídeos das receitas (megabytes de blob, que
+ * inflariam o JSON) — por isso `videos` não aparece aqui.
+ */
 interface BackupData {
-  version: 1;
+  version: 1 | 2;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
+  compras?: Compra[];
+  precos?: PrecoItem[];
+  geladeira?: GeladeiraItem[];
+  listaEstado?: ListaEstado[];
+  /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
+  preferencias?: Record<string, string>;
+}
+
+/** Prefixo das preferências no localStorage; tudo com ele entra e volta no backup. */
+const PREFIXO_PREFERENCIAS = 'dumbfood:';
+
+function lerPreferencias(): Record<string, string> {
+  if (typeof localStorage === 'undefined') return {};
+  const out: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const chave = localStorage.key(i);
+    if (!chave || !chave.startsWith(PREFIXO_PREFERENCIAS)) continue;
+    const valor = localStorage.getItem(chave);
+    if (valor !== null) out[chave] = valor;
+  }
+  return out;
+}
+
+function gravarPreferencias(prefs: Record<string, string> | undefined): void {
+  if (!prefs || typeof localStorage === 'undefined') return;
+  for (const [chave, valor] of Object.entries(prefs)) {
+    if (chave.startsWith(PREFIXO_PREFERENCIAS)) localStorage.setItem(chave, valor);
+  }
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans] = await Promise.all([db.recipes.toArray(), db.plans.toArray()]);
+  const [recipes, plans, compras, precos, geladeira, listaEstado] = await Promise.all([
+    db.recipes.toArray(),
+    db.plans.toArray(),
+    db.compras.toArray(),
+    db.precos.toArray(),
+    db.geladeira.toArray(),
+    db.listaEstado.toArray(),
+  ]);
   const data: BackupData = {
-    version: 1,
+    version: 2,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
+    compras,
+    precos,
+    geladeira,
+    listaEstado,
+    preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
 }
 
-export async function importarJSON(json: string): Promise<{ recipes: number }> {
+export type ModoImportacao = 'mesclar' | 'substituir';
+
+export interface ResumoImportacao {
+  recipes: number;
+  compras: number;
+  precos: number;
+  geladeira: number;
+}
+
+/**
+ * Restaura um backup. `mesclar` mantém o que já existe (registros com o mesmo id são
+ * sobrescritos pelo arquivo); `substituir` apaga o conteúdo atual antes — é o modo de
+ * "este aparelho passa a ser o do backup", sem sobras da instalação anterior.
+ *
+ * Backups versão 1 (só receitas e plano) continuam válidos: o que eles não trazem
+ * simplesmente não é tocado, nem mesmo no modo substituir.
+ */
+export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar'): Promise<ResumoImportacao> {
   const data = JSON.parse(json) as Partial<BackupData>;
   if (!Array.isArray(data.recipes)) throw new Error('Arquivo de backup inválido.');
-  await db.transaction('rw', db.recipes, db.plans, async () => {
-    await db.recipes.bulkPut(data.recipes as Recipe[]);
-    if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
-  });
-  return { recipes: data.recipes.length };
+
+  await db.transaction(
+    'rw',
+    [db.recipes, db.plans, db.compras, db.precos, db.geladeira, db.listaEstado],
+    async () => {
+      if (modo === 'substituir') {
+        await db.recipes.clear();
+        await db.plans.clear();
+        if (data.compras) await db.compras.clear();
+        if (data.precos) await db.precos.clear();
+        if (data.geladeira) await db.geladeira.clear();
+        if (data.listaEstado) await db.listaEstado.clear();
+      }
+      await db.recipes.bulkPut(data.recipes as Recipe[]);
+      if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
+      if (Array.isArray(data.compras)) await db.compras.bulkPut(data.compras);
+      if (Array.isArray(data.precos)) await db.precos.bulkPut(data.precos);
+      if (Array.isArray(data.geladeira)) await db.geladeira.bulkPut(data.geladeira);
+      if (Array.isArray(data.listaEstado)) await db.listaEstado.bulkPut(data.listaEstado);
+    },
+  );
+
+  gravarPreferencias(data.preferencias);
+
+  return {
+    recipes: data.recipes.length,
+    compras: data.compras?.length ?? 0,
+    precos: data.precos?.length ?? 0,
+    geladeira: data.geladeira?.length ?? 0,
+  };
+}
+
+// ---- Estado da lista de mercado ----
+
+export async function getOrCreateListaEstado(): Promise<ListaEstado> {
+  const atual = await db.listaEstado.get(LISTA_ATUAL_ID);
+  if (atual) return atual;
+  const novo = listaEstadoVazio();
+  await db.listaEstado.put(novo);
+  return novo;
+}
+
+/** Aplica uma alteração parcial ao estado da lista (padrão read-modify-write do repo). */
+export async function atualizarListaEstado(
+  patch: Partial<Omit<ListaEstado, 'id'>> | ((atual: ListaEstado) => Partial<Omit<ListaEstado, 'id'>>),
+): Promise<void> {
+  const atual = await getOrCreateListaEstado();
+  const mudanca = typeof patch === 'function' ? patch(atual) : patch;
+  await db.listaEstado.put({ ...atual, ...mudanca, id: LISTA_ATUAL_ID });
+}
+
+/** Zera a lista em andamento (após salvar a compra no histórico, por exemplo). */
+export async function limparListaEstado(): Promise<void> {
+  await db.listaEstado.put(listaEstadoVazio());
 }
 
 // ---- Preços de ingredientes ----
@@ -232,31 +358,97 @@ export async function removerCompra(id: string): Promise<void> {
  * `validade`, quando informada, é a data (timestamp) em que o item vence.
  */
 export async function adicionarNaGeladeira(nomeBruto: string, validade?: number): Promise<void> {
-  const nome = parseIngredient(nomeBruto)?.item ?? '';
+  const ing = parseIngredient(nomeBruto);
+  const nome = ing?.item ?? '';
   const itemKey = normalizeItemKey(nome);
   if (!itemKey) return;
-  await db.geladeira.put({ itemKey, nome, adicionadoEm: Date.now(), validade });
+  // "2 kg de arroz" guarda também o quanto: a quantidade já veio digitada, seria bobagem descartá-la.
+  await db.geladeira.put({
+    itemKey,
+    nome,
+    adicionadoEm: Date.now(),
+    validade,
+    ...(ing?.quantidade != null ? { quantidade: ing.quantidade, unidade: ing.unidade } : {}),
+  });
+}
+
+/** Item a lançar na geladeira: só o nome, ou nome + quanto sobrou/entrou. */
+export interface EntradaGeladeira {
+  nome: string;
+  quantidade?: number;
+  unidade?: string | null;
 }
 
 /**
  * Adiciona vários ingredientes de uma vez (ex.: itens recém-comprados no mercado),
  * sem sobrescrever a validade já informada de quem já estava na geladeira.
- * Devolve quantos itens novos entraram.
+ * Quando a entrada traz quantidade (ex.: a sobra de uma embalagem arredondada), ela
+ * é somada à que já estava registrada. Devolve quantos itens novos entraram.
  */
-export async function adicionarVariosNaGeladeira(nomesBrutos: string[]): Promise<number> {
+export async function adicionarVariosNaGeladeira(entradas: (string | EntradaGeladeira)[]): Promise<number> {
   const agora = Date.now();
   const novos = new Map<string, GeladeiraItem>();
-  for (const bruto of nomesBrutos) {
-    const nome = parseIngredient(bruto)?.item ?? '';
+  for (const bruta of entradas) {
+    const entrada: EntradaGeladeira = typeof bruta === 'string' ? { nome: bruta } : bruta;
+    const nome = parseIngredient(entrada.nome)?.item ?? '';
     const itemKey = normalizeItemKey(nome);
-    if (!itemKey || novos.has(itemKey)) continue;
-    novos.set(itemKey, { itemKey, nome, adicionadoEm: agora });
+    if (!itemKey) continue;
+    const anterior = novos.get(itemKey);
+    novos.set(itemKey, {
+      itemKey,
+      nome,
+      adicionadoEm: agora,
+      ...(entrada.quantidade != null
+        ? {
+            quantidade: (anterior?.unidade === entrada.unidade ? (anterior?.quantidade ?? 0) : 0) + entrada.quantidade,
+            unidade: entrada.unidade ?? null,
+          }
+        : {}),
+    });
   }
   if (novos.size === 0) return 0;
-  const existentes = new Set((await db.geladeira.bulkGet(Array.from(novos.keys()))).filter(Boolean).map((g) => g!.itemKey));
-  const inserir = Array.from(novos.values()).filter((g) => !existentes.has(g.itemKey));
-  await db.geladeira.bulkPut(inserir);
-  return inserir.length;
+
+  const existentes = (await db.geladeira.bulkGet(Array.from(novos.keys()))).filter(
+    (g): g is GeladeiraItem => Boolean(g),
+  );
+  const porChave = new Map(existentes.map((g) => [g.itemKey, g]));
+
+  const gravar: GeladeiraItem[] = [];
+  let inseridos = 0;
+  for (const [itemKey, novo] of novos) {
+    const atual = porChave.get(itemKey);
+    if (!atual) {
+      gravar.push(novo);
+      inseridos += 1;
+      continue;
+    }
+    // Já estava lá: preserva validade/nome e só acumula a quantidade, quando as unidades batem.
+    if (novo.quantidade == null) continue;
+    const mesmaUnidade = (atual.unidade ?? null) === (novo.unidade ?? null);
+    gravar.push({
+      ...atual,
+      quantidade: mesmaUnidade ? round2((atual.quantidade ?? 0) + novo.quantidade) : novo.quantidade,
+      unidade: novo.unidade ?? null,
+    });
+  }
+  if (gravar.length > 0) await db.geladeira.bulkPut(gravar);
+  return inseridos;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Define (ou limpa) quanto se tem de um item já na geladeira. */
+export async function definirQuantidadeGeladeira(
+  itemKey: string,
+  quantidade: number | undefined,
+  unidade: string | null | undefined,
+): Promise<void> {
+  const item = await db.geladeira.get(itemKey);
+  if (!item) return;
+  const { quantidade: _q, unidade: _u, ...resto } = item;
+  await db.geladeira.put(quantidade == null ? resto : { ...resto, quantidade, unidade: unidade ?? null });
 }
 
 /** Dá baixa de vários itens da geladeira de uma vez (ex.: ingredientes usados ao cozinhar). */

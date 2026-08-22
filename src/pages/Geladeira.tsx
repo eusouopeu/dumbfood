@@ -16,9 +16,11 @@ import { adicionarNaGeladeira, definirValidadeGeladeira, limparGeladeira, remove
 import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from '../lib/geladeira';
 import { sugerirSubstitutosParaItem } from '../lib/substitutions';
 import { statusValidade, rotuloValidade } from '../lib/validade';
+import { prazoPadraoDias, validadeSugerida } from '../lib/prazos';
 import { useLembreteValidade } from '../lib/lembretes';
 import { agendarLembretesValidade } from '../lib/notifications';
 import { capitalizar, nomeItem, formatTempo } from '../lib/format';
+import { formatQtdUnidadeAbrev } from '../lib/displayQty';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
 import { hapticForte, hapticLeve } from '../lib/haptics';
@@ -41,6 +43,8 @@ export default function Geladeira() {
 
   const [texto, setTexto] = useState('');
   const [validadeTexto, setValidadeTexto] = useState('');
+  /** true enquanto a data mostrada for a sugerida pelo app (o usuário ainda não mexeu nela). */
+  const [validadeAutomatica, setValidadeAutomatica] = useState(true);
   const [editandoValidade, setEditandoValidade] = useState<string | null>(null);
   /** Esconde receitas que ainda precisam de compras. */
   const [soCompletas, setSoCompletas] = useState(false);
@@ -79,11 +83,24 @@ export default function Geladeira() {
     agendarLembretesValidade(itens);
   }, [lembreteValidade, itens]);
 
+  /**
+   * Preenche a validade sozinho a partir do tipo do item (alface ~4 dias, arroz meses).
+   * Preencher data à mão é o atrito que deixava o campo vazio — e sem validade não há
+   * aviso de vencimento nem "use antes de vencer". O usuário pode sobrescrever: a partir
+   * daí a data para de ser recalculada.
+   */
+  function digitarItem(valor: string) {
+    setTexto(valor);
+    if (validadeAutomatica) setValidadeTexto(validadeSugerida(valor));
+  }
+
   async function adicionar(nome: string, validade?: string) {
-    const ts = validade ? new Date(`${validade}T00:00:00`).getTime() : undefined;
+    const sugerida = validade ?? validadeSugerida(nome);
+    const ts = sugerida ? new Date(`${sugerida}T00:00:00`).getTime() : undefined;
     await adicionarNaGeladeira(nome, ts);
     setTexto('');
     setValidadeTexto('');
+    setValidadeAutomatica(true);
   }
 
   async function salvarValidade(itemKey: string, valor: string) {
@@ -141,15 +158,24 @@ export default function Geladeira() {
           placeholder="Ex.: ovos, cebola, frango…"
           list="ingredientes-biblioteca"
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => digitarItem(e.target.value)}
         />
         <input
           type="date"
-          className="input w-[9.5rem] shrink-0 text-sm"
+          className={`input w-[9.5rem] shrink-0 text-sm ${
+            validadeAutomatica && validadeTexto ? 'text-stone-500 dark:text-stone-400' : ''
+          }`}
           value={validadeTexto}
-          onChange={(e) => setValidadeTexto(e.target.value)}
-          aria-label="Validade (opcional)"
-          title="Validade (opcional)"
+          onChange={(e) => {
+            setValidadeTexto(e.target.value);
+            setValidadeAutomatica(false);
+          }}
+          aria-label="Validade (opcional, sugerida pelo tipo do item)"
+          title={
+            validadeAutomatica && texto.trim() && prazoPadraoDias(texto) !== undefined
+              ? `Sugestão: ${prazoPadraoDias(texto)} dias para ${nomeItem(texto)}`
+              : 'Validade (opcional)'
+          }
         />
         <datalist id="ingredientes-biblioteca">
           {sugestoes.map((s) => (
@@ -287,7 +313,11 @@ function ChipGeladeira({ item: g, onEditarValidade }: { item: GeladeiraItem; onE
       aria-label={`${nomeItem(g.nome)}${g.validade ? `, ${rotuloValidade(g.validade)}` : ''}. Toque para remover, toque e segure para definir validade.`}
       title={g.validade ? rotuloValidade(g.validade) : 'Remover · toque e segure para definir validade'}
     >
-      {nomeItem(g.nome)}
+      <span>{nomeItem(g.nome)}</span>
+      {/* Quantidade aparece quando se sabe (sobra da embalagem comprada, ou "2 kg" digitado). */}
+      {g.quantidade != null && (
+        <span className="text-white/80">{formatQtdUnidadeAbrev(g.quantidade, g.unidade ?? null)}</span>
+      )}
       {g.validade && <CalendarDaysIcon className="size-3.5 text-white/80" />}
       <XMarkIcon className="size-3.5 text-white/70" />
     </button>

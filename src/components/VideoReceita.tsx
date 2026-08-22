@@ -2,7 +2,7 @@
 // TikTok, em que o preparo está no vídeo e não em texto. O arquivo fica no próprio
 // aparelho (IndexedDB), então toca offline, sem depender do app de origem.
 
-import { useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { ArrowUpTrayIcon, TrashIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { definirVideoDaReceita, salvarVideo } from '../db/repo';
 import { useVideoUrl } from '../lib/video';
@@ -11,10 +11,25 @@ import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import type { Recipe } from '../types';
 
-export default function VideoReceita({ recipe }: { recipe: Recipe }) {
+/** Controle externo do componente: a tela da receita abre o seletor pelo botão da barra fixa. */
+export interface VideoReceitaHandle {
+  escolherArquivo: () => void;
+}
+
+/**
+ * `embutido` controla se o botão "Adicionar vídeo" aparece dentro da seção de preparo.
+ * Na tela da receita ele virou um botão-ícone na barra fixa do topo, então aqui fica só
+ * o player.
+ */
+const VideoReceita = forwardRef<VideoReceitaHandle, { recipe: Recipe; embutido?: boolean }>(function VideoReceita(
+  { recipe, embutido = true },
+  ref,
+) {
   const fileRef = useRef<HTMLInputElement>(null);
   const { url, carregando } = useVideoUrl(recipe.videoId);
   const [salvando, setSalvando] = useState(false);
+
+  useImperativeHandle(ref, () => ({ escolherArquivo: () => fileRef.current?.click() }), []);
 
   async function escolherVideo(file: File) {
     setSalvando(true);
@@ -48,13 +63,12 @@ export default function VideoReceita({ recipe }: { recipe: Recipe }) {
   );
 
   if (!recipe.videoId) {
+    // Sem vídeo e sem botão embutido, o componente é só o seletor invisível que a barra
+    // fixa da receita aciona.
+    if (!embutido) return seletor;
     return (
       <div className="mb-4">
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={salvando}
-          className="btn-outline w-full"
-        >
+        <button onClick={() => fileRef.current?.click()} disabled={salvando} className="btn-outline w-full">
           <VideoCameraIcon className="size-4" /> {salvando ? 'Salvando vídeo…' : 'Adicionar vídeo do preparo'}
         </button>
         {seletor}
@@ -92,4 +106,6 @@ export default function VideoReceita({ recipe }: { recipe: Recipe }) {
       {seletor}
     </div>
   );
-}
+});
+
+export default VideoReceita;

@@ -75,3 +75,78 @@ describe('parseRecipeFromHtml com fallback de marcação', () => {
     expect(parseRecipeFromHtml('<html><body><p>Um texto qualquer.</p></body></html>')).toBeNull();
   });
 });
+
+// Estrutura das receitas do Panelinha em duas partes: cada parte tem o próprio par
+// "Ingredientes" + "Modo de preparo" (ex.: cheesecake = massa + recheio).
+const paginaDuasPartes = `
+<html><head><title>Cheesecake de damasco | Panelinha</title></head><body>
+  <h1>Cheesecake de damasco</h1>
+  <dl><dt>Serve</dt><dd>Até 8 porções</dd></dl>
+  <h2>Para a massa</h2>
+  <h3>Ingredientes</h3>
+  <ul>
+    <li>1 xícara (chá) de farinha de trigo</li>
+    <li>100 g de manteiga gelada cortada em cubos</li>
+    <li>2 colheres (sopa) de açúcar</li>
+    <li>1 ovo</li>
+  </ul>
+  <h3>Modo de preparo</h3>
+  <ol>
+    <li>Numa tigela grande, misture as farinhas com o açúcar e o sal.</li>
+    <li>Modele a massa numa bola e leve à geladeira por 30 minutos.</li>
+  </ol>
+  <h2>Para o recheio</h2>
+  <h3>Ingredientes</h3>
+  <ul>
+    <li>1 ricota (cerca de 500 g)</li>
+    <li>⅔ de xícara (chá) de açúcar</li>
+    <li>50 g de manteiga em temperatura ambiente</li>
+    <li>3 ovos</li>
+  </ul>
+  <h3>Modo de preparo</h3>
+  <ol>
+    <li>Bata a ricota com o açúcar até ficar liso.</li>
+    <li>Despeje sobre a massa pré-assada e leve ao forno.</li>
+  </ol>
+  <h3>Veja também</h3>
+  <ul><li>Outra receita</li><li>Mais uma</li><li>E outra</li></ul>
+</body></html>`;
+
+describe('receitas com duas listas de ingredientes e dois modos de preparo', () => {
+  it('combina os ingredientes das duas partes numa lista só', () => {
+    const dom = parseRecipeFromDom(paginaDuasPartes);
+    expect(dom.ingredientes).toHaveLength(8);
+    expect(dom.ingredientes[0]).toContain('farinha de trigo');
+    expect(dom.ingredientes[4]).toContain('ricota');
+  });
+
+  it('mantém um modo de preparo por parte, sem misturar os passos', () => {
+    const dom = parseRecipeFromDom(paginaDuasPartes);
+    expect(dom.secoesPreparo.map((s) => s.titulo)).toEqual(['Para a massa', 'Para o recheio']);
+    expect(dom.secoesPreparo[0].passos).toHaveLength(2);
+    expect(dom.secoesPreparo[1].passos[0]).toContain('Bata a ricota');
+    // O preparo achatado segue a ordem das partes — é ele que o modo cozinha usa.
+    expect(dom.modoPreparo).toHaveLength(4);
+    expect(dom.modoPreparo[2]).toContain('Bata a ricota');
+  });
+
+  it('não captura listas fora da receita ("Veja também")', () => {
+    const dom = parseRecipeFromDom(paginaDuasPartes);
+    expect(dom.modoPreparo.some((p) => p.includes('Outra receita'))).toBe(false);
+    expect(dom.ingredientes.some((i) => i.includes('Mais uma'))).toBe(false);
+  });
+
+  it('importa a receita inteira, com as seções, pelo caminho de fallback de marcação', () => {
+    const recipe = parseRecipeFromHtml(paginaDuasPartes, 'https://panelinha.com.br/receita/cheesecake');
+    expect(recipe).not.toBeNull();
+    expect(recipe!.ingredientes).toHaveLength(8);
+    expect(recipe!.secoesPreparo).toHaveLength(2);
+    expect(recipe!.rendimentoBase).toEqual({ valor: 8, tipo: 'porcoes' });
+  });
+
+  it('receita de uma parte só continua sem seções', () => {
+    const dom = parseRecipeFromDom(paginaSemJsonLd);
+    expect(dom.secoesPreparo).toEqual([]);
+    expect(dom.modoPreparo).toEqual(['Pique o tomate e o alho.', 'Refogue tudo e sirva.']);
+  });
+});

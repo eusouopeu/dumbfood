@@ -126,6 +126,10 @@ export default function App() {
     };
   }, [navigate]);
 
+  // Na tela de uma receita a barra do app some: a própria tela tem uma barra fixa, com
+  // voltar e as ações da receita, e duas barras empilhadas comeriam metade da altura útil.
+  const telaDeReceita = location.pathname.startsWith('/receita/');
+
   const badges: Record<string, number> = {
     '/geladeira': geladeiraCount,
     '/lista': listaPendente,
@@ -133,6 +137,7 @@ export default function App() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col">
+      {!telaDeReceita && (
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-stone-200 bg-brand-50/80 px-4 py-3 backdrop-blur dark:border-stone-700 dark:bg-stone-900/80">
         <FireIcon className="size-7 text-brand-600 dark:text-brand-400" />
         <h1 className="text-lg font-extrabold tracking-tight text-brand-700 dark:text-brand-300">dumbfood</h1>
@@ -162,6 +167,7 @@ export default function App() {
           </button>
         </div>
       </header>
+      )}
 
       <main className="flex-1 px-4 py-4 pb-24">
         <ErrorBoundary>

@@ -9,6 +9,7 @@ import {
   DocumentDuplicateIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  ExclamationTriangleIcon,
   ShareIcon,
   Squares2X2Icon,
   StarIcon as StarOutlineIcon,
@@ -27,12 +28,13 @@ import {
 } from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { deburr } from '../lib/ingredientParser';
-import { capitalizar, formatTempo } from '../lib/format';
+import { capitalizar, formatTempo, nomeItem } from '../lib/format';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import { useLongPress } from '../lib/useLongPress';
-import { combinarReceitas } from '../lib/geladeira';
+import { combinarReceitas, receitasParaAproveitar } from '../lib/geladeira';
+import { statusValidade, rotuloValidade } from '../lib/validade';
 import { CardListSkeleton } from '../components/Skeleton';
 import Highlight from '../components/Highlight';
 import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
@@ -64,6 +66,16 @@ export default function Receitas() {
   const [filtroTempo, setFiltroTempo] = useState<FiltroTempo>('qualquer');
   const [soPossoFazer, setSoPossoFazer] = useState(false);
   const [menuAberto, setMenuAberto] = useState<Recipe | null>(null);
+
+  /**
+   * O que cozinhar antes que estrague. O aviso de validade dizia que a comida ia
+   * estragar; aqui ele vira a decisão que deveria provocar — a receita que aproveita
+   * justamente esses itens.
+   */
+  const urgentes = useMemo(
+    () => receitasParaAproveitar(recipes ?? [], geladeira ?? [], (g) => statusValidade(g.validade!) !== 'ok'),
+    [recipes, geladeira],
+  );
 
   // Cobertura da geladeira por receita (para "posso fazer com o que tenho"), só
   // calculada quando há itens na geladeira — do contrário nada fecharia 100%.
@@ -286,6 +298,28 @@ export default function Receitas() {
             </div>
           )}
         </div>
+
+        {urgentes.length > 0 && !selecionando && (
+          <div className="card space-y-2 border-2 border-amber-400 p-4 dark:border-amber-600">
+            <div className="flex items-center gap-2">
+              <ExclamationTriangleIcon className="size-4 text-amber-500" />
+              <h3 className="section-heading text-sm">Use antes de vencer</h3>
+            </div>
+            <ul className="space-y-1.5">
+              {urgentes.map(({ recipe, vencendo, falta }) => (
+                <li key={recipe.id}>
+                  <Link to={`/receita/${recipe.id}`} className="block">
+                    <span className="font-semibold">{capitalizar(recipe.titulo)}</span>
+                    <span className="block text-xs text-stone-500 dark:text-stone-400">
+                      usa {vencendo.map((g) => nomeItem(g.nome)).join(', ')} ({rotuloValidade(vencendo[0].validade!)})
+                      {falta.length > 0 && ` · faltam ${falta.length} ingrediente(s)`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {recipes.length === 0 ? (
           <div className="card p-6 text-center">

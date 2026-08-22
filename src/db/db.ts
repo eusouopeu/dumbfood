@@ -1,7 +1,7 @@
 // Banco local (IndexedDB) via Dexie.
 
 import Dexie, { type Table } from 'dexie';
-import type { Compra, GeladeiraItem, PrecoItem, Recipe, VideoReceita, WeekPlan } from '../types';
+import type { Compra, GeladeiraItem, ListaEstado, PrecoItem, Recipe, VideoReceita, WeekPlan } from '../types';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -12,6 +12,7 @@ export class DumbfoodDB extends Dexie {
   precos!: Table<PrecoItem, string>;
   geladeira!: Table<GeladeiraItem, string>;
   videos!: Table<VideoReceita, string>;
+  listaEstado!: Table<ListaEstado, string>;
 
   constructor() {
     super('dumbfood');
@@ -79,13 +80,67 @@ export class DumbfoodDB extends Dexie {
       geladeira: 'itemKey, adicionadoEm',
       videos: 'id, criadoEm',
     });
+    // v8: o estado da lista de mercado (marcados, itens manuais, quantidades corrigidas)
+    // sai do localStorage e vem para o banco — assim é reativo, entra no backup e não
+    // some quando o usuário limpa os dados do navegador no meio da compra.
+    this.version(8)
+      .stores({
+        recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+        plans: 'id',
+        compras: 'id, data, mercado',
+        precos: 'itemKey, item',
+        geladeira: 'itemKey, adicionadoEm',
+        videos: 'id, criadoEm',
+        listaEstado: 'id',
+      })
+      .upgrade(async (tx) => {
+        const estado = lerListaDoLocalStorage();
+        if (estado) await tx.table('listaEstado').put(estado);
+      });
   }
+}
+
+/** Id do único registro de estado da lista de mercado. */
+export const LISTA_ATUAL_ID = 'atual';
+
+const CHAVES_LISTA_ANTIGAS = ['dumbfood:comprados', 'dumbfood:itensExtras', 'dumbfood:itensQtd'];
+
+/**
+ * Lê o estado da lista que ficava em três chaves de localStorage (versões <= 7),
+ * para não perder a compra em andamento na migração. Devolve null quando não há nada.
+ */
+function lerListaDoLocalStorage(): ListaEstado | null {
+  if (typeof localStorage === 'undefined') return null;
+  const ler = <T,>(chave: string, padrao: T): T => {
+    try {
+      const bruto = localStorage.getItem(chave);
+      return bruto ? (JSON.parse(bruto) as T) : padrao;
+    } catch {
+      return padrao;
+    }
+  };
+  const estado: ListaEstado = {
+    id: LISTA_ATUAL_ID,
+    comprados: ler<string[]>('dumbfood:comprados', []),
+    extras: ler('dumbfood:itensExtras', []),
+    overrides: ler('dumbfood:itensQtd', {}),
+    ocultos: [],
+  };
+  const vazio =
+    estado.comprados.length === 0 && estado.extras.length === 0 && Object.keys(estado.overrides).length === 0;
+  for (const chave of CHAVES_LISTA_ANTIGAS) localStorage.removeItem(chave);
+  return vazio ? null : estado;
 }
 
 export const db = new DumbfoodDB();
 
 /** Id do único plano ativo (MVP com um plano de semana). */
 export const PLANO_ATUAL_ID = 'atual';
+
+/** Estado inicial da lista de mercado (nada marcado, nada manual). */
+export function listaEstadoVazio(): ListaEstado {
+  return { id: LISTA_ATUAL_ID, comprados: [], extras: [], overrides: {}, ocultos: [] };
+}
 
 /** Garante que exista um plano atual e o retorna. */
 export async function getOrCreatePlanoAtual(): Promise<WeekPlan> {

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  ArchiveBoxArrowDownIcon,
   ArrowLeftIcon,
   ArrowsRightLeftIcon,
   CheckCircleIcon,
@@ -9,6 +10,7 @@ import {
   PlayCircleIcon,
   PlusIcon,
   StarIcon as StarOutlineIcon,
+  VideoCameraIcon,
   XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -40,7 +42,7 @@ import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import CookMode from '../components/CookMode';
 import Secao from '../components/Secao';
-import VideoReceita from '../components/VideoReceita';
+import VideoReceita, { type VideoReceitaHandle } from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
 import type { YieldType } from '../types';
 
@@ -72,6 +74,7 @@ export default function Detalhe() {
   const [tamanho, setTamanho] = useState<TamanhoLeitura>(() => tamanhoSalvo());
   const [cozinhando, setCozinhando] = useState(false);
   const [restricaoAberta, setRestricaoAberta] = useState(false);
+  const videoRef = useRef<VideoReceitaHandle>(null);
 
   function mudarTamanho(t: TamanhoLeitura) {
     setTamanho(t);
@@ -141,15 +144,18 @@ export default function Detalhe() {
   }
 
   /**
-   * Fecha o ciclo geladeira -> receita: ao terminar de cozinhar, os ingredientes que
-   * estavam na geladeira e foram usados aqui deixam de estar disponíveis. Só pergunta
-   * quando há de fato o que dar baixa.
+   * Fecha o ciclo geladeira -> receita: os ingredientes que estavam na geladeira e foram
+   * usados nesta receita deixam de estar disponíveis. Fica na barra do topo (e não só no
+   * fim do modo cozinha) para dar para registrar também quando se cozinhou sem o app.
    */
   async function darBaixaNaGeladeira() {
     if (!recipe) return;
     const geladeira = await db.geladeira.toArray();
     const { usados } = combinarReceita(recipe, geladeira);
-    if (usados.length === 0) return;
+    if (usados.length === 0) {
+      toast('Nenhum ingrediente desta receita está na geladeira.', 'info');
+      return;
+    }
     const nomes = geladeira.filter((g) => usados.includes(g.itemKey)).map((g) => nomeItem(g.nome));
     const ok = await confirmar(
       `Dar baixa na geladeira dos ingredientes usados? (${nomes.join(', ')})`,
@@ -170,11 +176,39 @@ export default function Detalhe() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Barra da receita: fica fixa no topo (a barra geral do app some nesta tela) e
+          concentra as ações que antes ocupavam botões largos no meio do conteúdo. */}
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-1 border-b border-stone-200 bg-brand-50/90 px-4 py-2.5 backdrop-blur dark:border-stone-700 dark:bg-stone-900/90">
         <Link to="/" className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400">
           <ArrowLeftIcon className="size-4" /> Receitas
         </Link>
-        <div className="flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-0.5">
+          <button
+            onClick={() => setRestricaoAberta(true)}
+            aria-label="Ajustar para restrição alimentar"
+            title="Ajustar para restrição alimentar"
+            className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+          >
+            <ArrowsRightLeftIcon className="size-6" />
+          </button>
+          <button
+            onClick={() => videoRef.current?.escolherArquivo()}
+            aria-label={recipe.videoId ? 'Trocar vídeo do preparo' : 'Adicionar vídeo do preparo'}
+            title={recipe.videoId ? 'Trocar vídeo do preparo' : 'Adicionar vídeo do preparo'}
+            className={`rounded-full p-1.5 hover:bg-brand-100 dark:hover:bg-stone-800 ${
+              recipe.videoId ? 'text-brand-600 dark:text-brand-400' : 'text-stone-500 dark:text-stone-400'
+            }`}
+          >
+            <VideoCameraIcon className="size-6" />
+          </button>
+          <button
+            onClick={darBaixaNaGeladeira}
+            aria-label="Dar baixa na geladeira dos ingredientes usados"
+            title="Dar baixa na geladeira"
+            className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+          >
+            <ArchiveBoxArrowDownIcon className="size-6" />
+          </button>
           {noPlano ? (
             <button
               onClick={async () => {
@@ -183,7 +217,7 @@ export default function Detalhe() {
               }}
               aria-label="Remover da semana"
               title="Remover da semana"
-              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-stone-800"
+              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
             >
               <CheckCircleIcon className="size-6" />
             </button>
@@ -195,7 +229,7 @@ export default function Detalhe() {
               }}
               aria-label="Adicionar à semana"
               title="Adicionar à semana"
-              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-stone-800"
+              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
             >
               <PlusIcon className="size-6" />
             </button>
@@ -257,10 +291,6 @@ export default function Detalhe() {
           <PlayCircleIcon className="size-5" /> Modo cozinha
         </button>
       )}
-
-      <button onClick={() => setRestricaoAberta(true)} className="btn-outline w-full">
-        <ArrowsRightLeftIcon className="size-4" /> Ajustar para restrição alimentar
-      </button>
 
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -428,22 +458,52 @@ export default function Detalhe() {
         chave="preparo"
         titulo="Modo de preparo"
         subtitulo={
-          recipe.modoPreparo.length > 0
-            ? `${recipe.modoPreparo.length} passos`
-            : recipe.videoId
-              ? 'vídeo'
-              : 'sem passos'
+          recipe.secoesPreparo && recipe.secoesPreparo.length > 0
+            ? `${recipe.secoesPreparo.length} partes · ${recipe.modoPreparo.length} passos`
+            : recipe.modoPreparo.length > 0
+              ? `${recipe.modoPreparo.length} passos`
+              : recipe.videoId
+                ? 'vídeo'
+                : 'sem passos'
         }
       >
-        <VideoReceita recipe={recipe} />
-        <ol className="space-y-5">
-          {recipe.modoPreparo.map((p, i) => (
-            <li key={i} className="flex gap-3">
-              <span className="flex-shrink-0 font-extrabold text-brand-600 dark:text-brand-400">{i + 1}.</span>
-              <span className="leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>{p}</span>
-            </li>
-          ))}
-        </ol>
+        <VideoReceita ref={videoRef} recipe={recipe} embutido={false} />
+        {recipe.secoesPreparo && recipe.secoesPreparo.length > 0 ? (
+          /* Receita em partes (massa + recheio): cada parte mantém a própria numeração,
+             que é como ela aparece no site de origem. */
+          <div className="space-y-5">
+            {recipe.secoesPreparo.map((sec, s) => (
+              <div key={s}>
+                {sec.titulo && (
+                  <p className="mb-2 text-sm font-extrabold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+                    {sec.titulo}
+                  </p>
+                )}
+                <ol className="space-y-5">
+                  {sec.passos.map((p, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="flex-shrink-0 font-extrabold text-brand-600 dark:text-brand-400">{i + 1}.</span>
+                      <span className="leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>
+                        {p}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ol className="space-y-5">
+            {recipe.modoPreparo.map((p, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="flex-shrink-0 font-extrabold text-brand-600 dark:text-brand-400">{i + 1}.</span>
+                <span className="leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>
+                  {p}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
       </Secao>
 
       {/* Tabela nutricional estimada, a partir de ingredientes-chave */}
@@ -521,7 +581,6 @@ export default function Detalhe() {
           titulo={capitalizar(recipe.titulo)}
           passos={recipe.modoPreparo}
           onClose={() => setCozinhando(false)}
-          onConcluir={darBaixaNaGeladeira}
         />
       )}
 
