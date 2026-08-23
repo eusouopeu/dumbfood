@@ -2,19 +2,18 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArchiveBoxArrowDownIcon,
   ArrowLeftIcon,
   ArrowsRightLeftIcon,
-  CheckCircleIcon,
+  CalendarDaysIcon,
+  HomeIcon,
   MinusIcon,
-  PlayCircleIcon,
   PlusIcon,
   StarIcon as StarOutlineIcon,
   VideoCameraIcon,
   XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+import { CalendarDaysIcon as CalendarSolidIcon, StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
 import {
@@ -40,13 +39,16 @@ import { CAMPOS_MICRO, calcularMicroTotal, coberturaMicro, dividirMicro, percent
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
-import CookMode from '../components/CookMode';
 import Secao from '../components/Secao';
 import VideoReceita, { type VideoReceitaHandle } from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
 import type { YieldType } from '../types';
 
 type Modo = 'rendimento' | 'grama';
+
+/** Estilo comum dos botões da barra da receita: todos em laranja, menos o de excluir. */
+const ICONE_BARRA =
+  'rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800';
 
 const TAMANHOS_LEITURA = { md: 16, lg: 19, xl: 22 } as const;
 type TamanhoLeitura = keyof typeof TAMANHOS_LEITURA;
@@ -72,7 +74,6 @@ export default function Detalhe() {
   const [medidaModo, setMedidaModo] = useState<MedidaModo>('metrico');
   const [novaTag, setNovaTag] = useState('');
   const [tamanho, setTamanho] = useState<TamanhoLeitura>(() => tamanhoSalvo());
-  const [cozinhando, setCozinhando] = useState(false);
   const [restricaoAberta, setRestricaoAberta] = useState(false);
   const videoRef = useRef<VideoReceitaHandle>(null);
 
@@ -145,8 +146,8 @@ export default function Detalhe() {
 
   /**
    * Fecha o ciclo geladeira -> receita: os ingredientes que estavam na geladeira e foram
-   * usados nesta receita deixam de estar disponíveis. Fica na barra do topo (e não só no
-   * fim do modo cozinha) para dar para registrar também quando se cozinhou sem o app.
+   * usados nesta receita deixam de estar disponíveis. Fica na barra do topo, para registrar
+   * a qualquer momento depois de cozinhar.
    */
   async function darBaixaNaGeladeira() {
     if (!recipe) return;
@@ -184,10 +185,21 @@ export default function Detalhe() {
         </Link>
         <div className="ml-auto flex items-center gap-0.5">
           <button
+            onClick={() => {
+              hapticLeve();
+              alternarFavorito(recipe);
+            }}
+            aria-label={recipe.favorito ? 'Remover dos favoritos' : 'Favoritar receita'}
+            title={recipe.favorito ? 'Remover dos favoritos' : 'Favoritar'}
+            className={ICONE_BARRA}
+          >
+            {recipe.favorito ? <StarSolidIcon className="size-6" /> : <StarOutlineIcon className="size-6" />}
+          </button>
+          <button
             onClick={() => setRestricaoAberta(true)}
             aria-label="Ajustar para restrição alimentar"
             title="Ajustar para restrição alimentar"
-            className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+            className={ICONE_BARRA}
           >
             <ArrowsRightLeftIcon className="size-6" />
           </button>
@@ -195,9 +207,7 @@ export default function Detalhe() {
             onClick={() => videoRef.current?.escolherArquivo()}
             aria-label={recipe.videoId ? 'Trocar vídeo do preparo' : 'Adicionar vídeo do preparo'}
             title={recipe.videoId ? 'Trocar vídeo do preparo' : 'Adicionar vídeo do preparo'}
-            className={`rounded-full p-1.5 hover:bg-brand-100 dark:hover:bg-stone-800 ${
-              recipe.videoId ? 'text-brand-600 dark:text-brand-400' : 'text-stone-500 dark:text-stone-400'
-            }`}
+            className={ICONE_BARRA}
           >
             <VideoCameraIcon className="size-6" />
           </button>
@@ -205,9 +215,9 @@ export default function Detalhe() {
             onClick={darBaixaNaGeladeira}
             aria-label="Dar baixa na geladeira dos ingredientes usados"
             title="Dar baixa na geladeira"
-            className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+            className={ICONE_BARRA}
           >
-            <ArchiveBoxArrowDownIcon className="size-6" />
+            <HomeIcon className="size-6" />
           </button>
           {noPlano ? (
             <button
@@ -217,9 +227,9 @@ export default function Detalhe() {
               }}
               aria-label="Remover da semana"
               title="Remover da semana"
-              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+              className={ICONE_BARRA}
             >
-              <CheckCircleIcon className="size-6" />
+              <CalendarSolidIcon className="size-6" />
             </button>
           ) : (
             <button
@@ -229,9 +239,9 @@ export default function Detalhe() {
               }}
               aria-label="Adicionar à semana"
               title="Adicionar à semana"
-              className="rounded-full p-1.5 text-brand-600 hover:bg-brand-100 dark:text-brand-400 dark:hover:bg-stone-800"
+              className={ICONE_BARRA}
             >
-              <PlusIcon className="size-6" />
+              <CalendarDaysIcon className="size-6" />
             </button>
           )}
           <button
@@ -274,23 +284,7 @@ export default function Detalhe() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => {
-            hapticLeve();
-            alternarFavorito(recipe);
-          }}
-          aria-label={recipe.favorito ? 'Remover dos favoritos' : 'Favoritar receita'}
-          className="flex-shrink-0 rounded-full p-1.5 text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-800"
-        >
-          {recipe.favorito ? <StarSolidIcon className="size-7" /> : <StarOutlineIcon className="size-7 text-stone-300 dark:text-stone-600" />}
-        </button>
       </div>
-
-      {recipe.modoPreparo.length > 0 && (
-        <button onClick={() => setCozinhando(true)} className="btn-primary w-full">
-          <PlayCircleIcon className="size-5" /> Modo cozinha
-        </button>
-      )}
 
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -381,11 +375,27 @@ export default function Detalhe() {
             </div>
           </div>
         )}
-        {Math.abs(fator - 1) > 0.001 && (
-          <div className="flex justify-end">
-            <button onClick={salvarComoPadrao} className="btn-ghost h-7 py-0 text-xs">
-              Salvar como padrão
-            </button>
+        {/* Onde a quantidade é escolhida é também onde se decide o que fazer com ela:
+            mandar para a semana ou virar o rendimento padrão da receita. */}
+        {(noPlano || Math.abs(fator - 1) > 0.001) && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {noPlano && (
+              <button
+                onClick={async () => {
+                  await definirNoPlano(recipe.id, fator);
+                  hapticLeve();
+                  toast('Quantidade atualizada na semana.');
+                }}
+                className="btn-ghost h-7 py-0 text-xs"
+              >
+                <CalendarDaysIcon className="size-3.5" /> Atualizar na semana
+              </button>
+            )}
+            {Math.abs(fator - 1) > 0.001 && (
+              <button onClick={salvarComoPadrao} className="btn-ghost h-7 py-0 text-xs">
+                Salvar como padrão
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -561,27 +571,6 @@ export default function Detalhe() {
             (TACO/USDA). O que a tabela não conhece entra como zero, então o valor real tende a ser maior.
           </p>
         </Secao>
-      )}
-
-      {/* Ações */}
-      {noPlano && (
-        <button
-          onClick={async () => {
-            await definirNoPlano(recipe.id, fator);
-            toast('Quantidade atualizada na semana.');
-          }}
-          className="btn-ghost"
-        >
-          Atualizar quantidade na semana
-        </button>
-      )}
-
-      {cozinhando && (
-        <CookMode
-          titulo={capitalizar(recipe.titulo)}
-          passos={recipe.modoPreparo}
-          onClose={() => setCozinhando(false)}
-        />
       )}
 
       {restricaoAberta && (

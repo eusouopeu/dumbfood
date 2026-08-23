@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BellAlertIcon, BookOpenIcon, CalendarDaysIcon, MinusIcon, PlusIcon, ShoppingCartIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import {
+  BellAlertIcon,
+  BookOpenIcon,
+  CalendarDaysIcon,
+  MinusIcon,
+  PlusIcon,
+  ShoppingCartIcon,
+  SparklesIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { definirAgendamento, definirNoPlano, removerDoPlano, limparPlano } from '../db/repo';
+import { adicionarAgendamento, definirNoPlano, removerAgendamento, removerDoPlano, limparPlano } from '../db/repo';
 import { round } from '../lib/scale';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
@@ -17,8 +26,17 @@ import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
-import { DIAS_CURTOS, DIAS_SEMANA, REFEICOES, agruparPorDia, rotuloRefeicao } from '../lib/agenda';
-import type { Ingredient, PlanItem, Refeicao } from '../types';
+import {
+  DIAS_CURTOS,
+  DIAS_SEMANA,
+  REFEICOES,
+  agendamentosDoItem,
+  agruparPorDia,
+  ordenarAgendamentos,
+  rotuloAgendamento,
+  rotuloRefeicao,
+} from '../lib/agenda';
+import type { Agendamento, Ingredient, PlanItem, Refeicao } from '../types';
 
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
@@ -61,9 +79,11 @@ export default function PlanoSemana() {
     const mapa = new Map<number, Nutrientes100g>();
     for (const { dia, itens } of agenda.dias) {
       if (itens.length === 0) continue;
-      const ingredientes: Ingredient[] = itens.flatMap(({ item }) => {
+      // Receita agendada em três refeições é uma panelada dividida em três, não três
+      // panelas: cada dia leva a fração correspondente.
+      const ingredientes: Ingredient[] = itens.flatMap(({ item, vezesNaSemana }) => {
         const r = porId.get(item.recipeId);
-        return r ? scaleIngredients(r.ingredientes, item.fator) : [];
+        return r ? scaleIngredients(r.ingredientes, item.fator / Math.max(1, vezesNaSemana)) : [];
       });
       mapa.set(dia, calcularNutricaoTotal(ingredientes));
     }
@@ -211,11 +231,11 @@ export default function PlanoSemana() {
                   <span className="text-stone-300 dark:text-stone-600">—</span>
                 ) : (
                   <span className="min-w-0 flex-1 space-y-0.5">
-                    {itens.map(({ item, recipe }) => (
-                      <span key={recipe.id} className="block truncate">
-                        {item.refeicao && (
+                    {itens.map(({ recipe, refeicao }) => (
+                      <span key={`${recipe.id}-${refeicao ?? 'sem'}`} className="block truncate">
+                        {refeicao && (
                           <span className="mr-1 text-xs text-stone-400 dark:text-stone-500">
-                            {rotuloRefeicao(item.refeicao)}:
+                            {rotuloRefeicao(refeicao)}:
                           </span>
                         )}
                         {capitalizar(recipe.titulo)}
@@ -358,47 +378,86 @@ export default function PlanoSemana() {
 }
 
 /**
- * Dia da semana + refeição de uma receita já no plano. Fica na própria linha da
- * receita para agendar sem sair da tela; "—" desagenda.
+ * Onde a receita entra na semana. São vários lugares, não um: uma panelada de domingo
+ * costuma ser o almoço de segunda e de quarta ao mesmo tempo. Cada chip é um lugar já
+ * marcado (o X tira só aquele) e o seletor abaixo acrescenta mais um.
  */
 function SeletorAgendamento({ recipeId, item }: { recipeId: string; item: PlanItem | undefined }) {
+  const [dia, setDia] = useState('');
+  const [refeicao, setRefeicao] = useState('');
+  const agendamentos = item ? ordenarAgendamentos(agendamentosDoItem(item)) : [];
+
+  function agendar() {
+    if (dia === '') return;
+    adicionarAgendamento(recipeId, Number(dia), refeicao === '' ? undefined : (refeicao as Refeicao));
+    hapticLeve();
+    setDia('');
+    setRefeicao('');
+  }
+
   return (
-    <div className="mt-2 flex items-center gap-2 pl-8" onClick={(e) => e.stopPropagation()}>
-      <span className="text-xs text-stone-500 dark:text-stone-400">quando:</span>
-      <select
-        className="input w-28 py-1 text-xs"
-        aria-label="Dia da semana"
-        value={item?.dia ?? ''}
-        onChange={(e) => {
-          const v = e.target.value;
-          definirAgendamento(recipeId, v === '' ? undefined : Number(v), item?.refeicao);
-          hapticLeve();
-        }}
-      >
-        <option value="">— dia</option>
-        {DIAS_SEMANA.map((d, i) => (
-          <option key={d} value={i}>
-            {d}
-          </option>
-        ))}
-      </select>
-      <select
-        className="input w-24 py-1 text-xs"
-        aria-label="Refeição"
-        value={item?.refeicao ?? ''}
-        onChange={(e) => {
-          const v = e.target.value;
-          definirAgendamento(recipeId, item?.dia, v === '' ? undefined : (v as Refeicao));
-          hapticLeve();
-        }}
-      >
-        <option value="">— refeição</option>
-        {REFEICOES.map((r) => (
-          <option key={r.chave} value={r.chave}>
-            {r.label}
-          </option>
-        ))}
-      </select>
+    <div className="mt-2 space-y-1.5 pl-8 pr-1" onClick={(e) => e.stopPropagation()}>
+      {agendamentos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {agendamentos.map((a: Agendamento) => (
+            <span
+              key={`${a.dia}-${a.refeicao ?? ''}`}
+              className="chip gap-1 bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+            >
+              {rotuloAgendamento(a)}
+              <button
+                onClick={() => {
+                  removerAgendamento(recipeId, a);
+                  hapticLeve();
+                }}
+                aria-label={`Tirar de ${rotuloAgendamento(a)}`}
+                className="text-brand-500 hover:text-brand-700 dark:text-brand-400"
+              >
+                <XMarkIcon className="size-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Sem rótulo: os próprios "— dia"/"— refeição" já dizem o que são, e numa tela de
+          celular o rótulo empurrava o botão de agendar para fora do card. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <select
+          className="input w-24 py-1 text-xs"
+          aria-label="Dia da semana"
+          value={dia}
+          onChange={(e) => setDia(e.target.value)}
+        >
+          <option value="">— dia</option>
+          {DIAS_SEMANA.map((d, i) => (
+            <option key={d} value={i}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input w-[5.5rem] py-1 text-xs"
+          aria-label="Refeição"
+          value={refeicao}
+          onChange={(e) => setRefeicao(e.target.value)}
+        >
+          <option value="">— refeição</option>
+          {REFEICOES.map((r) => (
+            <option key={r.chave} value={r.chave}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={agendar}
+          disabled={dia === ''}
+          aria-label="Agendar neste dia"
+          title="Agendar"
+          className="btn-outline h-7 w-7 !px-0 disabled:opacity-40"
+        >
+          <PlusIcon className="mx-auto size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }

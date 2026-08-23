@@ -57,13 +57,27 @@ export type NewRecipe = Omit<Recipe, 'id' | 'criadoEm'>;
 /** Refeição do dia em que a receita está agendada. */
 export type Refeicao = 'cafe' | 'almoco' | 'jantar' | 'lanche';
 
+/** Um lugar da semana em que a receita é comida: dia + refeição (opcional). */
+export interface Agendamento {
+  /** Dia da semana (0 = domingo .. 6 = sábado, como Date#getDay()). */
+  dia: number;
+  /** Refeição do dia; ausente = dia marcado, sem refeição definida. */
+  refeicao?: Refeicao;
+}
+
 export interface PlanItem {
   recipeId: string;
   /** Fator de reescala aplicado à receita neste plano. */
   fator: number;
-  /** Dia da semana agendado (0 = domingo .. 6 = sábado, como Date#getDay()); ausente = sem dia. */
+  /**
+   * Onde a receita entra na semana. Uma panelada grande costuma virar almoço de
+   * segunda, quinta e sexta ao mesmo tempo — por isso é lista, e não um dia só.
+   * Vazia (ou ausente) = a receita está no plano, mas sem dia marcado.
+   */
+  agendamentos?: Agendamento[];
+  /** @deprecated Formato antigo (um dia/refeição por receita); lido só na migração. */
   dia?: number;
-  /** Refeição do dia; ausente = sem refeição definida. */
+  /** @deprecated Formato antigo; ver `agendamentos`. */
   refeicao?: Refeicao;
 }
 

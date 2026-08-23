@@ -97,6 +97,29 @@ export class DumbfoodDB extends Dexie {
         const estado = lerListaDoLocalStorage();
         if (estado) await tx.table('listaEstado').put(estado);
       });
+    // v9: uma receita passa a poder ocupar vários lugares da semana (a panelada que é
+    // almoço de segunda e de quinta). O dia/refeição solto do item vira uma lista de
+    // agendamentos.
+    this.version(9)
+      .stores({
+        recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+        plans: 'id',
+        compras: 'id, data, mercado',
+        precos: 'itemKey, item',
+        geladeira: 'itemKey, adicionadoEm',
+        videos: 'id, criadoEm',
+        listaEstado: 'id',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('plans').toCollection().modify((plano: WeekPlan) => {
+          plano.itens = (plano.itens ?? []).map((item) => {
+            const { dia, refeicao, ...resto } = item;
+            const agendamentos =
+              item.agendamentos ?? (dia !== undefined ? [{ dia, ...(refeicao ? { refeicao } : {}) }] : []);
+            return { ...resto, agendamentos };
+          });
+        });
+      });
   }
 }
 

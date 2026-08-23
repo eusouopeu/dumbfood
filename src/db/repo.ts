@@ -1,6 +1,7 @@
 // Operações de alto nível sobre o banco.
 
 import type {
+  Agendamento,
   Compra,
   GeladeiraItem,
   Ingredient,
@@ -17,6 +18,7 @@ import { db, LISTA_ATUAL_ID, PLANO_ATUAL_ID, getOrCreatePlanoAtual, listaEstadoV
 import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
+import { agendamentosDoItem, mesmoAgendamento } from '../lib/agenda';
 
 export function novoId(): string {
   return (
@@ -156,20 +158,42 @@ export async function definirNoPlano(recipeId: string, fator: number): Promise<v
 }
 
 /**
- * Agenda (ou desagenda, passando undefined) a receita em um dia da semana e refeição.
- * Só mexe no item já existente no plano — agendar não adiciona ao plano por si só.
+ * Agenda a receita em mais um lugar da semana (dia + refeição opcional). Uma receita
+ * pode ocupar vários lugares — a panelada de segunda que também é o almoço de quinta —
+ * e o mesmo lugar aceita várias receitas. Agendar não adiciona ao plano por si só.
+ * Repetir um agendamento igual não duplica.
  */
-export async function definirAgendamento(
+export async function adicionarAgendamento(
   recipeId: string,
-  dia: number | undefined,
+  dia: number,
   refeicao: Refeicao | undefined,
 ): Promise<void> {
   const plano = await getOrCreatePlanoAtual();
   const idx = plano.itens.findIndex((i) => i.recipeId === recipeId);
   if (idx < 0) return;
+  const novo: Agendamento = { dia, ...(refeicao ? { refeicao } : {}) };
+  const atuais = agendamentosDoItem(plano.itens[idx]);
+  if (atuais.some((a) => mesmoAgendamento(a, novo))) return;
+  await gravarAgendamentos(plano, idx, [...atuais, novo]);
+}
+
+/** Tira a receita de um lugar da semana; os outros agendamentos dela continuam. */
+export async function removerAgendamento(
+  recipeId: string,
+  agendamento: Agendamento,
+): Promise<void> {
+  const plano = await getOrCreatePlanoAtual();
+  const idx = plano.itens.findIndex((i) => i.recipeId === recipeId);
+  if (idx < 0) return;
+  const restantes = agendamentosDoItem(plano.itens[idx]).filter((a) => !mesmoAgendamento(a, agendamento));
+  await gravarAgendamentos(plano, idx, restantes);
+}
+
+/** Grava a lista de agendamentos, descartando os campos do formato antigo. */
+async function gravarAgendamentos(plano: WeekPlan, idx: number, agendamentos: Agendamento[]): Promise<void> {
   const itens = [...plano.itens];
-  const { dia: _d, refeicao: _r, ...resto } = itens[idx];
-  itens[idx] = { ...resto, ...(dia !== undefined ? { dia } : {}), ...(refeicao !== undefined ? { refeicao } : {}) };
+  const { dia: _dia, refeicao: _refeicao, ...resto } = itens[idx];
+  itens[idx] = { ...resto, agendamentos };
   await db.plans.put({ ...plano, itens });
 }
 
