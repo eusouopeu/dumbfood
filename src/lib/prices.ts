@@ -6,7 +6,7 @@
 //    Campos aceitos (qualquer um): item|produto|nome, preco|precoUnitario|valor|price, unidade|unit.
 //  - CSV: colunas "item,preco,unidade" (cabeçalho opcional). unidade ∈ kg | l | unidade (padrão: kg).
 
-import type { PrecoItem, ShoppingLine } from '../types';
+import type { Ingredient, PrecoItem, ShoppingLine } from '../types';
 import { normalizeItemKey } from './ingredientParser';
 import { pesoEmGramas } from './weight';
 
@@ -104,6 +104,42 @@ export function custoLinha(linha: ShoppingLine, precos: PrecoItem[]): number | n
     }
   }
   return achou ? round2(total) : null;
+}
+
+export interface CustoReceita {
+  /** Soma do que deu para precificar (pode ser parcial — ver `cobertos`). */
+  total: number;
+  /** Quantos ingredientes distintos entraram na soma. */
+  cobertos: number;
+  /** Total de ingredientes distintos da receita nessa escala. */
+  totalItens: number;
+}
+
+/**
+ * Estima o custo de uma lista de ingredientes (já na escala desejada) a partir da
+ * tabela de preços — mesma lógica de `custoLinha`, aplicada aos ingredientes de uma
+ * receita em vez de uma linha de lista de mercado. Ingredientes sem preço conhecido
+ * ficam de fora da soma; `cobertos` diz quantos entraram, para sinalizar estimativa
+ * parcial em vez de fingir precisão que não existe.
+ */
+export function custoReceita(ingredientes: Ingredient[], precos: PrecoItem[]): CustoReceita {
+  let total = 0;
+  let cobertos = 0;
+  for (const ing of ingredientes) {
+    const linha: ShoppingLine = {
+      item: ing.item,
+      gondola: ing.gondola,
+      quantidades: [{ unidade: ing.unidade, quantidade: ing.quantidade }],
+      rotulo: '',
+      origens: [],
+    };
+    const valor = custoLinha(linha, precos);
+    if (valor !== null) {
+      total += valor;
+      cobertos += 1;
+    }
+  }
+  return { total: round2(total), cobertos, totalItens: ingredientes.length };
 }
 
 export function formatBRL(valor: number): string {

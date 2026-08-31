@@ -18,6 +18,7 @@ import {
 import ErrorBoundary from './components/ErrorBoundary';
 import Toaster from './components/Toaster';
 import ConfirmHost from './components/ConfirmHost';
+import TimersOverlay from './components/TimersOverlay';
 import Receitas from './pages/Receitas';
 import Importar from './pages/Importar';
 import Detalhe from './pages/Detalhe';
@@ -33,6 +34,7 @@ import { onPendentesLista } from './lib/listaStatus';
 import { useLembreteValidade, podeAvisarHoje, marcarAvisadoHoje } from './lib/lembretes';
 import { statusValidade } from './lib/validade';
 import { toast } from './lib/toast';
+import { verificarBackupAutomatico } from './lib/backupAutomatico';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 const navItens = [
@@ -82,6 +84,10 @@ export default function App() {
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
 
   useEffect(() => onPendentesLista(setListaPendente), []);
+
+  useEffect(() => {
+    void verificarBackupAutomatico();
+  }, []);
 
   // Aviso in-app (equivalente, no PWA/web, à notificação nativa agendada em Geladeira.tsx):
   // confere uma vez por dia se algo está vencido ou perto de vencer.
@@ -186,6 +192,7 @@ export default function App() {
 
       <Toaster />
       <ConfirmHost />
+      <TimersOverlay />
 
       <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-2xl border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
         <ul className="flex">

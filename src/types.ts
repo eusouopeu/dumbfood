@@ -48,6 +48,8 @@ export interface Recipe {
    * na ordem das seções — é ela que o modo cozinha e o resto do app usam.
    */
   secoesPreparo?: SecaoPreparo[];
+  /** Anotação livre do usuário sobre o próprio uso da receita (ajustes, observações). */
+  notas?: string;
   criadoEm: number;
 }
 

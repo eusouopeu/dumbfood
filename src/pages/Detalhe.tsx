@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -25,6 +25,7 @@ import {
   adicionarTags,
   alternarFavorito,
   baixarDaGeladeira,
+  definirNotas,
 } from '../db/repo';
 import { combinarReceita } from '../lib/geladeira';
 import { scaleIngredients, fatorParaRendimento } from '../lib/scale';
@@ -36,12 +37,15 @@ import { pesoEmGramas } from '../lib/weight';
 import { capitalizar, nomeItem, rotuloRendimento, formatTempo } from '../lib/format';
 import { calcularNutricaoTotal, dividirPorPorcoes, percentualVD } from '../lib/nutrition';
 import { CAMPOS_MICRO, calcularMicroTotal, coberturaMicro, dividirMicro, percentualVDMicro } from '../lib/micronutrientes';
+import { custoReceita, formatBRL } from '../lib/prices';
+import { PRECOS_BASE } from '../lib/precosBase';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import Secao from '../components/Secao';
 import VideoReceita, { type VideoReceitaHandle } from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
+import TimerFab from '../components/TimerFab';
 import type { YieldType } from '../types';
 
 type Modo = 'rendimento' | 'grama';
@@ -64,6 +68,7 @@ export default function Detalhe() {
   const navigate = useNavigate();
   const recipe = useLiveQuery(() => db.recipes.get(id), [id]);
   const plano = usePlano();
+  const precos = useLiveQuery(() => db.precos.toArray(), []);
 
   const [modo, setModo] = useState<Modo>('rendimento');
   const [alvoRend, setAlvoRend] = useState<number | null>(null);
@@ -75,6 +80,7 @@ export default function Detalhe() {
   const [novaTag, setNovaTag] = useState('');
   const [tamanho, setTamanho] = useState<TamanhoLeitura>(() => tamanhoSalvo());
   const [restricaoAberta, setRestricaoAberta] = useState(false);
+  const [notas, setNotas] = useState('');
   const videoRef = useRef<VideoReceitaHandle>(null);
 
   function mudarTamanho(t: TamanhoLeitura) {
@@ -96,6 +102,10 @@ export default function Detalhe() {
   }, [recipe]);
 
   const preheat = useMemo(() => (recipe ? detectPreheat(recipe.modoPreparo) : null), [recipe]);
+
+  useEffect(() => {
+    setNotas(recipe?.notas ?? '');
+  }, [recipe?.id]);
 
   if (recipe === undefined)
     return (
@@ -135,6 +145,9 @@ export default function Detalhe() {
   const nutriPor100g = dividirPorPorcoes(calcularNutricaoTotal(escalados), pesoTotalG / 100);
   const microPor100g = dividirMicro(calcularMicroTotal(escalados), pesoTotalG / 100);
   const cobertura = coberturaMicro(escalados);
+  const listaPrecos = [...(precos ?? []), ...PRECOS_BASE];
+  const custo = custoReceita(escalados, listaPrecos);
+  const custoPorcao = alvo > 0 ? custo.total / alvo : 0;
 
   async function salvarComoPadrao() {
     if (!recipe) return;
@@ -173,6 +186,12 @@ export default function Detalhe() {
     if (!recipe || !t) return;
     await adicionarTags(recipe, [t]);
     setNovaTag('');
+  }
+
+  async function salvarNotas() {
+    if (!recipe) return;
+    if ((recipe.notas ?? '') === notas.trim()) return;
+    await definirNotas(recipe, notas);
   }
 
   return (
@@ -274,6 +293,14 @@ export default function Detalhe() {
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             Rende {base.valor} {rotuloRendimento(base.tipo, base.valor)}
             {tempo ? ` · ${tempo}` : ''}
+            {custo.cobertos > 0 && (
+              <>
+                {' · '}
+                <span title={custo.cobertos < custo.totalItens ? `Preço de ${custo.cobertos} de ${custo.totalItens} ingredientes` : undefined}>
+                  ≈ {formatBRL(custo.total)}{custo.cobertos < custo.totalItens ? '+' : ''} ({formatBRL(custoPorcao)}/{rotuloRendimento(tipo, 1)})
+                </span>
+              </>
+            )}
             {recipe.fonteUrl && (
               <>
                 {' · '}
@@ -516,6 +543,18 @@ export default function Detalhe() {
         )}
       </Secao>
 
+      {/* Anotação livre: ajustes e observações de quem realmente fez a receita — o
+          site de origem nunca fica 100% fiel ao uso real. */}
+      <Secao chave="notas" titulo="Minhas notas" subtitulo={notas ? undefined : 'vazio'}>
+        <textarea
+          className="input min-h-24 resize-y"
+          placeholder="Ex.: fiz com metade do açúcar, rendeu menos que o anunciado…"
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          onBlur={salvarNotas}
+        />
+      </Secao>
+
       {/* Tabela nutricional estimada, a partir de ingredientes-chave */}
       {escalados.length > 0 && (
         <Secao chave="nutricional" titulo="Tabela nutricional" subtitulo="Por 100 g">
@@ -584,6 +623,8 @@ export default function Detalhe() {
           }}
         />
       )}
+
+      <TimerFab tituloSugerido={capitalizar(recipe.titulo)} />
     </div>
   );
 }

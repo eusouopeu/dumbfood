@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseArquivoPrecos, buscarPreco, custoLinha } from './prices';
-import type { ShoppingLine } from '../types';
+import { parseArquivoPrecos, buscarPreco, custoLinha, custoReceita } from './prices';
+import type { Ingredient, ShoppingLine } from '../types';
 
 describe('parseArquivoPrecos', () => {
   it('lê CSV com cabeçalho', () => {
@@ -69,5 +69,34 @@ describe('custoLinha', () => {
   it('retorna null quando não há preço cadastrado', () => {
     const linha: ShoppingLine = { item: 'item sem preco', gondola: 'Outros', quantidades: [], rotulo: '', origens: [] };
     expect(custoLinha(linha, [])).toBeNull();
+  });
+});
+
+describe('custoReceita', () => {
+  const precos = [
+    { item: 'Arroz', itemKey: 'arroz', precoUnitario: 6, unidade: 'kg' as const, atualizadoEm: 0 },
+    { item: 'Ovo', itemKey: 'ovo', precoUnitario: 0.8, unidade: 'unidade' as const, atualizadoEm: 0 },
+  ];
+
+  it('soma o custo dos ingredientes com preço conhecido', () => {
+    const ingredientes: Ingredient[] = [
+      { raw: '', item: 'arroz', quantidade: 500, unidade: 'g', gondola: 'Massas e Grãos' },
+      { raw: '', item: 'ovo', quantidade: 2, unidade: 'unidade', gondola: 'Frios e Laticínios' },
+    ];
+    const r = custoReceita(ingredientes, precos);
+    expect(r.total).toBe(4.6); // 500g de arroz (R$3) + 2 ovos (R$1,60)
+    expect(r.cobertos).toBe(2);
+    expect(r.totalItens).toBe(2);
+  });
+
+  it('ignora ingredientes sem preço conhecido, mas sinaliza estimativa parcial', () => {
+    const ingredientes: Ingredient[] = [
+      { raw: '', item: 'arroz', quantidade: 500, unidade: 'g', gondola: 'Massas e Grãos' },
+      { raw: '', item: 'açafrão raro', quantidade: 5, unidade: 'g', gondola: 'Outros' },
+    ];
+    const r = custoReceita(ingredientes, precos);
+    expect(r.total).toBe(3);
+    expect(r.cobertos).toBe(1);
+    expect(r.totalItens).toBe(2);
   });
 });

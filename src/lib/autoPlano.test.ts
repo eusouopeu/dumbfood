@@ -57,4 +57,18 @@ describe('sugerirReceitasParaPlano', () => {
     const sugestao = sugerirReceitasParaPlano(recipes, geladeira, new Set(), 1);
     expect(sugestao[0].id).toBe('b');
   });
+
+  it('prioriza a receita que aproveita item da geladeira perto de vencer', () => {
+    const agora = Date.now();
+    const recipes = [
+      { ...receita('a', 'A', ['Massas']), ingredientes: [{ raw: '', quantidade: 1, unidade: 'unidade', item: 'alho', gondola: 'Hortifruti' }] },
+      { ...receita('b', 'B', ['Massas']), ingredientes: [{ raw: '', quantidade: 1, unidade: 'unidade', item: 'morango', gondola: 'Hortifruti' }] },
+    ];
+    const geladeira: GeladeiraItem[] = [
+      { itemKey: 'alho', nome: 'alho', adicionadoEm: agora },
+      { itemKey: 'morango', nome: 'morango', adicionadoEm: agora, validade: agora }, // vence hoje
+    ];
+    const sugestao = sugerirReceitasParaPlano(recipes, geladeira, new Set(), 1, agora);
+    expect(sugestao[0].id).toBe('b');
+  });
 });

@@ -7,6 +7,7 @@ import type {
   Ingredient,
   ListaEstado,
   NewRecipe,
+  PlanItem,
   PrecoItem,
   Recipe,
   Refeicao,
@@ -202,8 +203,55 @@ export async function removerDoPlano(recipeId: string): Promise<void> {
   await db.plans.put({ ...plano, itens: plano.itens.filter((i) => i.recipeId !== recipeId) });
 }
 
+/** Chave do snapshot do plano anterior, para "repetir semana passada". Prefixo
+ * `dumbfood:` entra automaticamente no backup, junto das outras preferências. */
+const KEY_PLANO_ANTERIOR = 'dumbfood:planoAnterior';
+
 export async function limparPlano(): Promise<void> {
+  const atual = await getOrCreatePlanoAtual();
+  if (atual.itens.length > 0 && typeof localStorage !== 'undefined') {
+    localStorage.setItem(KEY_PLANO_ANTERIOR, JSON.stringify(atual.itens));
+  }
   await db.plans.put({ id: PLANO_ATUAL_ID, itens: [] });
+}
+
+/** Se há uma semana anterior salva para repetir. */
+export function planoAnteriorDisponivel(): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem(KEY_PLANO_ANTERIOR) !== null;
+}
+
+/**
+ * Recoloca no plano atual as receitas da semana anterior (as que ainda existem na
+ * biblioteca, com agendamentos), sem duplicar o que já está no plano. Devolve
+ * quantas receitas entraram.
+ */
+export async function repetirPlanoAnterior(idsValidos: Set<string>): Promise<number> {
+  if (typeof localStorage === 'undefined') return 0;
+  const bruto = localStorage.getItem(KEY_PLANO_ANTERIOR);
+  if (!bruto) return 0;
+  let anteriores: PlanItem[];
+  try {
+    anteriores = JSON.parse(bruto);
+  } catch {
+    return 0;
+  }
+  const plano = await getOrCreatePlanoAtual();
+  const existentes = new Set(plano.itens.map((i) => i.recipeId));
+  const novos = anteriores.filter((i) => idsValidos.has(i.recipeId) && !existentes.has(i.recipeId));
+  if (novos.length === 0) return 0;
+  await db.plans.put({ ...plano, itens: [...plano.itens, ...novos] });
+  return novos.length;
+}
+
+/** Salva a anotação livre do usuário sobre a receita (ajustes, observações de quem fez). */
+export async function definirNotas(recipe: Recipe, notas: string): Promise<void> {
+  const texto = notas.trim();
+  if (texto) {
+    await db.recipes.put({ ...recipe, notas: texto });
+  } else {
+    const { notas: _antigas, ...resto } = recipe;
+    await db.recipes.put(resto);
+  }
 }
 
 // ---- Backup ----

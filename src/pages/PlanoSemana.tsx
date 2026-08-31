@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  ArrowPathIcon,
   BellAlertIcon,
   BookOpenIcon,
   CalendarDaysIcon,
@@ -13,11 +14,21 @@ import {
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { adicionarAgendamento, definirNoPlano, removerAgendamento, removerDoPlano, limparPlano } from '../db/repo';
+import {
+  adicionarAgendamento,
+  definirNoPlano,
+  removerAgendamento,
+  removerDoPlano,
+  limparPlano,
+  planoAnteriorDisponivel,
+  repetirPlanoAnterior,
+} from '../db/repo';
 import { round } from '../lib/scale';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar, rotuloRendimento } from '../lib/format';
 import { calcularNutricaoTotal, type Nutrientes100g } from '../lib/nutrition';
+import { custoReceita, formatBRL } from '../lib/prices';
+import { PRECOS_BASE } from '../lib/precosBase';
 import { useDieta } from '../lib/diet';
 import { useLembreteCompras } from '../lib/lembretes';
 import { agendarLembreteSemanal, notificacoesNativasDisponiveis, pedirPermissaoNotificacoes } from '../lib/notifications';
@@ -41,6 +52,7 @@ import type { Agendamento, Ingredient, PlanItem, Refeicao } from '../types';
 export default function PlanoSemana() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
+  const precos = useLiveQuery(() => db.precos.toArray(), []);
   const plano = usePlano();
   const [dieta, setDieta] = useDieta();
   const [lembreteCompras, setLembreteCompras] = useLembreteCompras();
@@ -100,6 +112,22 @@ export default function PlanoSemana() {
     return calcularNutricaoTotal(todos);
   }, [recipes, plano]);
 
+  /** Custo estimado da semana inteira, receita a receita já na quantidade escolhida. */
+  const custoTotal = useMemo(() => {
+    if (!recipes) return { total: 0, cobertos: 0, totalItens: 0 };
+    const listaPrecos = [...(precos ?? []), ...PRECOS_BASE];
+    const porId = new Map(recipes.map((r) => [r.id, r]));
+    return plano.itens.reduce(
+      (acc, item) => {
+        const r = porId.get(item.recipeId);
+        if (!r) return acc;
+        const c = custoReceita(scaleIngredients(r.ingredientes, item.fator), listaPrecos);
+        return { total: acc.total + c.total, cobertos: acc.cobertos + c.cobertos, totalItens: acc.totalItens + c.totalItens };
+      },
+      { total: 0, cobertos: 0, totalItens: 0 },
+    );
+  }, [recipes, plano, precos]);
+
   if (!recipes)
     return (
       <div className="space-y-4">
@@ -139,6 +167,18 @@ export default function PlanoSemana() {
     toast(`${sugeridas.length} receita(s) adicionada(s) à semana.`);
   }
 
+  /** Repõe no plano as receitas da semana anterior (as que ainda existem). */
+  async function repetirSemana() {
+    const idsValidos = new Set((recipes ?? []).map((r) => r.id));
+    const n = await repetirPlanoAnterior(idsValidos);
+    if (n === 0) {
+      toast('Nenhuma receita da semana anterior para repetir.', 'info');
+      return;
+    }
+    hapticLeve();
+    toast(`${n} receita(s) da semana anterior de volta ao plano.`);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -150,10 +190,15 @@ export default function PlanoSemana() {
       </p>
 
       {recipes.length > 0 && (
-        <div className="card flex flex-nowrap items-center gap-2 p-3">
+        <div className="card flex flex-nowrap items-center gap-2 overflow-x-auto p-3">
           <button onClick={montarSemanaAutomaticamente} className="btn-outline flex-shrink-0">
             <SparklesIcon className="size-4" /> Montar semana
           </button>
+          {planoAnteriorDisponivel() && (
+            <button onClick={repetirSemana} className="btn-outline flex-shrink-0" title="Repetir semana passada">
+              <ArrowPathIcon className="size-4" /> Repetir semana
+            </button>
+          )}
           <label className="ml-auto flex flex-shrink-0 items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
             até
             <input
@@ -262,6 +307,12 @@ export default function PlanoSemana() {
             <SeletorDieta dieta={dieta} onChange={setDieta} />
           </div>
           <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
+          {custoTotal.cobertos > 0 && (
+            <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+              Custo estimado da semana: <span className="font-semibold">{formatBRL(custoTotal.total)}</span>
+              {custoTotal.cobertos < custoTotal.totalItens && '+ (alguns ingredientes sem preço conhecido)'}
+            </p>
+          )}
         </div>
       )}
 
