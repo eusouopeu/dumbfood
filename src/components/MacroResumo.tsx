@@ -10,11 +10,11 @@ export const CORES_MACRO = {
   gordura: '#eab308',
 };
 
-// Tons pastéis para as tags de macro nos cards de resumo (fundo claro + texto na mesma cor).
-const MACRO_TAG_ESTILO = {
-  carboidrato: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  proteina: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300',
-  gordura: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+// Cor de cada macro nas linhas da tabela (pastilha + texto), nos dois temas.
+const MACRO_ESTILO = {
+  carboidrato: { ponto: 'bg-purple-500', texto: 'text-purple-700 dark:text-purple-300' },
+  proteina: { ponto: 'bg-sky-500', texto: 'text-sky-700 dark:text-sky-300' },
+  gordura: { ponto: 'bg-yellow-500', texto: 'text-yellow-700 dark:text-yellow-300' },
 };
 
 export function SeletorDieta({ dieta, onChange }: { dieta: Dieta; onChange: (d: Dieta) => void }) {
@@ -35,7 +35,29 @@ export function SeletorDieta({ dieta, onChange }: { dieta: Dieta; onChange: (d: 
 
 export type ValoresMacro = GramasMacro;
 
-function MacroTag({
+/**
+ * Cabeçalho de uma seção de macros: título numa linha, seletor de dieta na linha de
+ * baixo. Empilhado porque o seletor tem três botões e, na mesma linha do título, ele
+ * espremia os dois numa tela de celular.
+ */
+export function CabecalhoMacros({
+  titulo,
+  dieta,
+  onChange,
+}: {
+  titulo: string;
+  dieta: Dieta;
+  onChange: (d: Dieta) => void;
+}) {
+  return (
+    <div className="mb-2 space-y-2">
+      <h3 className="section-heading text-sm">{titulo}</h3>
+      <SeletorDieta dieta={dieta} onChange={onChange} />
+    </div>
+  );
+}
+
+function LinhaMacro({
   rotulo,
   atual,
   meta,
@@ -44,13 +66,17 @@ function MacroTag({
   rotulo: string;
   atual: number;
   meta: number;
-  estilo: string;
+  estilo: { ponto: string; texto: string };
 }) {
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${estilo}`}>
-      {rotulo}: {atual}%
-      <span className="ml-1 font-normal opacity-70">(meta {meta}%)</span>
-    </span>
+    <tr className="border-t border-stone-100 dark:border-stone-700">
+      <th scope="row" className={`py-1.5 pr-2 text-left font-semibold ${estilo.texto}`}>
+        <span className={`mr-1.5 inline-block size-2 rounded-full align-middle ${estilo.ponto}`} />
+        {rotulo}
+      </th>
+      <td className="py-1.5 text-right font-semibold tabular-nums">{atual}%</td>
+      <td className="py-1.5 text-right tabular-nums text-stone-500 dark:text-stone-400">{meta}%</td>
+    </tr>
   );
 }
 
@@ -58,24 +84,47 @@ function MacroTag({
  * Composição de macros em percentual do total de gramas (proteína + carboidrato +
  * gordura), com a meta da dieta escolhida ao lado para comparação. Sempre relativo:
  * os percentuais somam 100 e não dependem de quantas porções ou pessoas a lista cobre.
+ *
+ * Em tabela, e não em tags soltas: são três pares de números comparáveis entre si, e a
+ * coluna alinhada mostra de relance qual macro está longe da meta.
  */
 export function MacroResumoCard({ titulo, real, dieta }: { titulo: string; real: ValoresMacro; dieta: Dieta }) {
   const pct = composicaoRelativa(real);
   const meta = DIETAS[dieta];
   const semDados = pct.proteina + pct.carboidrato + pct.gorduraTotal === 0;
 
+  if (semDados) {
+    return (
+      <div>
+        {titulo && <p className="mb-1.5 text-xs font-medium text-stone-500 dark:text-stone-400">{titulo}</p>}
+        <p className="text-sm text-stone-400 dark:text-stone-500">Sem ingredientes com quantidade estimável ainda.</p>
+      </div>
+    );
+  }
+
   return (
     <div>
       {titulo && <p className="mb-1.5 text-xs font-medium text-stone-500 dark:text-stone-400">{titulo}</p>}
-      {semDados ? (
-        <p className="text-sm text-stone-400 dark:text-stone-500">Sem ingredientes com quantidade estimável ainda.</p>
-      ) : (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <MacroTag rotulo="Carb." atual={pct.carboidrato} meta={meta.carboidrato} estilo={MACRO_TAG_ESTILO.carboidrato} />
-          <MacroTag rotulo="Prot." atual={pct.proteina} meta={meta.proteina} estilo={MACRO_TAG_ESTILO.proteina} />
-          <MacroTag rotulo="Gord." atual={pct.gorduraTotal} meta={meta.gorduraTotal} estilo={MACRO_TAG_ESTILO.gordura} />
-        </div>
-      )}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-xs uppercase tracking-wide text-stone-400 dark:text-stone-500">
+            <th scope="col" className="pb-1 text-left font-medium">
+              Macro
+            </th>
+            <th scope="col" className="pb-1 text-right font-medium">
+              Atual
+            </th>
+            <th scope="col" className="pb-1 text-right font-medium">
+              Meta
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <LinhaMacro rotulo="Carb." atual={pct.carboidrato} meta={meta.carboidrato} estilo={MACRO_ESTILO.carboidrato} />
+          <LinhaMacro rotulo="Prot." atual={pct.proteina} meta={meta.proteina} estilo={MACRO_ESTILO.proteina} />
+          <LinhaMacro rotulo="Gord." atual={pct.gorduraTotal} meta={meta.gorduraTotal} estilo={MACRO_ESTILO.gordura} />
+        </tbody>
+      </table>
     </div>
   );
 }

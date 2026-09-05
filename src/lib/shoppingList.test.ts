@@ -77,3 +77,25 @@ describe('buildShoppingList', () => {
     expect(ovos.rotulo).toBe('3 un');
   });
 });
+
+describe('buildShoppingList — nenhum ingrediente pode sumir da lista', () => {
+  it('mantém na lista o item cuja gôndola salva não está mais na ordem conhecida', () => {
+    const r = receita('1', 'Antiga', ['2 cebolas']);
+    // Receita importada por uma versão anterior do app (ou vinda de backup), com um
+    // nome de gôndola que não existe mais em GONDOLA_ORDER.
+    r.ingredientes = r.ingredientes.map((i) => ({ ...i, gondola: 'Seção Antiga' }));
+    const plan: WeekPlan = { id: 'p', itens: [{ recipeId: '1', fator: 1 }] };
+
+    const sections = buildShoppingList(plan, new Map([[r.id, r]]));
+    const itens = sections.flatMap((s) => s.linhas.map((l) => l.item));
+    expect(itens).toContain('cebolas');
+  });
+
+  it('não junta ingredientes diferentes num item vazio quando o nome é totalmente limpo', () => {
+    const r = receita('1', 'Estranha', ['1 xícara de água até a metade da panela', 'sal a gosto']);
+    const plan: WeekPlan = { id: 'p', itens: [{ recipeId: '1', fator: 1 }] };
+    const linhas = buildShoppingList(plan, new Map([[r.id, r]])).flatMap((s) => s.linhas);
+    expect(linhas.every((l) => l.item.trim().length > 0)).toBe(true);
+    expect(linhas.length).toBe(2);
+  });
+});

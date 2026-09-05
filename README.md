@@ -5,11 +5,13 @@ PWA para **importar receitas** de sites brasileiros (TudoGostoso, Panelinha/Rita
 ## O que faz
 
 - 📥 **Importa receitas** por link (extrai os dados estruturados `schema.org/Recipe` da página) ou colando o texto dos ingredientes. Receitas em **duas partes** (massa + recheio, como no Panelinha) entram com os ingredientes somados numa lista só e um **modo de preparo por parte**.
-- 🎬 **Receitas de vídeo (TikTok/Reels)**: os ingredientes entram por texto colado ou por **OCR de um print da legenda**, e o vídeo baixado fica guardado no aparelho, tocando dentro do **modo de preparo** — offline.
+- 🎬 **Receitas de vídeo (TikTok/Reels)**: cole o **link do vídeo** — o app baixa o arquivo e tira os ingredientes da **legenda** ou do **comentário do próprio autor** (o clássico "receita nos comentários"). Também dá para colar o texto ou fazer **OCR de um print da legenda**. O vídeo fica guardado no aparelho e toca dentro do **modo de preparo**, offline.
 - 🔢 **Reescala** as quantidades por **porção/pessoa/unidade** ou **por grama** (usando um ingrediente de referência).
 - 🗓️ **Plano da semana**: selecione quais receitas fazer, em que quantidade e **em que dias/refeições** — a mesma panelada pode virar o almoço de segunda e o jantar de quarta, e cada refeição aceita quantas receitas você quiser (agenda começando por hoje).
 - 🧊 **Geladeira integrada**: o que você já tem sai da lista de compras; o que você compra entra na geladeira; o que você cozinha dá baixa.
-- 🛒 **Lista de mercado** unificada: soma ingredientes em comum (convertendo g/kg e ml/l), agrupa por seção do mercado (Hortifruti, Açougue, Mercearia, etc.) e **arredonda para as embalagens que o mercado vende de fato** (1 kg em vez de 700 g, com a sobra anotada).
+- 🔎 **"O que dá pra fazer com o que eu tenho"**: as receitas ranqueadas pela fração de ingredientes já em casa, com quem aproveita o que está vencendo na frente. Também é uma opção de ordenação da biblioteca.
+- 🔁 **Troca de ingrediente no preparo**: acabou o leite? O botão ao lado do item sugere o substituto, e a tabela nutricional e o custo se refazem na hora.
+- 🛒 **Lista de mercado** unificada, com as gôndolas em **accordion** (abre e fecha cada corredor): soma ingredientes em comum (convertendo g/kg e ml/l), agrupa por seção do mercado (Hortifruti, Açougue, Mercearia, etc.) e **arredonda para as embalagens que o mercado vende de fato** (1 kg em vez de 700 g, com a sobra anotada).
 - 💰 **Preços e mercados**: série histórica de preço por item (o que subiu, o que caiu), alerta de preço fora do padrão e estimativa de **quanto a lista sairia em cada mercado** já registrado.
 - 🧾 **Nota fiscal**: leitura do **QR Code da NFC-e** (item, quantidade e valor vindos da SEFAZ, sem erro de leitura) ou, sem internet, OCR de uma foto do cupom.
 - 📊 **Tabela nutricional e de vitaminas e minerais** estimadas por 100 g, a partir de uma base local (TACO/USDA) dos ingredientes mais usados.
@@ -46,7 +48,8 @@ src/
     geladeira.ts          cruza receitas com o que já tem em casa (+ o que usar antes de vencer)
     prazos.ts             validade sugerida por tipo de ingrediente
     useListaCompras.ts    todo o cálculo da lista de mercado (hook)
-    nfce.ts               QR Code da NFC-e -> itens e preços da nota
+    nfce.ts               QR Code da NFC-e -> itens e preços da nota (+ portal por UF)
+    videoRecipe.ts        legenda/vídeo/autor a partir do HTML do TikTok e do Reels
     agenda.ts             distribui o plano em dias da semana e refeições (vários por receita)
     nutrition.ts          tabela nutricional estimada por 100 g
     micronutrientes.ts    vitaminas e minerais dos 40 ingredientes mais usados

@@ -111,6 +111,44 @@ export function combinarReceitas(recipes: Recipe[], geladeira: GeladeiraItem[]):
 }
 
 /**
+ * "O que dá pra fazer com o que eu tenho": as receitas ordenadas pela fração de
+ * ingredientes que a geladeira já cobre, e não pela contagem bruta — uma receita de
+ * 5 itens com 4 em casa é uma decisão melhor que uma de 20 itens com 6.
+ *
+ * Receita que usa algo prestes a vencer sobe na frente das demais: é a compra que já
+ * foi feita e está prestes a virar lixo. `emRisco` é injetado para o módulo continuar
+ * puro (sem depender do relógio).
+ */
+export interface ReceitaPorCobertura extends ReceitaCombinada {
+  /** Itens da geladeira vencendo que esta receita aproveita. */
+  vencendo: GeladeiraItem[];
+}
+
+export function receitasPorCobertura(
+  recipes: Recipe[],
+  geladeira: GeladeiraItem[],
+  emRisco: (item: GeladeiraItem) => boolean = () => false,
+): ReceitaPorCobertura[] {
+  const criticos = geladeira.filter((g) => g.validade != null && emRisco(g));
+  return recipes
+    .map((recipe) => {
+      const combinada = combinarReceita(recipe, geladeira);
+      const vencendo = criticos
+        .filter((g) => combinada.usados.includes(g.itemKey))
+        .sort((a, b) => (a.validade ?? 0) - (b.validade ?? 0));
+      return { ...combinada, vencendo };
+    })
+    .filter((r) => r.tem.length > 0)
+    .sort(
+      (a, b) =>
+        Number(b.vencendo.length > 0) - Number(a.vencendo.length > 0) ||
+        b.cobertura - a.cobertura ||
+        a.falta.length - b.falta.length ||
+        a.recipe.titulo.localeCompare(b.recipe.titulo, 'pt-BR'),
+    );
+}
+
+/**
  * Ingredientes mais frequentes na biblioteca, para sugerir na hora de montar a
  * geladeira. Já exclui o que o usuário adicionou.
  */

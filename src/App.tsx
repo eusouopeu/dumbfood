@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -16,17 +16,22 @@ import {
   SunIcon,
 } from '@heroicons/react/24/outline';
 import ErrorBoundary from './components/ErrorBoundary';
+import { CardListSkeleton } from './components/Skeleton';
 import Toaster from './components/Toaster';
 import ConfirmHost from './components/ConfirmHost';
 import TimersOverlay from './components/TimersOverlay';
 import Receitas from './pages/Receitas';
-import Importar from './pages/Importar';
-import Detalhe from './pages/Detalhe';
-import PlanoSemana from './pages/PlanoSemana';
-import ListaMercado from './pages/ListaMercado';
-import Historico from './pages/Historico';
-import Geladeira from './pages/Geladeira';
-import Configuracoes from './pages/Configuracoes';
+
+// A tela inicial entra no primeiro carregamento; o resto vem sob demanda. Importar e
+// Mercado arrastam junto o OCR (tesseract) e o leitor de QR, que sozinhos pesam mais que
+// todo o resto do app — carregá-los na abertura atrasava a primeira tela no celular.
+const Importar = lazy(() => import('./pages/Importar'));
+const Detalhe = lazy(() => import('./pages/Detalhe'));
+const PlanoSemana = lazy(() => import('./pages/PlanoSemana'));
+const ListaMercado = lazy(() => import('./pages/ListaMercado'));
+const Historico = lazy(() => import('./pages/Historico'));
+const Geladeira = lazy(() => import('./pages/Geladeira'));
+const Configuracoes = lazy(() => import('./pages/Configuracoes'));
 import { ShareReceiver } from './lib/shareReceiver';
 import { db } from './db/db';
 import { aplicarTema, salvarTema, temaInicial, type Tema } from './lib/theme';
@@ -177,6 +182,7 @@ export default function App() {
 
       <main className="flex-1 px-4 py-4 pb-24">
         <ErrorBoundary>
+        <Suspense fallback={<CardListSkeleton />}>
         <Routes>
           <Route path="/" element={<Receitas />} />
           <Route path="/importar" element={<Importar />} />
@@ -187,6 +193,7 @@ export default function App() {
           <Route path="/historico" element={<Historico />} />
           <Route path="/config" element={<Configuracoes />} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </main>
 

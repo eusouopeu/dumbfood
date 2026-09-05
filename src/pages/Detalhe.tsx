@@ -6,8 +6,6 @@ import {
   ArrowsRightLeftIcon,
   CalendarDaysIcon,
   HomeIcon,
-  MinusIcon,
-  PlusIcon,
   StarIcon as StarOutlineIcon,
   VideoCameraIcon,
   XCircleIcon,
@@ -28,27 +26,28 @@ import {
   definirNotas,
 } from '../db/repo';
 import { combinarReceita } from '../lib/geladeira';
+import { resolveGondola } from '../lib/aisles';
 import { scaleIngredients, fatorParaRendimento } from '../lib/scale';
-import { formatQtdUnidadeAbrev, formatDecimal } from '../lib/displayQty';
-import { padronizarMedida, type MedidaModo } from '../lib/measures';
+import { type MedidaModo } from '../lib/measures';
 import { detectPreheat } from '../lib/preheat';
 import { unitDefByCanonical } from '../lib/units';
 import { pesoEmGramas } from '../lib/weight';
 import { capitalizar, nomeItem, rotuloRendimento, formatTempo } from '../lib/format';
-import { calcularNutricaoTotal, dividirPorPorcoes, percentualVD } from '../lib/nutrition';
-import { CAMPOS_MICRO, calcularMicroTotal, coberturaMicro, dividirMicro, percentualVDMicro } from '../lib/micronutrientes';
+import { calcularNutricaoTotal, dividirPorPorcoes } from '../lib/nutrition';
+import { calcularMicroTotal, coberturaMicro, dividirMicro } from '../lib/micronutrientes';
 import { custoReceita, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
 import Secao from '../components/Secao';
+import ListaIngredientes from '../components/receita/ListaIngredientes';
+import ControleReescala, { type Modo } from '../components/receita/ControleReescala';
+import { TabelaNutricional, TabelaMicronutrientes } from '../components/receita/TabelasNutricionais';
 import VideoReceita, { type VideoReceitaHandle } from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
 import TimerFab from '../components/TimerFab';
-import type { YieldType } from '../types';
-
-type Modo = 'rendimento' | 'grama';
+import type { Ingredient, YieldType } from '../types';
 
 /** Estilo comum dos botões da barra da receita: todos em laranja, menos o de excluir. */
 const ICONE_BARRA =
@@ -103,6 +102,24 @@ export default function Detalhe() {
 
   const preheat = useMemo(() => (recipe ? detectPreheat(recipe.modoPreparo) : null), [recipe]);
 
+  // Trocas de ingrediente feitas na hora do preparo ("acabou o leite"): valem só para
+  // esta visita à receita e entram antes da reescala, então a tabela nutricional, os
+  // micronutrientes e o custo já saem com o substituto.
+  const [trocas, setTrocas] = useState<Record<number, string>>({});
+  useEffect(() => {
+    setTrocas({});
+  }, [recipe?.id]);
+
+  function trocarIngrediente(indice: number, substituto: string | null) {
+    setTrocas((atual) => {
+      const novo = { ...atual };
+      if (substituto === null) delete novo[indice];
+      else novo[indice] = substituto;
+      return novo;
+    });
+    hapticLeve();
+  }
+
   useEffect(() => {
     setNotas(recipe?.notas ?? '');
   }, [recipe?.id]);
@@ -137,7 +154,11 @@ export default function Detalhe() {
     if (ref && ref.baseG > 0) fator = alvoGramas / ref.baseG;
   }
 
-  const escalados = scaleIngredients(recipe.ingredientes, fator);
+  const comTrocas: Ingredient[] = recipe.ingredientes.map((ing, i) =>
+    trocas[i] === undefined ? ing : { ...ing, item: trocas[i], gondola: resolveGondola(trocas[i]) },
+  );
+  const escalados = scaleIngredients(comTrocas, fator);
+  const totalTrocas = Object.keys(trocas).length;
   const noPlano = plano.itens.find((i) => i.recipeId === recipe.id);
   const tempo = formatTempo(recipe.tempoPreparoMin);
   const pesoTotalG = escalados.reduce((soma, ing) => soma + (pesoEmGramas(ing.item, ing.quantidade, ing.unidade) ?? 0), 0);
@@ -336,96 +357,27 @@ export default function Detalhe() {
         />
       </div>
 
-      {/* Controle de reescala */}
-      <div className="card space-y-3 p-4">
-        <div className="flex gap-1 rounded-xl bg-stone-100 dark:bg-stone-800 p-1">
-          <button
-            onClick={() => setModo('rendimento')}
-            className={`flex-1 rounded-lg py-1.5 text-sm font-semibold ${modo === 'rendimento' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
-          >
-            Por porção/pessoa
-          </button>
-          <button
-            onClick={() => setModo('grama')}
-            disabled={massIngredientes.length === 0}
-            className={`flex-1 rounded-lg py-1.5 text-sm font-semibold disabled:opacity-40 ${modo === 'grama' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
-          >
-            Por grama
-          </button>
-        </div>
-
-        {modo === 'rendimento' ? (
-          <div className="flex items-end gap-2">
-            <div className="flex items-center gap-2">
-              <button className="btn-outline h-9 w-9 !px-0" onClick={() => setAlvoRend(Math.max(1, alvo - 1))}>
-                <MinusIcon className="mx-auto size-4" />
-              </button>
-              <input
-                type="number"
-                min={1}
-                className="input w-16 text-center"
-                value={alvo}
-                onChange={(e) => setAlvoRend(Math.max(1, Number(e.target.value)))}
-              />
-              <button className="btn-outline h-9 w-9 !px-0" onClick={() => setAlvoRend(alvo + 1)}>
-                <PlusIcon className="mx-auto size-4" />
-              </button>
-            </div>
-            <select className="input flex-1" value={tipo} onChange={(e) => setTipoRend(e.target.value as YieldType)}>
-              <option value="porcoes">porções</option>
-              <option value="pessoas">pessoas</option>
-              <option value="unidades">unidades</option>
-            </select>
-          </div>
-        ) : (
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="block text-xs text-stone-500 dark:text-stone-400">Ingrediente de referência</label>
-              <select className="input" value={refIngIdx} onChange={(e) => setRefIngIdx(Number(e.target.value))}>
-                <option value={-1}>escolha…</option>
-                {massIngredientes.map((m) => (
-                  <option key={m.idx} value={m.idx}>
-                    {nomeItem(m.label)} ({m.baseG} g)
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="w-28">
-              <label className="block text-xs text-stone-500 dark:text-stone-400">Tenho (g)</label>
-              <input
-                type="number"
-                min={0}
-                className="input"
-                value={alvoGramas || ''}
-                onChange={(e) => setAlvoGramas(Number(e.target.value))}
-              />
-            </div>
-          </div>
-        )}
-        {/* Onde a quantidade é escolhida é também onde se decide o que fazer com ela:
-            mandar para a semana ou virar o rendimento padrão da receita. */}
-        {(noPlano || Math.abs(fator - 1) > 0.001) && (
-          <div className="flex flex-wrap justify-end gap-2">
-            {noPlano && (
-              <button
-                onClick={async () => {
-                  await definirNoPlano(recipe.id, fator);
-                  hapticLeve();
-                  toast('Quantidade atualizada na semana.');
-                }}
-                className="btn-ghost h-7 py-0 text-xs"
-              >
-                <CalendarDaysIcon className="size-3.5" /> Atualizar na semana
-              </button>
-            )}
-            {Math.abs(fator - 1) > 0.001 && (
-              <button onClick={salvarComoPadrao} className="btn-ghost h-7 py-0 text-xs">
-                Salvar como padrão
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <ControleReescala
+        modo={modo}
+        onModo={setModo}
+        alvo={alvo}
+        onAlvo={setAlvoRend}
+        tipo={tipo}
+        onTipo={setTipoRend}
+        massIngredientes={massIngredientes}
+        refIngIdx={refIngIdx}
+        onRefIng={setRefIngIdx}
+        alvoGramas={alvoGramas}
+        onAlvoGramas={setAlvoGramas}
+        fator={fator}
+        noPlano={!!noPlano}
+        onAtualizarNaSemana={async () => {
+          await definirNoPlano(recipe.id, fator);
+          hapticLeve();
+          toast('Quantidade atualizada na semana.');
+        }}
+        onSalvarComoPadrao={salvarComoPadrao}
+      />
 
       {/* Ingredientes escalados */}
       <Secao chave="ingredientes" titulo="Ingredientes" subtitulo={`${escalados.length} itens`}>
@@ -458,19 +410,24 @@ export default function Detalhe() {
             </div>
           </div>
         </div>
-        <ul className="space-y-3.5">
-          {escalados.map((ing, i) => {
-            const med = padronizarMedida(ing.item, ing.quantidade, ing.unidade, medidaModo);
-            return (
-              <li key={i} className="flex items-baseline gap-3 leading-relaxed" style={{ fontSize: TAMANHOS_LEITURA[tamanho] }}>
-                <span className="w-24 flex-shrink-0 text-right font-semibold tabular-nums text-brand-700 dark:text-brand-300">
-                  {formatQtdUnidadeAbrev(med.quantidade, med.unidade)}
-                </span>
-                <span>{nomeItem(ing.item)}</span>
-              </li>
-            );
-          })}
-        </ul>
+        {totalTrocas > 0 && (
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs text-brand-800 dark:bg-brand-900/30 dark:text-brand-200">
+            <span className="flex-1">
+              {totalTrocas} {totalTrocas === 1 ? 'ingrediente trocado' : 'ingredientes trocados'} — valores e custo
+              recalculados.
+            </span>
+            <button onClick={() => setTrocas({})} className="font-semibold underline">
+              desfazer
+            </button>
+          </div>
+        )}
+        <ListaIngredientes
+          ingredientes={escalados}
+          medidaModo={medidaModo}
+          tamanhoFonte={TAMANHOS_LEITURA[tamanho]}
+          trocas={trocas}
+          onTrocar={trocarIngrediente}
+        />
       </Secao>
 
       {/* Faça antes de começar: passo de pré-aquecimento, resumido (sem emoji nem citação da etapa) */}
@@ -555,61 +512,11 @@ export default function Detalhe() {
         />
       </Secao>
 
-      {/* Tabela nutricional estimada, a partir de ingredientes-chave */}
       {escalados.length > 0 && (
-        <Secao chave="nutricional" titulo="Tabela nutricional" subtitulo="Por 100 g">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-stone-200 dark:border-stone-700">
-                <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
-                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">100 g</th>
-                <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Caloria com casa decimal não ajuda ninguém a decidir nada: arredonda pra cima. */}
-              <NutriLinha label="Valor energético" valor={`${Math.ceil(nutriPor100g.kcal)} kcal`} vd={percentualVD('kcal', nutriPor100g.kcal)} />
-              <NutriLinha label="Carboidratos" valor={`${formatDecimal(nutriPor100g.carboidrato)} g`} vd={percentualVD('carboidrato', nutriPor100g.carboidrato)} />
-              <NutriLinha label="dos quais açúcares" valor={`${formatDecimal(nutriPor100g.acucares)} g`} indent />
-              <NutriLinha label="Proteínas" valor={`${formatDecimal(nutriPor100g.proteina)} g`} vd={percentualVD('proteina', nutriPor100g.proteina)} />
-              <NutriLinha label="Gorduras totais" valor={`${formatDecimal(nutriPor100g.gorduraTotal)} g`} vd={percentualVD('gorduraTotal', nutriPor100g.gorduraTotal)} />
-              <NutriLinha label="saturadas" valor={`${formatDecimal(nutriPor100g.gorduraSaturada)} g`} vd={percentualVD('gorduraSaturada', nutriPor100g.gorduraSaturada)} indent />
-              <NutriLinha label="insaturadas" valor={`${formatDecimal(Math.max(0, nutriPor100g.gorduraTotal - nutriPor100g.gorduraSaturada))} g`} indent />
-              <NutriLinha label="Colesterol" valor={`${formatDecimal(nutriPor100g.colesterolMg)} mg`} vd={percentualVD('colesterolMg', nutriPor100g.colesterolMg)} />
-              <NutriLinha label="Fibra alimentar" valor={`${formatDecimal(nutriPor100g.fibra)} g`} vd={percentualVD('fibra', nutriPor100g.fibra)} last />
-            </tbody>
-          </table>
-        </Secao>
-      )}
-
-      {/* Vitaminas e minerais, mesma base de cálculo da tabela nutricional */}
-      {escalados.length > 0 && (
-        <Secao chave="micronutrientes" titulo="Vitaminas e minerais" subtitulo="Por 100 g">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-stone-200 dark:border-stone-700">
-                <th className="py-1.5 text-left text-xs font-semibold text-stone-500 dark:text-stone-400">Item</th>
-                <th className="py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">100 g</th>
-                <th className="w-16 py-1.5 text-right text-xs font-semibold text-stone-500 dark:text-stone-400">% VD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CAMPOS_MICRO.map(({ chave, label, unidade }, i) => (
-                <NutriLinha
-                  key={chave}
-                  label={label}
-                  valor={`${formatDecimal(microPor100g[chave])} ${unidade}`}
-                  vd={percentualVDMicro(chave, microPor100g[chave])}
-                  last={i === CAMPOS_MICRO.length - 1}
-                />
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-3 text-xs text-stone-400 dark:text-stone-500">
-            Estimativa a partir de {cobertura.conhecidos} de {cobertura.total} ingredientes reconhecidos
-            (TACO/USDA). O que a tabela não conhece entra como zero, então o valor real tende a ser maior.
-          </p>
-        </Secao>
+        <>
+          <TabelaNutricional nutri={nutriPor100g} />
+          <TabelaMicronutrientes micro={microPor100g} cobertura={cobertura} />
+        </>
       )}
 
       {restricaoAberta && (
@@ -626,29 +533,5 @@ export default function Detalhe() {
 
       <TimerFab tituloSugerido={capitalizar(recipe.titulo)} />
     </div>
-  );
-}
-
-function NutriLinha({
-  label,
-  valor,
-  vd,
-  indent,
-  last,
-}: {
-  label: string;
-  valor: string;
-  vd?: number;
-  indent?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <tr className={last ? '' : 'border-b border-stone-100 dark:border-stone-700'}>
-      <td className={`py-1.5 ${indent ? 'pl-4 text-stone-500 dark:text-stone-400' : 'font-medium'}`}>{label}</td>
-      <td className="py-1.5 text-right tabular-nums">{valor}</td>
-      <td className="w-16 py-1.5 text-right text-xs tabular-nums text-stone-500 dark:text-stone-400">
-        {vd !== undefined ? `${formatDecimal(vd)}%` : ''}
-      </td>
-    </tr>
   );
 }

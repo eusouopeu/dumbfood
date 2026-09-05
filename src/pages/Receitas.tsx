@@ -1,13 +1,14 @@
+// Biblioteca de receitas: busca, filtros, seleção múltipla e os dois atalhos que a
+// geladeira habilita — "use antes de vencer" e "o que dá pra fazer com o que eu tenho".
+
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import {
   BookOpenIcon,
-  CakeIcon,
   CheckCircleIcon,
   CubeIcon,
   DocumentDuplicateIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   ExclamationTriangleIcon,
   ShareIcon,
@@ -19,38 +20,27 @@ import {
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import {
-  salvarReceita,
-  alternarFavorito,
-  duplicarReceita,
-  removerReceita,
-  definirNoPlano,
-} from '../db/repo';
+import { salvarReceita, alternarFavorito, duplicarReceita, removerReceita, definirNoPlano } from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { deburr } from '../lib/ingredientParser';
-import { capitalizar, formatTempo, nomeItem } from '../lib/format';
+import { capitalizar, nomeItem } from '../lib/format';
 import { toast } from '../lib/toast';
 import { confirmar } from '../lib/confirm';
 import { hapticForte, hapticLeve } from '../lib/haptics';
-import { useLongPress } from '../lib/useLongPress';
-import { combinarReceitas, receitasParaAproveitar } from '../lib/geladeira';
+import { receitasParaAproveitar, receitasPorCobertura } from '../lib/geladeira';
 import { statusValidade, rotuloValidade } from '../lib/validade';
 import { CardListSkeleton } from '../components/Skeleton';
-import Highlight from '../components/Highlight';
 import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
 import PullToRefresh from '../components/PullToRefresh';
+import CardReceita from '../components/receitas/CardReceita';
+import ComOQueTenho from '../components/receitas/ComOQueTenho';
+import FiltrosReceitas, {
+  FILTROS_TEMPO,
+  type FiltroTempo,
+  type ModoTag,
+  type Ordem,
+} from '../components/receitas/FiltrosReceitas';
 import type { Recipe } from '../types';
-
-type Ordem = 'recentes' | 'ingredientes' | 'tempo';
-type ModoTag = 'ou' | 'e';
-type FiltroTempo = 'qualquer' | 'rapido' | 'medio' | 'longo';
-
-const FILTROS_TEMPO: { valor: FiltroTempo; rotulo: string; testar: (min?: number) => boolean }[] = [
-  { valor: 'qualquer', rotulo: 'Qualquer', testar: () => true },
-  { valor: 'rapido', rotulo: 'Até 30 min', testar: (min) => min != null && min <= 30 },
-  { valor: 'medio', rotulo: '30–60 min', testar: (min) => min != null && min > 30 && min <= 60 },
-  { valor: 'longo', rotulo: 'Mais de 1h', testar: (min) => min != null && min > 60 },
-];
 
 export default function Receitas() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
@@ -67,6 +57,8 @@ export default function Receitas() {
   const [soPossoFazer, setSoPossoFazer] = useState(false);
   const [menuAberto, setMenuAberto] = useState<Recipe | null>(null);
 
+  const temGeladeira = !!geladeira && geladeira.length > 0;
+
   /**
    * O que cozinhar antes que estrague. O aviso de validade dizia que a comida ia
    * estragar; aqui ele vira a decisão que deveria provocar — a receita que aproveita
@@ -77,14 +69,21 @@ export default function Receitas() {
     [recipes, geladeira],
   );
 
-  // Cobertura da geladeira por receita (para "posso fazer com o que tenho"), só
-  // calculada quando há itens na geladeira — do contrário nada fecharia 100%.
+  // Receitas ordenadas pelo quanto a geladeira já cobre: alimenta o bloco "Com o que
+  // você tem", a ordenação por geladeira e a porcentagem exibida em cada card.
+  const porCobertura = useMemo(
+    () =>
+      temGeladeira
+        ? receitasPorCobertura(recipes ?? [], geladeira ?? [], (g) => statusValidade(g.validade!) !== 'ok')
+        : [],
+    [recipes, geladeira, temGeladeira],
+  );
+
   const coberturaPorReceita = useMemo(() => {
-    const m = new Map<string, boolean>();
-    if (!recipes || !geladeira || geladeira.length === 0) return m;
-    for (const c of combinarReceitas(recipes, geladeira)) m.set(c.recipe.id, c.falta.length === 0);
+    const m = new Map<string, number>();
+    for (const c of porCobertura) m.set(c.recipe.id, c.cobertura);
     return m;
-  }, [recipes, geladeira]);
+  }, [porCobertura]);
 
   // Modo de seleção múltipla: some com o filtro de tags e busca só por simplicidade
   // de interação (evita selecionar itens que já saíram de vista).
@@ -101,7 +100,7 @@ export default function Receitas() {
     let lista = [...(recipes ?? [])];
 
     if (soFavoritas) lista = lista.filter((r) => r.favorito);
-    if (soPossoFazer) lista = lista.filter((r) => coberturaPorReceita.get(r.id));
+    if (soPossoFazer) lista = lista.filter((r) => (coberturaPorReceita.get(r.id) ?? 0) >= 1);
 
     if (filtroTempo !== 'qualquer') {
       const teste = FILTROS_TEMPO.find((f) => f.valor === filtroTempo)!.testar;
@@ -141,9 +140,14 @@ export default function Receitas() {
         if (tb == null) return 1;
         return ta - tb;
       });
+    } else if (ordem === 'geladeira') {
+      // A ordem já foi calculada (cobertura + urgência de validade): aqui só se respeita
+      // a posição de cada receita naquela lista.
+      const posicao = new Map(porCobertura.map((c, i) => [c.recipe.id, i]));
+      lista.sort((a, b) => (posicao.get(a.id) ?? Infinity) - (posicao.get(b.id) ?? Infinity));
     }
     return lista;
-  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas, filtroTempo, soPossoFazer, coberturaPorReceita]);
+  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas, filtroTempo, soPossoFazer, coberturaPorReceita, porCobertura]);
 
   function toggleTag(tag: string) {
     setTagsSel((prev) => {
@@ -173,6 +177,17 @@ export default function Receitas() {
     sairDaSelecao();
   }
 
+  async function excluirReceita(r: Recipe) {
+    const ok = await confirmar(`Excluir "${capitalizar(r.titulo)}"? Essa ação não pode ser desfeita.`, {
+      textoConfirmar: 'Excluir',
+      perigo: true,
+    });
+    if (!ok) return;
+    await removerReceita(r.id);
+    hapticForte();
+    toast('Receita excluída.');
+  }
+
   async function excluirSelecionadas() {
     const ok = await confirmar(`Excluir ${selecionadas.size} receita(s)? Essa ação não pode ser desfeita.`, {
       textoConfirmar: 'Excluir',
@@ -188,6 +203,7 @@ export default function Receitas() {
   async function adicionarExemplos() {
     for (const r of receitasExemplo()) await salvarReceita(r);
   }
+
   async function compartilhar(r: Recipe) {
     const texto = `${capitalizar(r.titulo)}\n\n${r.ingredientes.map((i) => `- ${i.raw}`).join('\n')}`;
     if (navigator.share) {
@@ -218,22 +234,7 @@ export default function Receitas() {
         },
       },
       { rotulo: 'Compartilhar', icone: ShareIcon, onClick: () => compartilhar(r) },
-      {
-        rotulo: 'Excluir',
-        icone: TrashIcon,
-        destrutiva: true,
-        onClick: async () => {
-          const ok = await confirmar(`Excluir "${capitalizar(r.titulo)}"? Essa ação não pode ser desfeita.`, {
-            textoConfirmar: 'Excluir',
-            perigo: true,
-          });
-          if (ok) {
-            await removerReceita(r.id);
-            hapticForte();
-            toast('Receita excluída.');
-          }
-        },
-      },
+      { rotulo: 'Excluir', icone: TrashIcon, destrutiva: true, onClick: () => excluirReceita(r) },
     ];
   }
 
@@ -271,7 +272,7 @@ export default function Receitas() {
               >
                 {soFavoritas ? <StarSolidIcon className="size-4" /> : <StarOutlineIcon className="size-4" />}
               </button>
-              {geladeira && geladeira.length > 0 && (
+              {temGeladeira && (
                 <button
                   onClick={() => setSoPossoFazer((v) => !v)}
                   aria-label={soPossoFazer ? 'Mostrar todas as receitas' : 'Mostrar só o que posso fazer com o que tenho'}
@@ -321,6 +322,8 @@ export default function Receitas() {
           </div>
         )}
 
+        {!selecionando && <ComOQueTenho receitas={porCobertura.slice(0, 4)} />}
+
         {recipes.length === 0 ? (
           <div className="card p-6 text-center">
             <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
@@ -337,118 +340,52 @@ export default function Receitas() {
           </div>
         ) : (
           <>
-            {/* Busca */}
-            <div className="relative">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400 dark:text-stone-500" />
-              <input
-                className="input pl-9"
-                placeholder="Buscar por nome, ingrediente ou tag…"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-              />
-            </div>
-
-            {/* Filtro por tempo de preparo */}
-            <div className="flex flex-wrap gap-1.5">
-              {FILTROS_TEMPO.map((f) => (
-                <button
-                  key={f.valor}
-                  onClick={() => setFiltroTempo(f.valor)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    filtroTempo === f.valor
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
-                  }`}
-                >
-                  {f.rotulo}
-                </button>
-              ))}
-            </div>
-
-            {/* Filtro de tags */}
-            {todasTags.length > 0 && (
-              <div className="card space-y-2 p-3">
-                {tagsSel.size > 1 && (
-                  <div className="flex justify-end">
-                    <div className="flex gap-1 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
-                      <button
-                        onClick={() => setModoTag('ou')}
-                        className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'ou' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
-                      >
-                        qualquer (ou)
-                      </button>
-                      <button
-                        onClick={() => setModoTag('e')}
-                        className={`rounded-md px-2 py-0.5 font-semibold ${modoTag === 'e' ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
-                      >
-                        todas (e)
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  {todasTags.map((t) => {
-                    const sel = tagsSel.has(t);
-                    return (
-                      <button
-                        key={t}
-                        onClick={() => toggleTag(t)}
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          sel ? 'bg-brand-500 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    );
-                  })}
-                  {tagsSel.size > 0 && (
-                    <button onClick={() => setTagsSel(new Set())} className="px-2 py-1 text-xs text-brand-600 dark:text-brand-400 underline">
-                      limpar
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Ordenação */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="flex-shrink-0 text-stone-500 dark:text-stone-400">Ordenar:</span>
-              <select
-                className="input w-auto flex-shrink-0 py-1"
-                value={ordem}
-                onChange={(e) => setOrdem(e.target.value as Ordem)}
-              >
-                <option value="recentes">Mais recentes</option>
-                <option value="ingredientes">Nº de ingredientes</option>
-                <option value="tempo">Tempo de preparo</option>
-              </select>
-              <span className="ml-auto flex-shrink-0 text-xs text-stone-400 dark:text-stone-500">
-                {filtradas.length} receita(s)
-              </span>
-            </div>
+            <FiltrosReceitas
+              busca={busca}
+              onBusca={setBusca}
+              filtroTempo={filtroTempo}
+              onFiltroTempo={setFiltroTempo}
+              todasTags={todasTags}
+              tagsSel={tagsSel}
+              onToggleTag={toggleTag}
+              onLimparTags={() => setTagsSel(new Set())}
+              modoTag={modoTag}
+              onModoTag={setModoTag}
+              ordem={ordem}
+              onOrdem={setOrdem}
+              temGeladeira={temGeladeira}
+              quantidade={filtradas.length}
+            />
 
             {filtradas.length === 0 ? (
               <p className="card p-6 text-center text-stone-500 dark:text-stone-400">Nenhuma receita corresponde ao filtro.</p>
             ) : (
-              <ul className="space-y-3">
-                {filtradas.map((r) => (
-                  <li key={r.id}>
-                    <CardReceita
-                      recipe={r}
-                      naSemana={noPlano.has(r.id)}
-                      busca={busca}
-                      selecionando={selecionando}
-                      selecionada={selecionadas.has(r.id)}
-                      onToggleSelecionar={() => toggleSelecionada(r.id)}
-                      onAbrirMenu={() => setMenuAberto(r)}
-                      onToggleFavorito={() => {
-                        hapticLeve();
-                        alternarFavorito(r);
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <>
+                <p className="text-xs text-stone-400 dark:text-stone-500">
+                  Arraste uma receita para a esquerda para excluí-la.
+                </p>
+                <ul className="space-y-3">
+                  {filtradas.map((r) => (
+                    <li key={r.id}>
+                      <CardReceita
+                        recipe={r}
+                        naSemana={noPlano.has(r.id)}
+                        busca={busca}
+                        cobertura={temGeladeira ? (coberturaPorReceita.get(r.id) ?? 0) : undefined}
+                        selecionando={selecionando}
+                        selecionada={selecionadas.has(r.id)}
+                        onToggleSelecionar={() => toggleSelecionada(r.id)}
+                        onAbrirMenu={() => setMenuAberto(r)}
+                        onToggleFavorito={() => {
+                          hapticLeve();
+                          alternarFavorito(r);
+                        }}
+                        onExcluir={() => excluirReceita(r)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </>
         )}
@@ -499,89 +436,5 @@ export default function Receitas() {
         )}
       </div>
     </PullToRefresh>
-  );
-}
-
-function CardReceita({
-  recipe: r,
-  naSemana,
-  busca,
-  selecionando,
-  selecionada,
-  onToggleSelecionar,
-  onAbrirMenu,
-  onToggleFavorito,
-}: {
-  recipe: Recipe;
-  naSemana: boolean;
-  busca: string;
-  selecionando: boolean;
-  selecionada: boolean;
-  onToggleSelecionar: () => void;
-  onAbrirMenu: () => void;
-  onToggleFavorito: () => void;
-}) {
-  const tempo = formatTempo(r.tempoPreparoMin);
-  const longPress = useLongPress(onAbrirMenu);
-
-  return (
-    <Link
-      to={selecionando ? '#' : `/receita/${r.id}`}
-      onClick={(e) => {
-        longPress.onClickCapture(e);
-        if (selecionando) {
-          e.preventDefault();
-          onToggleSelecionar();
-        }
-      }}
-      onPointerDown={longPress.onPointerDown}
-      onPointerMove={longPress.onPointerMove}
-      onPointerUp={longPress.onPointerUp}
-      onPointerLeave={longPress.onPointerLeave}
-      className={`card relative flex gap-3 p-3 ${selecionada ? 'ring-2 ring-brand-400' : ''}`}
-    >
-      {selecionando && (
-        <div className="flex items-center">
-          <input type="checkbox" readOnly checked={selecionada} className="h-5 w-5 accent-brand-500" />
-        </div>
-      )}
-      <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 dark:bg-brand-900/40">
-        {r.imagem ? (
-          <img src={r.imagem} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <CakeIcon className="size-8 text-brand-500 dark:text-brand-400" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate pr-6 font-semibold">
-          <Highlight texto={capitalizar(r.titulo)} termo={busca} />
-        </p>
-        <p className="text-sm text-stone-500 dark:text-stone-400">
-          <span className="font-bold text-brand-600 dark:text-brand-400">{r.ingredientes.length} ingredientes</span>
-          {tempo ? ` · ${tempo}` : ''}
-        </p>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {naSemana && <span className="chip bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300">na semana</span>}
-          {(r.tags ?? []).map((t) => (
-            <span key={t} className="chip">
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-      {!selecionando && (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleFavorito();
-          }}
-          aria-label={r.favorito ? `Remover ${capitalizar(r.titulo)} dos favoritos` : `Favoritar ${capitalizar(r.titulo)}`}
-          className="absolute right-2 top-2 rounded-full p-1 text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-700"
-        >
-          {r.favorito ? <StarSolidIcon className="size-5" /> : <StarOutlineIcon className="size-5 text-stone-300 dark:text-stone-600" />}
-        </button>
-      )}
-    </Link>
   );
 }

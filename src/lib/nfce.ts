@@ -17,9 +17,22 @@ export interface QrNfce {
   chave?: string;
 }
 
-/** Só a rede da Fazenda: sem essa trava o leitor viraria um buscador de URL qualquer. */
+/**
+ * Só a rede da Fazenda: sem essa trava o leitor viraria um buscador de URL qualquer.
+ * Quase todo portal estadual de NFC-e está em `.gov.br`, mas alguns estados publicam a
+ * consulta em domínio próprio (`sefaz.*`, `nfce.*`, `fazenda.*`) — recusar esses era
+ * justamente o que fazia o QR de cupom impresso não abrir em parte do país.
+ */
 function hostDeFazenda(hostname: string): boolean {
-  return /\.gov\.br$/i.test(hostname);
+  const h = hostname.toLowerCase();
+  if (/\.gov\.br$/.test(h)) return true;
+  return /(^|\.)(sefaz|fazenda|nfce|nfe|sef|set|dfe|receita)[.-]/.test(h) && /\.br$/.test(h);
+}
+
+/** Chave de acesso: 44 dígitos seguidos, em qualquer lugar do texto. */
+function chaveDe(texto: string): string | undefined {
+  const m = texto.replace(/\D+/g, ' ').match(/(?<!\d)\d{44}(?!\d)/);
+  return m ? m[0] : undefined;
 }
 
 /**
@@ -31,9 +44,9 @@ export function parseQrNfce(texto: string): QrNfce | null {
   if (!bruto) return null;
 
   // Alguns cupons trazem só a chave de acesso (44 dígitos) em vez da URL completa.
-  const soDigitos = bruto.replace(/\D/g, '');
   if (!/^https?:\/\//i.test(bruto)) {
-    return soDigitos.length === 44 ? { url: '', chave: soDigitos } : null;
+    const chave = chaveDe(bruto);
+    return chave ? { url: '', chave } : null;
   }
 
   let url: URL;
@@ -44,9 +57,57 @@ export function parseQrNfce(texto: string): QrNfce | null {
   }
   if (!hostDeFazenda(url.hostname)) return null;
 
+  // A chave vem no parâmetro `p` (formato oficial do QR), em `chNFe` (portais que
+  // recebem a consulta já montada) ou solta no caminho da URL. Tenta os três, nessa
+  // ordem, antes de desistir dela — a URL em si continua valendo mesmo sem a chave.
   const parametro = url.searchParams.get('p') ?? '';
-  const chave = (parametro.split('|')[0] || '').replace(/\D/g, '');
-  return { url: url.toString(), chave: chave.length === 44 ? chave : undefined };
+  const chave =
+    chaveDe(parametro.split('|')[0] ?? '') ??
+    chaveDe(url.searchParams.get('chNFe') ?? '') ??
+    chaveDe(url.searchParams.get('chave') ?? '') ??
+    chaveDe(url.pathname);
+  return { url: url.toString(), chave };
+}
+
+/**
+ * Portal de consulta por estado (os dois primeiros dígitos da chave são o código do
+ * IBGE da UF). Serve para o caso em que o QR do cupom traz só a chave de acesso, sem a
+ * URL: sem isso o app lia a chave e não tinha o que fazer com ela.
+ */
+const PORTAL_POR_UF: Record<string, string> = {
+  '11': 'https://www.sefin.ro.gov.br/nfce/consulta?p=',
+  '12': 'http://www.sefaznet.ac.gov.br/nfce/consulta?p=',
+  '13': 'http://sistemas.sefaz.am.gov.br/nfceweb/consultarNFCe.jsp?p=',
+  '14': 'https://www.sefaz.rr.gov.br/nfce/servlet/qrcode?p=',
+  '15': 'https://appnfc.sefa.pa.gov.br/portal/view/consultas/nfce/nfceForm.seam?p=',
+  '16': 'https://www.sefaz.ap.gov.br/nfce/nfcep.php?p=',
+  '17': 'http://www.sefaz.to.gov.br/nfce/qrcode?p=',
+  '21': 'http://www.nfce.sefaz.ma.gov.br/portal/consultaNFe.do?p=',
+  '22': 'http://www.sefaz.pi.gov.br/nfce/qrcode?p=',
+  '23': 'http://nfce.sefaz.ce.gov.br/pages/ShowNFCe.html?p=',
+  '24': 'http://nfce.set.rn.gov.br/consultarNFCe.aspx?p=',
+  '25': 'https://www.receita.pb.gov.br/nfce?p=',
+  '26': 'http://nfce.sefaz.pe.gov.br/nfce/consulta?p=',
+  '27': 'http://nfce.sefaz.al.gov.br/consultaNFCe.provisorio.htm?p=',
+  '28': 'http://www.nfce.se.gov.br/portal/consultarNFCe.jsp?p=',
+  '29': 'http://nfe.sefaz.ba.gov.br/servicos/nfce/qrcode.aspx?p=',
+  '31': 'https://nfce.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=',
+  '32': 'http://app.sefaz.es.gov.br/ConsultaNFCe/qrcode.aspx?p=',
+  '33': 'https://consultadfe.fazenda.rj.gov.br/consultaDFe/paginas/consultaChaveAcesso.faces?p=',
+  '35': 'https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaQRCode.aspx?p=',
+  '41': 'http://www.fazenda.pr.gov.br/nfce/qrcode?p=',
+  '42': 'https://sat.sef.sc.gov.br/nfce/consulta?p=',
+  '43': 'https://www.sefaz.rs.gov.br/ASP/AAE_ROOT/NFE/SAT-WEB-NFE-NFC_QRCODE_1.aspx?p=',
+  '50': 'http://www.dfe.ms.gov.br/nfce/qrcode?p=',
+  '51': 'http://www.sefaz.mt.gov.br/nfce/consultanfce?p=',
+  '52': 'http://nfe.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe?p=',
+  '53': 'http://dec.fazenda.df.gov.br/ConsultarNFCe.aspx?p=',
+};
+
+/** Endereço de consulta a partir da chave de acesso, quando o estado é reconhecido. */
+export function urlConsultaPorChave(chave: string): string | undefined {
+  const base = PORTAL_POR_UF[chave.slice(0, 2)];
+  return base ? `${base}${chave}` : undefined;
 }
 
 export interface ItemNfce {

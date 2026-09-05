@@ -55,6 +55,8 @@ export interface ListaCompras {
   comparacao: ReturnType<typeof compararMercados>;
   mercadosConhecidos: string[];
   itensParaPrecos: string[];
+  /** Quantas linhas da semana atual estão escondidas por um arraste anterior. */
+  escondidos: number;
   listaPrecos: typeof PRECOS_BASE;
   nutriTotal: ReturnType<typeof calcularNutricaoTotal>;
   total: number;
@@ -109,11 +111,16 @@ export function useListaCompras(descontarGeladeira: boolean, arredondarEmbalagem
     const preparar = (l: LinhaLista) => marcarGeladeira(aplicarEmbalagem(aplicarOverride(l)));
 
     const ocultos = new Set(estado.ocultos);
+    let escondidos = 0;
     const porGondola = new Map<string, LinhaLista[]>();
     for (const s of sections) {
       const linhas = s.linhas
         .map((l) => preparar({ ...l, id: `${s.gondola}:${l.item}`, manual: false, sobras: [], naGeladeira: false }))
-        .filter((l) => !ocultos.has(l.id));
+        .filter((l) => {
+          if (!ocultos.has(l.id)) return true;
+          escondidos += 1;
+          return false;
+        });
       if (linhas.length > 0) porGondola.set(s.gondola, linhas);
     }
     for (const ex of estado.extras) {
@@ -133,15 +140,27 @@ export function useListaCompras(descontarGeladeira: boolean, arredondarEmbalagem
       arr.push(preparar(linha));
       porGondola.set(ex.gondola, arr);
     }
-    return GONDOLA_ORDER.filter((g) => porGondola.has(g)).map((g) => ({ gondola: g, linhas: porGondola.get(g)! }));
+    // Mesma regra de shoppingList: gôndola fora da ordem conhecida vai para o fim,
+    // nunca some.
+    const conhecidas = new Set<string>(GONDOLA_ORDER);
+    const ordem = [
+      ...GONDOLA_ORDER.filter((g) => porGondola.has(g)),
+      ...Array.from(porGondola.keys())
+        .filter((g) => !conhecidas.has(g))
+        .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    ];
+    return {
+      secoes: ordem.map((g) => ({ gondola: g, linhas: porGondola.get(g)! })),
+      escondidos,
+    };
   }, [sections, estado, arredondarEmbalagem, geladeira]);
 
   // O que a geladeira já cobre sai da lista de compras (e das somas) e vira um bloco à
   // parte — comprar de novo o que está na despensa é justamente o que o app deveria evitar.
   const { secoes, jaTenho } = useMemo(() => {
-    if (!descontarGeladeira) return { secoes: sectionsComExtras, jaTenho: [] as LinhaLista[] };
+    if (!descontarGeladeira) return { secoes: sectionsComExtras.secoes, jaTenho: [] as LinhaLista[] };
     const jaTenho: LinhaLista[] = [];
-    const restantes = sectionsComExtras
+    const restantes = sectionsComExtras.secoes
       .map((s) => ({
         gondola: s.gondola,
         linhas: s.linhas.filter((l) => {
@@ -230,6 +249,7 @@ export function useListaCompras(descontarGeladeira: boolean, arredondarEmbalagem
     comparacao,
     mercadosConhecidos,
     itensParaPrecos,
+    escondidos: sectionsComExtras.escondidos,
     listaPrecos,
     nutriTotal,
     total,

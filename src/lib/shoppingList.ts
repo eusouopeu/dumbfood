@@ -42,9 +42,18 @@ export function buildShoppingList(plan: WeekPlan, recipes: Map<string, Recipe>):
     porGondola.set(bucket.gondola, arr);
   }
 
-  // Ordena seções conforme GONDOLA_ORDER; itens alfabeticamente.
+  // Ordena seções conforme GONDOLA_ORDER; itens alfabeticamente. Gôndola que não está
+  // na ordem conhecida (receita antiga, backup restaurado) vai para o fim em vez de ser
+  // descartada em silêncio — era assim que ingrediente sumia da lista sem aviso nenhum.
   const sections: ShoppingSection[] = [];
-  for (const gondola of GONDOLA_ORDER) {
+  const conhecidas = new Set<string>(GONDOLA_ORDER);
+  const ordenadas = [
+    ...GONDOLA_ORDER,
+    ...Array.from(porGondola.keys())
+      .filter((g) => !conhecidas.has(g))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+  ];
+  for (const gondola of ordenadas) {
     const linhas = porGondola.get(gondola);
     if (!linhas || linhas.length === 0) continue;
     linhas.sort((a, b) => a.item.localeCompare(b.item, 'pt-BR'));
@@ -54,10 +63,14 @@ export function buildShoppingList(plan: WeekPlan, recipes: Map<string, Recipe>):
 }
 
 function acumular(buckets: Map<string, Bucket>, ing: Ingredient, origem: string) {
-  const key = normalizeItemKey(ing.item);
+  // Ingrediente cujo nome o parser não conseguiu limpar (sobrou vazio) não pode cair
+  // todo no mesmo balde: eram vários itens virando uma linha só, em branco. Sem nome
+  // legível, cada um vira o próprio balde, com o texto original como rótulo.
+  const key = normalizeItemKey(ing.item) || `raw:${ing.raw}`;
   let bucket = buckets.get(key);
   if (!bucket) {
-    bucket = { item: ing.item, gondola: ing.gondola, origens: new Set(), grupos: new Map() };
+    const nome = ing.item.trim() || ing.raw.trim();
+    bucket = { item: nome, gondola: ing.gondola, origens: new Set(), grupos: new Map() };
     buckets.set(key, bucket);
   }
   bucket.origens.add(origem);

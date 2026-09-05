@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeftIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import { importarPorUrl, montarPorTexto } from '../lib/importClient';
+import { importarPorLinkDeVideo } from '../lib/videoRecipeClient';
+import { detectarPlataformaVideo } from '../lib/videoRecipe';
 import { salvarReceita, salvarVideo, definirVideoDaReceita } from '../db/repo';
 import { extrairLegenda } from '../lib/ocrLegenda';
 import { formatTamanho } from '../lib/video';
@@ -31,8 +33,18 @@ export default function Importar() {
   // Vídeo (TikTok e afins)
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [linkVideo, setLinkVideo] = useState('');
+  const [baixandoVideo, setBaixandoVideo] = useState(false);
+  const [avisosVideo, setAvisosVideo] = useState<string[]>([]);
 
   async function importarUrl(entrada: string = url) {
+    // Link de TikTok/Reels colado na aba errada: a página não tem receita em texto, então
+    // vai para o fluxo de vídeo em vez de falhar com "não consegui extrair".
+    if (detectarPlataformaVideo(entrada)) {
+      setAba('video');
+      setLinkVideo(entrada.trim());
+      await importarVideoPorLink(entrada.trim());
+      return;
+    }
     setErro(null);
     setCarregando(true);
     try {
@@ -54,9 +66,10 @@ export default function Importar() {
     navigate(location.pathname, { replace: true, state: null });
     // Link de TikTok/Reels não tem receita em texto na página: não adianta tentar
     // importar por URL. Abre direto o fluxo de vídeo, já com o link preenchido.
-    if (/tiktok\.com|instagram\.com\/(reel|p)\//i.test(compartilhado)) {
+    if (detectarPlataformaVideo(compartilhado)) {
       setAba('video');
       setLinkVideo(compartilhado.trim());
+      importarVideoPorLink(compartilhado.trim());
       return;
     }
     setAba('url');
@@ -93,6 +106,33 @@ export default function Importar() {
       }
     }
     navigate(`/receita/${salva.id}`);
+  }
+
+  /**
+   * Importa direto do link do TikTok/Reels: baixa o vídeo (quando a plataforma expõe o
+   * arquivo) e tira a receita da legenda ou do comentário do próprio autor — é lá que ela
+   * costuma estar quando a legenda só diz "receita nos comentários".
+   */
+  async function importarVideoPorLink(entrada: string = linkVideo) {
+    const link = entrada.trim();
+    if (!link) return;
+    setErro(null);
+    setAvisosVideo([]);
+    setBaixandoVideo(true);
+    try {
+      const r = await importarPorLinkDeVideo(link);
+      if (r.arquivo) setVideoFile(r.arquivo);
+      if (r.titulo && !titulo.trim()) setTitulo(r.titulo);
+      if (r.texto.trim()) aplicarLegenda(r.texto);
+      setAvisosVideo(r.avisos);
+      if (!r.texto.trim() && !r.arquivo) {
+        setErro('Não consegui ler nada desse link. Baixe o vídeo pelo app e use o print da legenda.');
+      }
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setBaixandoVideo(false);
+    }
   }
 
   /** Preenche o formulário com o que der para separar da legenda lida/colada. */
@@ -164,9 +204,43 @@ export default function Importar() {
           <div className="card space-y-3 p-4">
             <h3 className="section-heading text-sm">Vídeo da receita</h3>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Receita de TikTok: baixe o vídeo pelo próprio app (“Salvar vídeo”) e escolha o arquivo
-              aqui. Ele fica guardado no aparelho e toca dentro do modo de preparo, mesmo sem internet.
+              Cole o link do TikTok ou do Reels: o app baixa o vídeo e tira os ingredientes da legenda
+              — ou do comentário do próprio autor, quando a receita está lá. O vídeo fica guardado no
+              aparelho e toca dentro do modo de preparo, mesmo sem internet.
             </p>
+            <div>
+              <label className="block text-sm font-medium">Link do vídeo</label>
+              <div className="flex gap-2">
+                <input
+                  className="input"
+                  inputMode="url"
+                  placeholder="https://www.tiktok.com/@perfil/video/..."
+                  value={linkVideo}
+                  onChange={(e) => setLinkVideo(e.target.value)}
+                />
+                <button
+                  onClick={() => importarVideoPorLink()}
+                  disabled={!linkVideo.trim() || baixandoVideo}
+                  aria-label="Importar do link do vídeo"
+                  title="Importar do link"
+                  className="btn-icon flex-shrink-0"
+                >
+                  <ArrowDownTrayIcon className="size-4" />
+                </button>
+              </div>
+              {baixandoVideo && (
+                <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                  Buscando o vídeo e a legenda… pode levar alguns segundos.
+                </p>
+              )}
+              {avisosVideo.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                  {avisosVideo.map((a) => (
+                    <li key={a}>• {a}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <label className="btn-outline w-full cursor-pointer justify-center">
               <VideoCameraIcon className="size-4" />
               {videoFile ? 'Trocar vídeo' : 'Escolher vídeo do aparelho'}
@@ -183,17 +257,7 @@ export default function Importar() {
               </p>
             )}
             <div>
-              <label className="block text-sm font-medium">Link do vídeo (opcional)</label>
-              <input
-                className="input"
-                inputMode="url"
-                placeholder="https://www.tiktok.com/@perfil/video/..."
-                value={linkVideo}
-                onChange={(e) => setLinkVideo(e.target.value)}
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-sm font-medium">Ingredientes pela legenda</p>
+              <p className="mb-1 text-sm font-medium">Ou pelo print da legenda</p>
               <LerLegenda onTexto={aplicarLegenda} />
               <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                 Tire um print da legenda do vídeo: o texto é lido no aparelho e cai nos campos abaixo

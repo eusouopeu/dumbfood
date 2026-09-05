@@ -35,9 +35,21 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
 
 ## Padrões técnicos e visuais obrigatórios
 
-- Sempre usar **TypeScript**, **Tailwind CSS**, ícones **Lucide** e fonte **Montserrat** com
-  espaçamento entrelinhas (line-height) de 1.5.
+- Sempre usar **TypeScript**, **Tailwind CSS** e fonte **Montserrat** com espaçamento
+  entrelinhas (line-height) de 1.5.
+- Ícones: o app usa **Heroicons** (`@heroicons/react/24/outline`) em todas as telas. Manter
+  Heroicons por consistência — não misturar com Lucide.
 - Dar preferência a **botões-ícone** em vez de botões com texto.
+
+## Organização do código
+
+- Página com mais de ~350 linhas deve ser quebrada: a lógica de cálculo vai para `src/lib/`
+  (pura e testável) e os pedaços de UI para `src/components/<área>/` (`lista/`, `plano/`,
+  `receita/`, `receitas/`).
+- As telas fora da inicial entram por `React.lazy` em `App.tsx`, para o OCR (tesseract), o
+  leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura.
+- Cores das gôndolas (`src/lib/aisles.ts`) são as mesmas nos dois temas: fundo escuro,
+  texto claro.
 
 ## Testes
 

@@ -213,6 +213,10 @@ export async function limparPlano(): Promise<void> {
     localStorage.setItem(KEY_PLANO_ANTERIOR, JSON.stringify(atual.itens));
   }
   await db.plans.put({ id: PLANO_ATUAL_ID, itens: [] });
+  // A lista de mercado é derivada do plano: os itens marcados como comprados e os que
+  // o usuário escondeu com o arraste valem para *aquela* lista. Sem zerar aqui, um item
+  // escondido semanas atrás continuava sumindo da lista nova, sem nenhum aviso.
+  await limparListaEstado();
 }
 
 /** Se há uma semana anterior salva para repetir. */

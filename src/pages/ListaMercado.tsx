@@ -4,46 +4,41 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowTrendingDownIcon,
-  ArrowTrendingUpIcon,
+  ArrowUturnLeftIcon,
   BanknotesIcon,
   CameraIcon,
   CheckCircleIcon,
-  CheckIcon,
   ClipboardDocumentIcon,
   CubeIcon,
-  ExclamationTriangleIcon,
   PlusIcon,
   ShareIcon,
   ShoppingCartIcon,
   XCircleIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { estiloGondola } from '../lib/aisles';
 import { resumoLinha } from '../lib/shoppingList';
 import { useListaCompras, type LinhaLista } from '../lib/useListaCompras';
 import { useArredondarEmbalagem, useDescontarGeladeira } from '../lib/preferencias';
 import { nomeItem } from '../lib/format';
 import { pesoEmGramas } from '../lib/weight';
 import { parseIngredient } from '../lib/ingredientParser';
-import { formatBRL } from '../lib/prices';
 import {
   salvarCompra,
   novoId,
   adicionarVariosNaGeladeira,
   atualizarListaEstado,
+  limparListaEstado,
   type EntradaGeladeira,
 } from '../db/repo';
 import { confirmar } from '../lib/confirm';
 import { useDieta } from '../lib/diet';
-import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import { CabecalhoMacros, MacroResumoCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { definirPendentesLista } from '../lib/listaStatus';
-import SwipeActions from '../components/SwipeActions';
 import { LinhaSkeleton } from '../components/Skeleton';
 import EscanearNota from '../components/EscanearNota';
 import EditarPrecos from '../components/EditarPrecos';
+import SecaoGondola from '../components/lista/SecaoGondola';
 import OrcamentoCard from '../components/lista/OrcamentoCard';
 import ComparativoMercados from '../components/lista/ComparativoMercados';
 import FinalizarCompra from '../components/lista/FinalizarCompra';
@@ -222,6 +217,9 @@ export default function ListaMercado() {
       itens,
     });
     toast('Compra salva no histórico!');
+    // Fecha a lista da semana: os itens marcados e os escondidos valiam para essa
+    // compra. Sem zerar, um item escondido continuava sumindo das listas seguintes.
+    await limparListaEstado();
 
     // O que acabou de ser comprado está, por definição, na despensa: fecha o ciclo
     // mercado -> geladeira sem obrigar o usuário a redigitar item por item.
@@ -250,10 +248,7 @@ export default function ListaMercado() {
       </div>
 
       <div className="card p-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="section-heading text-sm">Macros da lista</h3>
-          <SeletorDieta dieta={dieta} onChange={setDieta} />
-        </div>
+        <CabecalhoMacros titulo="Macros da lista" dieta={dieta} onChange={setDieta} />
         <MacroResumoCard titulo="" real={lista.nutriTotal} dieta={dieta} />
       </div>
 
@@ -316,102 +311,33 @@ export default function ListaMercado() {
             Arraste um item para a direita para editar a quantidade, ou para a esquerda para removê-lo.
           </p>
 
-          {secoes.map((s) => {
-            const estilo = estiloGondola(s.gondola);
-            return (
-              <div key={s.gondola} className={`card overflow-hidden border-2 ${estilo.borda}`}>
-                <div className={`px-4 py-2 text-sm font-bold ${estilo.header}`}>{s.gondola}</div>
-                <ul>
-                  {s.linhas.map((l) => {
-                    const isChecked = comprados.has(l.id);
-                    const custo = custoPorLinha.get(l.id);
-                    return (
-                      <SwipeActions key={l.id} onRemover={() => removerLinha(l)} onEditar={() => iniciarEdicaoQtd(l)}>
-                        <li className="flex items-center gap-3 border-t border-stone-100 bg-white px-4 py-2.5 dark:border-stone-700 dark:bg-stone-800">
-                          <input
-                            type="checkbox"
-                            className="h-5 w-5 accent-brand-500"
-                            checked={isChecked}
-                            onChange={() => alternarComprado(l.id)}
-                            aria-label={`Marcar ${nomeItem(l.item)} como comprado`}
-                          />
-                          {editandoQtd === l.id ? (
-                            <form
-                              className="flex min-w-0 flex-1 items-center gap-1.5"
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                salvarQtd(l);
-                              }}
-                            >
-                              <input
-                                autoFocus
-                                className="input h-7 min-w-0 flex-1 py-0 text-xs"
-                                value={qtdTexto}
-                                onChange={(e) => setQtdTexto(e.target.value)}
-                                placeholder="ex.: 500 g"
-                              />
-                              <button type="submit" aria-label="Salvar quantidade" className="flex-shrink-0 text-brand-600 dark:text-brand-400">
-                                <CheckIcon className="size-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditandoQtd(null)}
-                                aria-label="Cancelar edição"
-                                className="flex-shrink-0 text-stone-400 dark:text-stone-500"
-                              >
-                                <XMarkIcon className="size-4" />
-                              </button>
-                            </form>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => alternarComprado(l.id)}
-                              className={`min-w-0 flex-1 text-left ${
-                                isChecked
-                                  ? 'text-stone-400 line-through dark:text-stone-500'
-                                  : l.manual
-                                    ? 'text-stone-400 dark:text-stone-500'
-                                    : ''
-                              }`}
-                            >
-                              <span className="font-semibold">{l.rotulo}</span> <span>{nomeItem(l.item)}</span>
-                              {l.origens.length > 1 && (
-                                <span className="ml-1 text-xs text-stone-400 dark:text-stone-500">({l.origens.length} receitas)</span>
-                              )}
-                            </button>
-                          )}
-                          {editandoQtd !== l.id && (
-                            /* Preço vindo da tabela embutida fica em itálico e mais claro,
-                               para não passar por valor conferido em nota fiscal. */
-                            <div
-                              className={`flex flex-shrink-0 items-center gap-1 text-right text-sm tabular-nums ${
-                                custo?.estimado ? 'italic text-stone-400 dark:text-stone-500' : 'text-stone-500 dark:text-stone-400'
-                              }`}
-                              title={custo?.estimado ? 'Preço estimado pelo app' : undefined}
-                            >
-                              {custo?.tendencia === 'alta' && (
-                                <ArrowTrendingUpIcon className="size-3.5 flex-shrink-0 text-red-500" aria-label="Preço subiu desde a última compra" />
-                              )}
-                              {custo?.tendencia === 'baixa' && (
-                                <ArrowTrendingDownIcon className="size-3.5 flex-shrink-0 text-green-600" aria-label="Preço caiu desde a última compra" />
-                              )}
-                              {custo?.foraDoPadrao === 'alto' && (
-                                <ExclamationTriangleIcon
-                                  className="size-3.5 flex-shrink-0 text-amber-500"
-                                  aria-label="Preço bem acima da mediana histórica deste item"
-                                />
-                              )}
-                              {custo?.valor != null ? formatBRL(custo.valor) : '—'}
-                            </div>
-                          )}
-                        </li>
-                      </SwipeActions>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
+          {lista.escondidos > 0 && (
+            <button
+              onClick={() => atualizarListaEstado({ ocultos: [] })}
+              className="btn-outline w-full text-xs"
+            >
+              <ArrowUturnLeftIcon className="size-4" />
+              Mostrar {lista.escondidos} {lista.escondidos === 1 ? 'item escondido' : 'itens escondidos'}
+            </button>
+          )}
+
+          {secoes.map((s) => (
+            <SecaoGondola
+              key={s.gondola}
+              gondola={s.gondola}
+              linhas={s.linhas}
+              comprados={comprados}
+              custoPorLinha={custoPorLinha}
+              editandoQtd={editandoQtd}
+              qtdTexto={qtdTexto}
+              onQtdTexto={setQtdTexto}
+              onAlternarComprado={alternarComprado}
+              onIniciarEdicao={iniciarEdicaoQtd}
+              onSalvarQtd={salvarQtd}
+              onCancelarEdicao={() => setEditandoQtd(null)}
+              onRemover={removerLinha}
+            />
+          ))}
 
           {jaTenho.length > 0 && (
             <div className="card space-y-2 p-4">

@@ -11,7 +11,7 @@
 import { useRef, useState } from 'react';
 import { CameraIcon, CheckIcon, QrCodeIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { extrairCandidatos, candidatosParaPrecos } from '../lib/ocrNota';
-import { itensNfceParaPrecos, parseQrNfce } from '../lib/nfce';
+import { itensNfceParaPrecos, parseQrNfce, urlConsultaPorChave } from '../lib/nfce';
 import { buscarItensDaNota } from '../lib/nfceClient';
 import { importarPrecos } from '../db/repo';
 import { formatBRL } from '../lib/prices';
@@ -34,10 +34,13 @@ export default function EscanearNota({ onClose }: { onClose: () => void }) {
 
   async function lerNotaPelaUrl(texto: string) {
     const qr = parseQrNfce(texto);
-    if (!qr || !qr.url) {
+    // Cupom que traz só a chave de acesso: o portal do estado sai dos dois primeiros
+    // dígitos dela, então a consulta continua sendo possível sem a URL do QR.
+    const alvo = qr?.url || (qr?.chave ? urlConsultaPorChave(qr.chave) : undefined);
+    if (!qr || !alvo) {
       setErro(
         qr?.chave
-          ? 'Li só a chave de acesso. Abra a consulta no site da Fazenda e cole aqui o endereço completo.'
+          ? 'Li a chave de acesso, mas não reconheci o estado da nota. Cole aqui o endereço da consulta.'
           : 'Esse QR Code não é de uma nota fiscal (NFC-e).',
       );
       setEtapa('inicial');
@@ -46,7 +49,7 @@ export default function EscanearNota({ onClose }: { onClose: () => void }) {
     setEtapa('buscando');
     setErro(null);
     try {
-      const nota = await buscarItensDaNota(qr.url);
+      const nota = await buscarItensDaNota(alvo);
       if (nota.itens.length === 0) {
         setErro('A consulta abriu, mas não trouxe itens legíveis. Tente pela foto da nota.');
         setEtapa('inicial');

@@ -18,8 +18,12 @@ export default {
           900: '#7c2d12',
         },
       },
+      lineHeight: {
+        // Entrelinha padrão do app (1.5), exigida pelo padrão visual do projeto.
+        normal: '1.5',
+      },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: ['Montserrat', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
       },
     },
   },

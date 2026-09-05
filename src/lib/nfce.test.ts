@@ -71,3 +71,31 @@ describe('itensNfceParaPrecos', () => {
     expect(preco.unidade).toBe('kg');
   });
 });
+
+describe('parseQrNfce — formatos de QR que aparecem em cupom impresso', () => {
+  const chave = '3'.repeat(44);
+
+  it('aceita a consulta em http (vários estados imprimem o QR sem TLS)', () => {
+    const qr = parseQrNfce(`http://nfce.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml?p=${chave}|2|1|1|ABC`);
+    expect(qr?.chave).toBe(chave);
+  });
+
+  it('extrai a chave quando ela vem no parâmetro chNFe, e não em p', () => {
+    const qr = parseQrNfce(`https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx?chNFe=${chave}&nVersao=100&tpAmb=1`);
+    expect(qr?.chave).toBe(chave);
+  });
+
+  it('extrai a chave de dentro do caminho da URL, sem parâmetro nenhum', () => {
+    const qr = parseQrNfce(`https://nfce.sefaz.ba.gov.br/servicos/nfce/qrcode/${chave}`);
+    expect(qr?.chave).toBe(chave);
+  });
+
+  it('ignora espaço e quebra de linha que o leitor às vezes acrescenta', () => {
+    const qr = parseQrNfce(`\n  https://www.fazenda.sp.gov.br/nfce/qrcode?p=${chave}|2|1|1|ABC  \n`);
+    expect(qr?.chave).toBe(chave);
+  });
+
+  it('continua recusando QR que não é de nota fiscal', () => {
+    expect(parseQrNfce('https://exemplo.com/nfce?p=123')).toBeNull();
+  });
+});

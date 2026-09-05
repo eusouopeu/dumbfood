@@ -14,7 +14,8 @@ body {
   background: #fffbf5;
   color: #1c1917;
   -webkit-font-smoothing: antialiased;
-  line-height: 1.55;
+  font-family: 'Montserrat', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
 }
 .dark body {
   background: #1c1917;
