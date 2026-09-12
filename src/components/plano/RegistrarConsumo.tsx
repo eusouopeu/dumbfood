@@ -43,6 +43,7 @@ function multiplicar(n: Nutrientes100g, fator: number): Nutrientes100g {
 
 export default function RegistrarConsumo({
   refeicao,
+  rotulo,
   recipes,
   agendadas,
   historico,
@@ -50,6 +51,8 @@ export default function RegistrarConsumo({
   onFechar,
 }: {
   refeicao: Refeicao;
+  /** Rótulo já resolvido (as refeições personalizadas não estão na lista fixa). */
+  rotulo?: string;
   recipes: Recipe[];
   /** Receitas que o plano marcou para esta refeição neste dia. */
   agendadas: Recipe[];
@@ -112,7 +115,7 @@ export default function RegistrarConsumo({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 pb-2 pt-4">
-          <h3 className="section-heading flex-1 text-sm">Registrar · {rotuloRefeicao(refeicao)}</h3>
+          <h3 className="section-heading flex-1 text-sm">Registrar · {rotulo ?? rotuloRefeicao(refeicao)}</h3>
           <label className="flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
             porções
             <input

@@ -137,7 +137,7 @@ export default function Detalhe() {
     return (
       <div className="space-y-3">
         <p>Receita não encontrada.</p>
-        <Link to="/" className="btn-ghost">
+        <Link to="/receitas" className="btn-ghost">
           Voltar
         </Link>
       </div>
@@ -221,7 +221,7 @@ export default function Detalhe() {
       {/* Barra da receita: fica fixa no topo (a barra geral do app some nesta tela) e
           concentra as ações que antes ocupavam botões largos no meio do conteúdo. */}
       <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-1 border-b border-stone-200 bg-brand-50/90 px-4 py-2.5 backdrop-blur dark:border-stone-700 dark:bg-stone-900/90">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400">
+        <Link to="/receitas" className="inline-flex items-center gap-1 text-sm text-brand-600 dark:text-brand-400">
           <ArrowLeftIcon className="size-4" /> Receitas
         </Link>
         <div className="ml-auto flex items-center gap-0.5">
@@ -295,7 +295,7 @@ export default function Detalhe() {
                 await removerReceita(recipe.id);
                 hapticForte();
                 toast('Receita excluída.');
-                navigate('/');
+                navigate('/receitas');
               }
             }}
             aria-label="Excluir receita"

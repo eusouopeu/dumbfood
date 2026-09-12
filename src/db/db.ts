@@ -9,6 +9,7 @@ import type {
   PrecoItem,
   Recipe,
   RegistroConsumo,
+  RegistroExercicio,
   VideoReceita,
   WeekPlan,
 } from '../types';
@@ -25,6 +26,7 @@ export class DumbfoodDB extends Dexie {
   listaEstado!: Table<ListaEstado, string>;
   consumo!: Table<RegistroConsumo, string>;
   codigos!: Table<CodigoBarras, string>;
+  exercicios!: Table<RegistroExercicio, string>;
 
   constructor() {
     super('dumbfood');
@@ -145,6 +147,20 @@ export class DumbfoodDB extends Dexie {
       listaEstado: 'id',
       consumo: 'id, dia, criadoEm, recipeId',
       codigos: 'codigo, itemKey',
+    });
+    // v11: exercício do dia. Fica em tabela própria (e não como consumo negativo) porque
+    // não tem macros nem porção: é só um nome e um gasto em kcal, com a mesma chave de dia.
+    this.version(11).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
+      listaEstado: 'id',
+      consumo: 'id, dia, criadoEm, recipeId',
+      codigos: 'codigo, itemKey',
+      exercicios: 'id, dia, criadoEm',
     });
   }
 }

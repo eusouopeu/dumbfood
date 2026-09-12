@@ -58,8 +58,15 @@ export interface Recipe {
 /** Receita recém-importada, ainda sem id/persistência. */
 export type NewRecipe = Omit<Recipe, 'id' | 'criadoEm'>;
 
-/** Refeição do dia em que a receita está agendada. */
-export type Refeicao = 'cafe' | 'almoco' | 'jantar' | 'lanche';
+/** As quatro refeições que todo dia tem; servem de chaves reservadas. */
+export type RefeicaoPadrao = 'cafe' | 'almoco' | 'jantar' | 'lanche';
+
+/**
+ * Refeição do dia em que a receita está agendada. Além das quatro fixas, o usuário
+ * pode criar as suas (ceia, pré-treino) — por isso a chave é aberta. As personalizadas
+ * ficam em `dumbfood:refeicoesExtras` (ver lib/refeicoes.ts).
+ */
+export type Refeicao = RefeicaoPadrao | (string & {});
 
 /** Um lugar da semana em que a receita é comida: dia + refeição (opcional). */
 export interface Agendamento {
@@ -220,6 +227,23 @@ export interface RegistroConsumo {
   porcoes: number;
   /** Valores já multiplicados pelas porções. */
   nutrientes: Nutrientes100g;
+  criadoEm: number;
+}
+
+/**
+ * Exercício registrado à mão no painel do dia. Fica separado do consumo porque é o
+ * outro lado do balanço: a meta de calorias não muda com ele (o fator de atividade do
+ * perfil já conta o gasto), mas o número precisa aparecer no dia.
+ */
+export interface RegistroExercicio {
+  id: string;
+  /** Dia no formato local 'AAAA-MM-DD', igual ao consumo. */
+  dia: string;
+  nome: string;
+  /** Calorias queimadas, informadas pelo usuário. */
+  kcal: number;
+  /** Duração em minutos, quando informada. */
+  minutos?: number;
   criadoEm: number;
 }
 

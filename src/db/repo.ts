@@ -13,6 +13,7 @@ import type {
   Recipe,
   Refeicao,
   RegistroConsumo,
+  RegistroExercicio,
   VideoReceita,
   WeekPlan,
   YieldType,
@@ -271,7 +272,7 @@ export async function definirNotas(recipe: Recipe, notas: string): Promise<void>
  * inflariam o JSON) — por isso `videos` não aparece aqui.
  */
 interface BackupData {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
@@ -283,6 +284,8 @@ interface BackupData {
   consumo?: RegistroConsumo[];
   /** Códigos de barras já identificados (versão 3 em diante). */
   codigos?: CodigoBarras[];
+  /** Exercícios registrados (versão 4 do backup em diante). */
+  exercicios?: RegistroExercicio[];
   /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
   preferencias?: Record<string, string>;
 }
@@ -310,7 +313,7 @@ function gravarPreferencias(prefs: Record<string, string> | undefined): void {
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos] = await Promise.all([
+  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios] = await Promise.all([
     db.recipes.toArray(),
     db.plans.toArray(),
     db.compras.toArray(),
@@ -319,9 +322,10 @@ export async function exportarJSON(): Promise<string> {
     db.listaEstado.toArray(),
     db.consumo.toArray(),
     db.codigos.toArray(),
+    db.exercicios.toArray(),
   ]);
   const data: BackupData = {
-    version: 3,
+    version: 4,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
@@ -331,6 +335,7 @@ export async function exportarJSON(): Promise<string> {
     listaEstado,
     consumo,
     codigos,
+    exercicios,
     preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
@@ -360,7 +365,17 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
 
   await db.transaction(
     'rw',
-    [db.recipes, db.plans, db.compras, db.precos, db.geladeira, db.listaEstado, db.consumo, db.codigos],
+    [
+      db.recipes,
+      db.plans,
+      db.compras,
+      db.precos,
+      db.geladeira,
+      db.listaEstado,
+      db.consumo,
+      db.codigos,
+      db.exercicios,
+    ],
     async () => {
       if (modo === 'substituir') {
         await db.recipes.clear();
@@ -371,6 +386,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
         if (data.listaEstado) await db.listaEstado.clear();
         if (data.consumo) await db.consumo.clear();
         if (data.codigos) await db.codigos.clear();
+        if (data.exercicios) await db.exercicios.clear();
       }
       await db.recipes.bulkPut(data.recipes as Recipe[]);
       if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
@@ -380,6 +396,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       if (Array.isArray(data.listaEstado)) await db.listaEstado.bulkPut(data.listaEstado);
       if (Array.isArray(data.consumo)) await db.consumo.bulkPut(data.consumo);
       if (Array.isArray(data.codigos)) await db.codigos.bulkPut(data.codigos);
+      if (Array.isArray(data.exercicios)) await db.exercicios.bulkPut(data.exercicios);
     },
   );
 
@@ -448,19 +465,27 @@ export async function removerCompra(id: string): Promise<void> {
  * Adiciona um ingrediente à geladeira. Passa pelo mesmo parser das receitas, então
  * o usuário pode digitar do jeito que pensa ("2 cebolas grandes") que só o nome fica.
  * `validade`, quando informada, é a data (timestamp) em que o item vence.
+ * `quantidade` é o campo separado da folha de adicionar; quando vem preenchido, manda
+ * mais que o número embutido no texto (o usuário acabou de digitá-lo à parte).
  */
-export async function adicionarNaGeladeira(nomeBruto: string, validade?: number): Promise<void> {
+export async function adicionarNaGeladeira(
+  nomeBruto: string,
+  validade?: number,
+  quantidade?: number | null,
+): Promise<void> {
   const ing = parseIngredient(nomeBruto);
   const nome = ing?.item ?? '';
   const itemKey = normalizeItemKey(nome);
   if (!itemKey) return;
   // "2 kg de arroz" guarda também o quanto: a quantidade já veio digitada, seria bobagem descartá-la.
+  const qtd = quantidade ?? ing?.quantidade ?? null;
+  const unidade = quantidade != null ? (ing?.quantidade != null ? ing.unidade : null) : (ing?.unidade ?? null);
   await db.geladeira.put({
     itemKey,
     nome,
     adicionadoEm: Date.now(),
     validade,
-    ...(ing?.quantidade != null ? { quantidade: ing.quantidade, unidade: ing.unidade } : {}),
+    ...(qtd != null ? { quantidade: qtd, unidade } : {}),
   });
 }
 
@@ -575,6 +600,19 @@ export async function registrarConsumo(
   const novo: RegistroConsumo = { ...registro, id: novoId(), criadoEm: Date.now() };
   await db.consumo.put(novo);
   return novo;
+}
+
+/** Registra um exercício do dia (nome + kcal queimadas, minutos opcionais). */
+export async function registrarExercicio(
+  registro: Omit<RegistroExercicio, 'id' | 'criadoEm'>,
+): Promise<RegistroExercicio> {
+  const novo: RegistroExercicio = { ...registro, id: novoId(), criadoEm: Date.now() };
+  await db.exercicios.put(novo);
+  return novo;
+}
+
+export async function removerExercicio(id: string): Promise<void> {
+  await db.exercicios.delete(id);
 }
 
 export async function removerConsumo(id: string): Promise<void> {

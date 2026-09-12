@@ -6,19 +6,25 @@
 // almoço de quinta) e um mesmo lugar pode ter várias receitas (arroz + feijão + salada).
 // Daí o plano guardar uma *lista* de agendamentos por receita.
 
-import type { Agendamento, PlanItem, Recipe, Refeicao } from '../types';
+import type { Agendamento, PlanItem, Recipe, Refeicao, RefeicaoPadrao } from '../types';
 
 export const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 export const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-export const REFEICOES: { chave: Refeicao; label: string }[] = [
+export const REFEICOES: { chave: RefeicaoPadrao; label: string }[] = [
   { chave: 'cafe', label: 'Café' },
   { chave: 'almoco', label: 'Almoço' },
   { chave: 'lanche', label: 'Lanche' },
   { chave: 'jantar', label: 'Jantar' },
 ];
 
-const ORDEM_REFEICAO: Record<Refeicao, number> = { cafe: 0, almoco: 1, lanche: 2, jantar: 3 };
+const ORDEM_REFEICAO: Record<string, number> = { cafe: 0, almoco: 1, lanche: 2, jantar: 3 };
+
+/** Posição de uma refeição no dia; as personalizadas vão para o fim, antes do "sem refeição". */
+function ordem(refeicao: Refeicao | undefined): number {
+  if (!refeicao) return 99;
+  return ORDEM_REFEICAO[refeicao] ?? 50;
+}
 
 export function rotuloRefeicao(refeicao: Refeicao | undefined): string {
   return REFEICOES.find((r) => r.chave === refeicao)?.label ?? '';
@@ -90,7 +96,7 @@ export function agruparPorDia(
   }
 
   const ordenar = (a: ItemAgendado, b: ItemAgendado) =>
-    (a.refeicao ? ORDEM_REFEICAO[a.refeicao] : 99) - (b.refeicao ? ORDEM_REFEICAO[b.refeicao] : 99) ||
+    ordem(a.refeicao) - ordem(b.refeicao) ||
     a.recipe.titulo.localeCompare(b.recipe.titulo, 'pt-BR');
 
   const dias: DiaAgendado[] = [];
@@ -109,8 +115,7 @@ export function agruparPorDia(
 export function ordenarAgendamentos(agendamentos: Agendamento[]): Agendamento[] {
   return [...agendamentos].sort(
     (a, b) =>
-      a.dia - b.dia ||
-      (a.refeicao ? ORDEM_REFEICAO[a.refeicao] : 99) - (b.refeicao ? ORDEM_REFEICAO[b.refeicao] : 99),
+      a.dia - b.dia || ordem(a.refeicao) - ordem(b.refeicao),
   );
 }
 

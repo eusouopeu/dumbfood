@@ -47,7 +47,13 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   (pura e testável) e os pedaços de UI para `src/components/<área>/` (`lista/`, `plano/`,
   `receita/`, `receitas/`).
 - As telas fora da inicial entram por `React.lazy` em `App.tsx`, para o OCR (tesseract), o
-  leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura.
+  leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura. A tela inicial (`/`) é a
+  **Geladeira**; as receitas ficam em `/receitas` e `/geladeira` redireciona para `/`.
+- Geladeira e Mercado são as duas abas da tela inicial (`src/components/AbasInicio.tsx`);
+  cada aba é um link de verdade (`/` e `/lista`), não estado local.
+- A barra inferior é **só de ícones** (sem rótulo), com pílula de fundo no destino ativo.
+- Ações principais de uma tela entram como botão flutuante (a geladeira tem o `+` e o QR),
+  e o formulário correspondente vira folha/modal em vez de ocupar o topo da tela.
 - Cores das gôndolas (`src/lib/aisles.ts`) são as mesmas nos dois temas: fundo escuro,
   texto claro.
 - Preferências de interface (tema, dieta, orçamento, perfil, meta diária) ficam em
@@ -66,8 +72,16 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   ajuste do objetivo). A tela `/perfil` edita perfil, calorias e macros juntos.
 - `src/lib/rating.ts` transforma a tabela nutricional em selos de qualidade (limites por
   100 g, na lógica das alegações da ANVISA). Sempre alimentado com valores **por 100 g**.
-- O consumo de fato comido fica na tabela `consumo` (Dexie v10), com `dia` em
-  'AAAA-MM-DD' local. A tabela `codigos` guarda código de barras → ingrediente.
+- O consumo de fato comido fica na tabela `consumo` (Dexie v11), com `dia` em
+  'AAAA-MM-DD' local. A tabela `codigos` guarda código de barras → ingrediente e a
+  `exercicios` guarda o gasto do dia (nome + kcal, minutos opcionais), registrado à mão.
+- Exercício **não** muda a meta de calorias (`src/lib/exercicios.ts`): o fator de atividade
+  do perfil já conta o gasto habitual, somar de novo contaria duas vezes. O número aparece
+  como coluna própria do anel do dia.
+- Além de café/almoço/lanche/jantar, o usuário cria refeições próprias
+  (`src/lib/refeicoes.ts`, em `dumbfood:refeicoesExtras`). Por isso `Refeicao` é chave
+  aberta (`RefeicaoPadrao | (string & {})`) e a divisão da meta entre refeições é
+  **renormalizada** a cada mudança de lista — a soma dos recomendados é sempre a meta.
 
 ## Testes
 

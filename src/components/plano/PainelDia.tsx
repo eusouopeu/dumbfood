@@ -6,28 +6,39 @@
 // vem o planejamento. O dia é navegável porque registrar o jantar de ontem às 23h é
 // tão comum quanto registrar o almoço de hoje.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  CalendarDaysIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   PlusIcon,
   TrashIcon,
-  UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import { Link } from 'react-router-dom';
 import { db } from '../../db/db';
-import { registrarConsumo, removerConsumo } from '../../db/repo';
-import { REFEICOES, receitasDoDia } from '../../lib/agenda';
-import { chaveDia, dataDaChave, kcalPorDia, porRefeicao, rotuloDia, somarDias, totaisDoDia } from '../../lib/consumo';
-import { kcalRecomendadaRefeicao, useMetaDiaria } from '../../lib/metas';
+import { registrarConsumo, registrarExercicio, removerConsumo, removerExercicio } from '../../db/repo';
+import { receitasDoDia } from '../../lib/agenda';
+import {
+  chaveDia,
+  dataDaChave,
+  kcalPorDia,
+  porRefeicao,
+  rotuloDiaCurto,
+  somarDias,
+  totaisDoDia,
+} from '../../lib/consumo';
+import { useMetaDiaria } from '../../lib/metas';
+import { kcalRecomendada, useRefeicoes } from '../../lib/refeicoes';
+import { kcalQueimadaNoDia } from '../../lib/exercicios';
 import { capitalizar } from '../../lib/format';
 import type { Nutrientes100g } from '../../lib/nutrition';
 import { CORES_MACRO } from '../MacroResumo';
 import AnelProgresso from '../AnelProgresso';
 import BarraMacro from '../BarraMacro';
 import BarChart from '../BarChart';
+import LinhaRefeicao from './LinhaRefeicao';
 import RegistrarConsumo from './RegistrarConsumo';
+import RegistrarExercicio from './RegistrarExercicio';
 import { toast } from '../../lib/toast';
 import { hapticLeve } from '../../lib/haptics';
 import type { PlanItem, Recipe, Refeicao } from '../../types';
@@ -40,25 +51,33 @@ type DadosRegistro = { nome: string; recipeId?: string; porcoes: number; nutrien
 export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; itensPlano: PlanItem[] }) {
   const [dia, setDia] = useState(() => chaveDia());
   const [registrando, setRegistrando] = useState<Refeicao | null>(null);
+  const [registrandoExercicio, setRegistrandoExercicio] = useState(false);
+  const [novaRefeicao, setNovaRefeicao] = useState('');
+  const seletorData = useRef<HTMLInputElement>(null);
   const meta = useMetaDiaria();
+  const { refeicoes, adicionar: adicionarRefeicao, remover: removerRefeicao } = useRefeicoes();
+  const chaves = useMemo(() => refeicoes.map((r) => r.chave), [refeicoes]);
 
   const consumo = useLiveQuery(() => db.consumo.toArray(), []) ?? [];
+  const exercicios = useLiveQuery(() => db.exercicios.toArray(), []) ?? [];
   const registrosDoDia = useMemo(() => consumo.filter((r) => r.dia === dia), [consumo, dia]);
+  const exerciciosDoDia = useMemo(() => exercicios.filter((e) => e.dia === dia), [exercicios, dia]);
   const totais = useMemo(() => totaisDoDia(registrosDoDia), [registrosDoDia]);
-  const agrupado = useMemo(() => porRefeicao(registrosDoDia), [registrosDoDia]);
+  const agrupado = useMemo(() => porRefeicao(registrosDoDia, chaves), [registrosDoDia, chaves]);
+  const queimado = kcalQueimadaNoDia(exerciciosDoDia, dia);
 
   // O que o plano marcou para o dia da semana correspondente à data escolhida.
   const agendadoPorRefeicao = useMemo(() => {
     const porId = new Map(recipes.map((r) => [r.id, r]));
     const doDia = receitasDoDia(itensPlano, porId, dataDaChave(dia).getDay());
     const mapa = new Map<Refeicao, Recipe[]>();
-    for (const { chave } of REFEICOES) mapa.set(chave, []);
+    for (const chave of chaves) mapa.set(chave, []);
     for (const item of doDia) {
       if (!item.refeicao) continue;
       mapa.get(item.refeicao)?.push(item.recipe);
     }
     return mapa;
-  }, [recipes, itensPlano, dia]);
+  }, [recipes, itensPlano, dia, chaves]);
 
   const serie = useMemo(() => kcalPorDia(consumo, dia, DIAS_NA_SERIE), [consumo, dia]);
   const dadosGrafico = serie.map((p) => ({
@@ -75,34 +94,48 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
   return (
     <div className="card space-y-4 p-4">
       {/* Navegação por dia: setas nas pontas, data no meio — o mesmo gesto de folhear
-          um caderno, e o rótulo já diz "hoje"/"ontem" para não precisar contar datas. */}
+          um caderno. O ponto ao lado da data marca "hoje" sem gastar uma palavra, e o
+          ícone de calendário salta para qualquer data sem passar dia a dia. */}
       <div className="flex items-center justify-between gap-2">
         <button onClick={() => setDia(somarDias(dia, -1))} aria-label="Dia anterior" className="btn-icon p-2">
           <ChevronLeftIcon className="size-4" />
         </button>
         <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate text-sm font-bold uppercase tracking-wide">{rotuloDia(dia)}</p>
-          {dia !== chaveDia() && (
-            <button onClick={() => setDia(chaveDia())} className="chip">
-              hoje
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Link to="/perfil" aria-label="Perfil e metas" title="Perfil e metas" className="btn-icon p-2">
-            <UserCircleIcon className="size-4" />
-          </Link>
-          <button onClick={() => setDia(somarDias(dia, 1))} aria-label="Próximo dia" className="btn-icon p-2">
-            <ChevronRightIcon className="size-4" />
+          {dia === chaveDia() && <span className="size-2 shrink-0 rounded-full bg-red-500" title="Hoje" />}
+          <p className="truncate text-sm font-bold">{rotuloDiaCurto(dia)}</p>
+          <button
+            onClick={() => seletorData.current?.showPicker?.() ?? seletorData.current?.click()}
+            aria-label="Escolher data"
+            title="Escolher data"
+            className="text-stone-400 dark:text-stone-500"
+          >
+            <CalendarDaysIcon className="size-4" />
           </button>
+          {/* O input existe só para abrir o calendário nativo; quem mostra a data é o texto. */}
+          <input
+            ref={seletorData}
+            type="date"
+            value={dia}
+            onChange={(e) => e.target.value && setDia(e.target.value)}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+          />
         </div>
+        <button onClick={() => setDia(somarDias(dia, 1))} aria-label="Próximo dia" className="btn-icon p-2">
+          <ChevronRightIcon className="size-4" />
+        </button>
       </div>
 
       <AnelProgresso
         consumido={totais.kcal}
         meta={meta.kcal}
-        esquerda={{ label: 'Consumido', valor: Math.round(totais.kcal).toLocaleString('pt-BR') }}
-        direita={{ label: 'Refeições', valor: String(registrosDoDia.length) }}
+        esquerda={{ label: 'Refeições', valor: String(registrosDoDia.length) }}
+        direita={{
+          label: 'Exercícios',
+          valor: Math.round(queimado).toLocaleString('pt-BR'),
+          onClick: () => setRegistrandoExercicio(true),
+        }}
       />
 
       <div className="space-y-2">
@@ -123,72 +156,90 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         />
       </div>
 
-      <ul className="divide-y divide-stone-100 dark:divide-stone-700">
-        {REFEICOES.map(({ chave, label }) => {
-          const registros = agrupado.get(chave) ?? [];
-          const agendadas = agendadoPorRefeicao.get(chave) ?? [];
-          const kcalRegistrada = registros.reduce((s, r) => s + r.nutrientes.kcal, 0);
-          const recomendada = kcalRecomendadaRefeicao(meta.kcal, chave);
-          return (
-            <li key={chave} className="py-2">
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">{label}</p>
-                  {registros.length > 0 ? (
-                    // Os nomes vêm na lista abaixo; repeti-los aqui só duplicaria a linha.
-                    <p className="text-xs text-stone-400 dark:text-stone-500">
-                      {Math.round(kcalRegistrada).toLocaleString('pt-BR')} de{' '}
-                      {recomendada.toLocaleString('pt-BR')} kcal recomendadas
-                    </p>
-                  ) : (
-                    // Slot vazio com orientação em vez de traço: a recomendação é o que
-                    // transforma o buraco da agenda em instrução.
-                    <p className="truncate text-xs text-stone-400 dark:text-stone-500">
-                      Recomendado: {recomendada.toLocaleString('pt-BR')} kcal
-                      {agendadas.length > 0 && ` · planejado: ${agendadas.map((r) => capitalizar(r.titulo)).join(', ')}`}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setRegistrando(chave)}
-                  aria-label={`Registrar ${label}`}
-                  title={`Registrar ${label}`}
-                  className="btn-icon flex-shrink-0 p-2"
-                >
-                  <PlusIcon className="size-4" />
-                </button>
-              </div>
-              {registros.length > 0 && (
-                <ul className="mt-1 space-y-0.5 pl-1">
-                  {registros.map((r) => (
-                    <li key={r.id} className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
-                      <span className="min-w-0 flex-1 truncate">
-                        {capitalizar(r.nome)}
-                        {r.porcoes !== 1 && ` · ${r.porcoes}×`}
-                      </span>
-                      <span className="tabular-nums">{Math.round(r.nutrientes.kcal).toLocaleString('pt-BR')} kcal</span>
-                      <button
-                        onClick={async () => {
-                          await removerConsumo(r.id);
-                          toast('Registro removido.');
-                        }}
-                        aria-label={`Remover ${r.nome}`}
-                        className="text-red-500 dark:text-red-400"
-                      >
-                        <TrashIcon className="size-3.5" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+      {exerciciosDoDia.length > 0 && (
+        <ul className="space-y-0.5">
+          {exerciciosDoDia.map((e) => (
+            <li key={e.id} className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+              <span className="min-w-0 flex-1 truncate">
+                {capitalizar(e.nome)}
+                {e.minutos ? ` · ${e.minutos} min` : ''}
+              </span>
+              <span className="tabular-nums">−{Math.round(e.kcal).toLocaleString('pt-BR')} kcal</span>
+              <button
+                onClick={async () => {
+                  await removerExercicio(e.id);
+                  toast('Exercício removido.');
+                }}
+                aria-label={`Remover ${e.nome}`}
+                className="text-red-500 dark:text-red-400"
+              >
+                <TrashIcon className="size-3.5" />
+              </button>
             </li>
-          );
-        })}
+          ))}
+        </ul>
+      )}
+
+      <ul className="divide-y divide-stone-100 dark:divide-stone-700">
+        {refeicoes.map((def) => (
+          <LinhaRefeicao
+            key={def.chave}
+            def={def}
+            registros={agrupado.get(def.chave) ?? []}
+            agendadas={agendadoPorRefeicao.get(def.chave) ?? []}
+            recomendada={kcalRecomendada(meta.kcal, def.chave, chaves)}
+            onRegistrar={() => setRegistrando(def.chave)}
+            onRemoverRegistro={async (id) => {
+              await removerConsumo(id);
+              toast('Registro removido.');
+            }}
+            onRemoverRefeicao={
+              def.extra
+                ? () => {
+                    removerRefeicao(def.chave);
+                    toast(`${def.label} removida.`);
+                  }
+                : undefined
+            }
+          />
+        ))}
       </ul>
+
+      {/* Café, almoço, lanche e jantar não cobrem todo mundo: ceia e pré-treino existem,
+          e sem lugar para eles o registro do dia mente. A meta se redistribui sozinha. */}
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const nova = adicionarRefeicao(novaRefeicao);
+          if (nova) {
+            setNovaRefeicao('');
+            toast(`${nova.label} adicionada ao dia.`);
+          }
+        }}
+      >
+        <input
+          className="input min-w-0 flex-1 border-none bg-stone-50 text-sm dark:bg-stone-900"
+          placeholder="inserir refeição…"
+          aria-label="Nome da nova refeição"
+          value={novaRefeicao}
+          onChange={(e) => setNovaRefeicao(e.target.value)}
+        />
+        <button
+          type="submit"
+          disabled={!novaRefeicao.trim()}
+          aria-label="Adicionar refeição"
+          title="Adicionar refeição"
+          className="btn-icon flex-shrink-0 p-2"
+        >
+          <PlusIcon className="size-4" />
+        </button>
+      </form>
 
       {registrando && (
         <RegistrarConsumo
           refeicao={registrando}
+          rotulo={refeicoes.find((r) => r.chave === registrando)?.label}
           recipes={recipes}
           agendadas={agendadoPorRefeicao.get(registrando) ?? []}
           historico={consumo}
@@ -197,6 +248,18 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
             setRegistrando(null);
           }}
           onFechar={() => setRegistrando(null)}
+        />
+      )}
+
+      {registrandoExercicio && (
+        <RegistrarExercicio
+          onRegistrar={async (dados) => {
+            await registrarExercicio({ dia, ...dados });
+            hapticLeve();
+            setRegistrandoExercicio(false);
+            toast(`${capitalizar(dados.nome)} registrado.`);
+          }}
+          onFechar={() => setRegistrandoExercicio(false)}
         />
       )}
     </div>

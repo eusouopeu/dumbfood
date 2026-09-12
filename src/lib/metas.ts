@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { DIETAS, type Dieta } from './diet';
-import type { Refeicao } from '../types';
+import type { Refeicao, RefeicaoPadrao } from '../types';
 import { kcalSugerida, lerPerfil, type Perfil } from './perfil';
 
 export interface MetaMacrosPct {
@@ -176,7 +176,7 @@ export function useMetaDiaria(): MetaDiaria {
  * Como a meta do dia se reparte entre as refeições. Serve para o slot vazio da agenda
  * dizer "recomendado: 430 kcal" em vez de só mostrar um traço.
  */
-export const DISTRIBUICAO_REFEICAO: Record<Refeicao, number> = {
+export const DISTRIBUICAO_REFEICAO: Record<RefeicaoPadrao, number> = {
   cafe: 0.25,
   almoco: 0.35,
   lanche: 0.1,
@@ -184,5 +184,6 @@ export const DISTRIBUICAO_REFEICAO: Record<Refeicao, number> = {
 };
 
 export function kcalRecomendadaRefeicao(kcalDia: number, refeicao: Refeicao): number {
-  return Math.round(kcalDia * DISTRIBUICAO_REFEICAO[refeicao]);
+  const peso = DISTRIBUICAO_REFEICAO[refeicao as RefeicaoPadrao] ?? 0.15;
+  return Math.round(kcalDia * peso);
 }

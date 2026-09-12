@@ -9,7 +9,10 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CubeIcon,
+  HashtagIcon,
+  PlusIcon,
   QrCodeIcon,
+  TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
@@ -28,6 +31,7 @@ import { hapticForte, hapticLeve } from '../lib/haptics';
 import { useLongPress } from '../lib/useLongPress';
 import { CardListSkeleton } from '../components/Skeleton';
 import PullToRefresh from '../components/PullToRefresh';
+import AbasInicio from '../components/AbasInicio';
 import EscanearProduto from '../components/EscanearProduto';
 import type { GeladeiraItem } from '../types';
 
@@ -52,6 +56,9 @@ export default function Geladeira() {
   const [soCompletas, setSoCompletas] = useState(false);
   const [lembreteValidade] = useLembreteValidade();
   const [escaneando, setEscaneando] = useState(false);
+  /** Folha de adicionar: saiu do corpo da tela para o botão flutuante. */
+  const [adicionando, setAdicionando] = useState(false);
+  const [quantidadeTexto, setQuantidadeTexto] = useState('');
 
   const itensBrutos = geladeira ?? [];
   const lista = recipes ?? [];
@@ -97,12 +104,18 @@ export default function Geladeira() {
     if (validadeAutomatica) setValidadeTexto(validadeSugerida(valor));
   }
 
-  async function adicionar(nome: string, validade?: string) {
+  async function adicionar(nome: string, validade?: string, quantidade?: string) {
     const sugerida = validade ?? validadeSugerida(nome);
     const ts = sugerida ? new Date(`${sugerida}T00:00:00`).getTime() : undefined;
-    await adicionarNaGeladeira(nome, ts);
+    const qtd = quantidade && quantidade.trim() ? Number(quantidade.replace(',', '.')) : null;
+    await adicionarNaGeladeira(nome, ts, Number.isFinite(qtd) ? qtd : null);
+    limparFormulario();
+  }
+
+  function limparFormulario() {
     setTexto('');
     setValidadeTexto('');
+    setQuantidadeTexto('');
     setValidadeAutomatica(true);
   }
 
@@ -133,7 +146,7 @@ export default function Geladeira() {
   if (recipes === undefined || geladeira === undefined)
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">O que tem na geladeira?</h2>
+        <AbasInicio />
         <CardListSkeleton linhas={3} />
       </div>
     );
@@ -141,63 +154,7 @@ export default function Geladeira() {
   return (
     <PullToRefresh onRefresh={atualizar}>
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">O que tem na geladeira?</h2>
-        <p className="text-sm text-stone-500 dark:text-stone-400">
-          Adicione o que você tem em casa e veja quais receitas da sua biblioteca aproveitam melhor.
-        </p>
-      </div>
-
-      {/* Entrada de ingredientes */}
-      <form
-        className="flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (texto.trim()) adicionar(texto, validadeTexto);
-        }}
-      >
-        <input
-          className="input min-w-[8rem] flex-1"
-          placeholder="Ex.: ovos, cebola, frango…"
-          list="ingredientes-biblioteca"
-          value={texto}
-          onChange={(e) => digitarItem(e.target.value)}
-        />
-        <input
-          type="date"
-          className={`input w-[9.5rem] shrink-0 text-sm ${
-            validadeAutomatica && validadeTexto ? 'text-stone-500 dark:text-stone-400' : ''
-          }`}
-          value={validadeTexto}
-          onChange={(e) => {
-            setValidadeTexto(e.target.value);
-            setValidadeAutomatica(false);
-          }}
-          aria-label="Validade (opcional, sugerida pelo tipo do item)"
-          title={
-            validadeAutomatica && texto.trim() && prazoPadraoDias(texto) !== undefined
-              ? `Sugestão: ${prazoPadraoDias(texto)} dias para ${nomeItem(texto)}`
-              : 'Validade (opcional)'
-          }
-        />
-        <datalist id="ingredientes-biblioteca">
-          {sugestoes.map((s) => (
-            <option key={s.itemKey} value={s.nome} />
-          ))}
-        </datalist>
-        <button
-          type="button"
-          onClick={() => setEscaneando(true)}
-          aria-label="Ler código de barras do produto"
-          title="Código de barras"
-          className="btn-icon shrink-0"
-        >
-          <QrCodeIcon className="size-4" />
-        </button>
-        <button type="submit" disabled={!texto.trim()} className="btn-primary shrink-0">
-          Adicionar
-        </button>
-      </form>
+      <AbasInicio />
 
       {/* Geladeira atual */}
       {itens.length > 0 && (
@@ -215,7 +172,7 @@ export default function Geladeira() {
               <ChipGeladeira key={g.itemKey} item={g} onEditarValidade={() => setEditandoValidade(g.itemKey)} />
             ))}
           </div>
-          <p className="text-xs text-stone-400 dark:text-stone-500">Toque para remover · toque e segure para definir validade.</p>
+          <p className="text-xs text-stone-400 dark:text-stone-500">Toque para remover · segure para mudar a validade.</p>
         </div>
       )}
 
@@ -295,6 +252,53 @@ export default function Geladeira() {
         </>
       )}
 
+      {/* Botões flutuantes: o de adicionar é o que a tela pede o tempo todo, e o leitor
+          de código de barras é o atalho para quem está guardando a compra agora. */}
+      <div className="fixed bottom-24 right-4 z-20 flex flex-col items-center gap-2">
+        <button
+          onClick={() => setEscaneando(true)}
+          aria-label="Ler código de barras do produto"
+          title="Código de barras"
+          className="flex size-11 items-center justify-center rounded-full bg-white text-stone-600 shadow-lg dark:bg-stone-800 dark:text-stone-300"
+        >
+          <QrCodeIcon className="size-5" />
+        </button>
+        <button
+          onClick={() => setAdicionando(true)}
+          aria-label="Adicionar à geladeira"
+          title="Adicionar à geladeira"
+          className="flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg"
+        >
+          <PlusIcon className="size-7" />
+        </button>
+      </div>
+
+      {adicionando && (
+        <FolhaAdicionar
+          texto={texto}
+          onTexto={digitarItem}
+          quantidade={quantidadeTexto}
+          onQuantidade={setQuantidadeTexto}
+          validade={validadeTexto}
+          validadeAutomatica={validadeAutomatica}
+          onValidade={(v) => {
+            setValidadeTexto(v);
+            setValidadeAutomatica(false);
+          }}
+          sugestoes={sugestoes}
+          onEscanear={() => {
+            setAdicionando(false);
+            setEscaneando(true);
+          }}
+          onLimpar={limparFormulario}
+          onFechar={() => setAdicionando(false)}
+          onAdicionar={async () => {
+            await adicionar(texto, validadeTexto, quantidadeTexto);
+            setAdicionando(false);
+          }}
+        />
+      )}
+
       {escaneando && (
         <EscanearProduto onConfirmar={(nome) => adicionar(nome)} onFechar={() => setEscaneando(false)} />
       )}
@@ -329,12 +333,18 @@ function ChipGeladeira({ item: g, onEditarValidade }: { item: GeladeiraItem; onE
       aria-label={`${nomeItem(g.nome)}${g.validade ? `, ${rotuloValidade(g.validade)}` : ''}. Toque para remover, toque e segure para definir validade.`}
       title={g.validade ? rotuloValidade(g.validade) : 'Remover · toque e segure para definir validade'}
     >
+      {g.validade && (
+        <>
+          <CalendarDaysIcon className="size-3.5 text-white/80" />
+          <span className="text-white/90">{new Date(g.validade).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+          <span className="text-white/50">·</span>
+        </>
+      )}
       <span>{nomeItem(g.nome)}</span>
       {/* Quantidade aparece quando se sabe (sobra da embalagem comprada, ou "2 kg" digitado). */}
       {g.quantidade != null && (
         <span className="text-white/80">{formatQtdUnidadeAbrev(g.quantidade, g.unidade ?? null)}</span>
       )}
-      {g.validade && <CalendarDaysIcon className="size-3.5 text-white/80" />}
       <XMarkIcon className="size-3.5 text-white/70" />
     </button>
   );
@@ -468,6 +478,121 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Folha de adicionar item. Saiu do topo da tela (onde ocupava espaço mesmo quando não
+ * estava em uso) para o botão flutuante: guardar compra é uma rajada de vários itens,
+ * e a folha mantém o foco no campo entre um e outro.
+ */
+function FolhaAdicionar({
+  texto,
+  onTexto,
+  quantidade,
+  onQuantidade,
+  validade,
+  validadeAutomatica,
+  onValidade,
+  sugestoes,
+  onEscanear,
+  onLimpar,
+  onFechar,
+  onAdicionar,
+}: {
+  texto: string;
+  onTexto: (v: string) => void;
+  quantidade: string;
+  onQuantidade: (v: string) => void;
+  validade: string;
+  validadeAutomatica: boolean;
+  onValidade: (v: string) => void;
+  sugestoes: { itemKey: string; nome: string }[];
+  onEscanear: () => void;
+  onLimpar: () => void;
+  onFechar: () => void;
+  onAdicionar: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-stone-900/50 p-4" onClick={onFechar}>
+      <form
+        className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-4 shadow-xl dark:bg-stone-800"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (texto.trim()) onAdicionar();
+        }}
+      >
+        <p className="text-base font-bold">Adicionar à geladeira</p>
+
+        <div className="flex gap-2">
+          <input
+            className="input min-w-0 flex-1"
+            placeholder="ex.: cebola, ovo…"
+            list="ingredientes-biblioteca"
+            value={texto}
+            onChange={(e) => onTexto(e.target.value)}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={onEscanear}
+            aria-label="Ler código de barras do produto"
+            title="Código de barras"
+            className="btn-icon shrink-0"
+          >
+            <QrCodeIcon className="size-5" />
+          </button>
+        </div>
+        <datalist id="ingredientes-biblioteca">
+          {sugestoes.map((s) => (
+            <option key={s.itemKey} value={s.nome} />
+          ))}
+        </datalist>
+
+        <div className="flex items-center gap-2">
+          <HashtagIcon className="size-5 shrink-0 text-stone-400 dark:text-stone-500" />
+          <input
+            className="input w-20 shrink-0"
+            inputMode="decimal"
+            placeholder="ex.: 4"
+            aria-label="Quantidade (opcional)"
+            value={quantidade}
+            onChange={(e) => onQuantidade(e.target.value)}
+          />
+          <CalendarDaysIcon className="size-5 shrink-0 text-stone-400 dark:text-stone-500" />
+          <input
+            type="date"
+            className={`input min-w-0 flex-1 text-sm ${
+              validadeAutomatica && validade ? 'text-stone-500 dark:text-stone-400' : ''
+            }`}
+            value={validade}
+            onChange={(e) => onValidade(e.target.value)}
+            aria-label="Validade (opcional, sugerida pelo tipo do item)"
+            title={
+              validadeAutomatica && texto.trim() && prazoPadraoDias(texto) !== undefined
+                ? `Sugestão: ${prazoPadraoDias(texto)} dias para ${nomeItem(texto)}`
+                : 'Validade (opcional)'
+            }
+          />
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onLimpar}
+            aria-label="Limpar campos"
+            title="Limpar campos"
+            className="btn-icon shrink-0 text-red-500 dark:text-red-400"
+          >
+            <TrashIcon className="size-5" />
+          </button>
+          <button type="submit" disabled={!texto.trim()} className="btn-primary flex-1">
+            Adicionar
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

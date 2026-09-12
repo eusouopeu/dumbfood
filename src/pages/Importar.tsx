@@ -151,7 +151,7 @@ export default function Importar() {
   return (
     <div className="space-y-4">
       {/* A tela não está mais na barra de navegação, então precisa da própria saída. */}
-      <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400">
+      <Link to="/receitas" className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-400">
         <ArrowLeftIcon className="size-4" /> Voltar para receitas
       </Link>
       <h2 className="text-xl font-bold">Importar receita</h2>

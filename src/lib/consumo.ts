@@ -45,15 +45,37 @@ export function rotuloDia(chave: string): string {
   return `${semana}, ${data}`;
 }
 
+/**
+ * Rótulo do cabeçalho navegável no formato do dia a dia: "Sexta, 12/09". O dia da
+ * semana vem antes porque é ele que localiza a pessoa; a data confirma.
+ */
+export function rotuloDiaCurto(chave: string): string {
+  const d = dataDaChave(chave);
+  const semana = d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/-feira$/, '');
+  const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return `${semana.charAt(0).toUpperCase()}${semana.slice(1)}, ${data}`;
+}
+
 export function totaisDoDia(registros: RegistroConsumo[]): Nutrientes100g {
   return somarNutrientes(registros.map((r) => r.nutrientes));
 }
 
-/** Agrupa os registros de um dia por refeição, na ordem em que o dia acontece. */
-export function porRefeicao(registros: RegistroConsumo[]): Map<Refeicao, RegistroConsumo[]> {
+/**
+ * Agrupa os registros de um dia por refeição, na ordem em que o dia acontece. Registros
+ * de refeições que não estão mais na lista (uma personalizada apagada depois) continuam
+ * aparecendo: o que foi comido não some porque o slot deixou de existir.
+ */
+export function porRefeicao(
+  registros: RegistroConsumo[],
+  chaves: Refeicao[] = REFEICOES.map((r) => r.chave),
+): Map<Refeicao, RegistroConsumo[]> {
   const mapa = new Map<Refeicao, RegistroConsumo[]>();
-  for (const { chave } of REFEICOES) mapa.set(chave, []);
-  for (const r of registros) mapa.get(r.refeicao)?.push(r);
+  for (const chave of chaves) mapa.set(chave, []);
+  for (const r of registros) {
+    const atual = mapa.get(r.refeicao);
+    if (atual) atual.push(r);
+    else mapa.set(r.refeicao, [r]);
+  }
   return mapa;
 }
 

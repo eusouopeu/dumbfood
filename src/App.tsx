@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -8,8 +8,8 @@ import {
   CalendarDaysIcon,
   ChartBarIcon,
   Cog6ToothIcon,
-  CubeIcon,
   FireIcon,
+  HomeIcon,
   MoonIcon,
   PlusIcon,
   ShoppingCartIcon,
@@ -21,9 +21,9 @@ import { CardListSkeleton } from './components/Skeleton';
 import Toaster from './components/Toaster';
 import ConfirmHost from './components/ConfirmHost';
 import TimersOverlay from './components/TimersOverlay';
-import Receitas from './pages/Receitas';
+import Geladeira from './pages/Geladeira';
 
-// A tela inicial entra no primeiro carregamento; o resto vem sob demanda. Importar e
+// A tela inicial (geladeira) entra no primeiro carregamento; o resto vem sob demanda. Importar e
 // Mercado arrastam junto o OCR (tesseract) e o leitor de QR, que sozinhos pesam mais que
 // todo o resto do app — carregá-los na abertura atrasava a primeira tela no celular.
 const Importar = lazy(() => import('./pages/Importar'));
@@ -31,7 +31,7 @@ const Detalhe = lazy(() => import('./pages/Detalhe'));
 const PlanoSemana = lazy(() => import('./pages/PlanoSemana'));
 const ListaMercado = lazy(() => import('./pages/ListaMercado'));
 const Historico = lazy(() => import('./pages/Historico'));
-const Geladeira = lazy(() => import('./pages/Geladeira'));
+const Receitas = lazy(() => import('./pages/Receitas'));
 const Configuracoes = lazy(() => import('./pages/Configuracoes'));
 const Perfil = lazy(() => import('./pages/Perfil'));
 import { ShareReceiver } from './lib/shareReceiver';
@@ -44,9 +44,11 @@ import { toast } from './lib/toast';
 import { verificarBackupAutomatico } from './lib/backupAutomatico';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
+// A barra é só de ícones: com cinco destinos, o rótulo embaixo de cada um vira ruído —
+// o ícone ativo ganha uma pílula de fundo, que é o que o olho procura.
 const navItens = [
-  { to: '/', label: 'Receitas', icon: BookOpenIcon, end: true },
-  { to: '/geladeira', label: 'Geladeira', icon: CubeIcon, end: false },
+  { to: '/', label: 'Geladeira', icon: HomeIcon, end: true },
+  { to: '/receitas', label: 'Receitas', icon: BookOpenIcon, end: false },
   { to: '/plano', label: 'Semana', icon: CalendarDaysIcon, end: false },
   { to: '/lista', label: 'Mercado', icon: ShoppingCartIcon, end: false },
   { to: '/historico', label: 'Histórico', icon: ChartBarIcon, end: false },
@@ -144,7 +146,7 @@ export default function App() {
   const telaDeReceita = location.pathname.startsWith('/receita/');
 
   const badges: Record<string, number> = {
-    '/geladeira': geladeiraCount,
+    '/': geladeiraCount,
     '/lista': listaPendente,
   };
 
@@ -194,10 +196,13 @@ export default function App() {
         <ErrorBoundary>
         <Suspense fallback={<CardListSkeleton />}>
         <Routes>
-          <Route path="/" element={<Receitas />} />
+          <Route path="/" element={<Geladeira />} />
+          <Route path="/receitas" element={<Receitas />} />
           <Route path="/importar" element={<Importar />} />
           <Route path="/receita/:id" element={<Detalhe />} />
-          <Route path="/geladeira" element={<Geladeira />} />
+          {/* A geladeira virou a tela inicial; o endereço antigo continua valendo para
+              links salvos e para os avisos que mandam o usuário para lá. */}
+          <Route path="/geladeira" element={<Navigate to="/" replace />} />
           <Route path="/plano" element={<PlanoSemana />} />
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />
@@ -219,17 +224,22 @@ export default function App() {
               <NavLink
                 to={n.to}
                 end={n.end}
-                className={({ isActive }) =>
-                  `flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${
-                    isActive ? 'text-brand-600 dark:text-brand-400' : 'text-stone-500 dark:text-stone-400'
-                  }`
-                }
+                aria-label={n.label}
+                title={n.label}
+                className="flex items-center justify-center py-2"
               >
-                <span className="relative">
-                  <n.icon className="size-5" />
-                  <NavBadge n={badges[n.to] ?? 0} />
-                </span>
-                {n.label}
+                {({ isActive }) => (
+                  <span
+                    className={`relative rounded-2xl px-5 py-2 transition-colors ${
+                      isActive
+                        ? 'bg-brand-100 text-brand-600 dark:bg-stone-800 dark:text-brand-400'
+                        : 'text-stone-500 dark:text-stone-400'
+                    }`}
+                  >
+                    <n.icon className="size-6" />
+                    <NavBadge n={badges[n.to] ?? 0} />
+                  </span>
+                )}
               </NavLink>
             </li>
           ))}
