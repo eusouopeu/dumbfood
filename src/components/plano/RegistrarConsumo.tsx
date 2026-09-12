@@ -44,6 +44,7 @@ function multiplicar(n: Nutrientes100g, fator: number): Nutrientes100g {
 export default function RegistrarConsumo({
   refeicao,
   rotulo,
+  buscaInicial,
   recipes,
   agendadas,
   historico,
@@ -53,6 +54,8 @@ export default function RegistrarConsumo({
   refeicao: Refeicao;
   /** Rótulo já resolvido (as refeições personalizadas não estão na lista fixa). */
   rotulo?: string;
+  /** Texto vindo da barra de adição rápida: abre direto na busca, já filtrada. */
+  buscaInicial?: string;
   recipes: Recipe[];
   /** Receitas que o plano marcou para esta refeição neste dia. */
   agendadas: Recipe[];
@@ -61,8 +64,10 @@ export default function RegistrarConsumo({
   onRegistrar: (dados: { nome: string; recipeId?: string; porcoes: number; nutrientes: Nutrientes100g }) => void;
   onFechar: () => void;
 }) {
-  const [aba, setAba] = useState<Aba>(agendadas.length > 0 ? 'agendado' : 'recentes');
-  const [busca, setBusca] = useState('');
+  const [aba, setAba] = useState<Aba>(
+    buscaInicial ? 'buscar' : agendadas.length > 0 ? 'agendado' : 'recentes',
+  );
+  const [busca, setBusca] = useState(buscaInicial ?? '');
   const [porcoes, setPorcoes] = useState(1);
 
   const recentes = useMemo(() => ultimosRegistros(historico), [historico]);

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -21,9 +21,9 @@ import { CardListSkeleton } from './components/Skeleton';
 import Toaster from './components/Toaster';
 import ConfirmHost from './components/ConfirmHost';
 import TimersOverlay from './components/TimersOverlay';
-import Geladeira from './pages/Geladeira';
+import Inicio from './pages/Inicio';
 
-// A tela inicial (geladeira) entra no primeiro carregamento; o resto vem sob demanda. Importar e
+// A tela inicial (o dia) entra no primeiro carregamento; o resto vem sob demanda. Importar e
 // Mercado arrastam junto o OCR (tesseract) e o leitor de QR, que sozinhos pesam mais que
 // todo o resto do app — carregá-los na abertura atrasava a primeira tela no celular.
 const Importar = lazy(() => import('./pages/Importar'));
@@ -32,6 +32,7 @@ const PlanoSemana = lazy(() => import('./pages/PlanoSemana'));
 const ListaMercado = lazy(() => import('./pages/ListaMercado'));
 const Historico = lazy(() => import('./pages/Historico'));
 const Receitas = lazy(() => import('./pages/Receitas'));
+const Geladeira = lazy(() => import('./pages/Geladeira'));
 const Configuracoes = lazy(() => import('./pages/Configuracoes'));
 const Perfil = lazy(() => import('./pages/Perfil'));
 import { ShareReceiver } from './lib/shareReceiver';
@@ -44,14 +45,15 @@ import { toast } from './lib/toast';
 import { verificarBackupAutomatico } from './lib/backupAutomatico';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
-// A barra é só de ícones: com cinco destinos, o rótulo embaixo de cada um vira ruído —
-// o ícone ativo ganha uma pílula de fundo, que é o que o olho procura.
+// A barra é só de ícones e flutua em vidro, em duas peças: os quatro destinos do uso diário
+// numa pílula e o histórico à parte, num círculo — dado é consulta, não rotina. O ícone
+// ativo ganha uma pílula de fundo, que é o que o olho procura.
 const navItens = [
-  { to: '/', label: 'Geladeira', icon: HomeIcon, end: true },
-  { to: '/receitas', label: 'Receitas', icon: BookOpenIcon, end: false },
-  { to: '/plano', label: 'Semana', icon: CalendarDaysIcon, end: false },
-  { to: '/lista', label: 'Mercado', icon: ShoppingCartIcon, end: false },
-  { to: '/historico', label: 'Histórico', icon: ChartBarIcon, end: false },
+  { to: '/', label: 'Início', icon: HomeIcon, ativoEm: ['/'] },
+  { to: '/receitas', label: 'Receitas', icon: BookOpenIcon, ativoEm: ['/receitas'] },
+  { to: '/plano', label: 'Semana', icon: CalendarDaysIcon, ativoEm: ['/plano'] },
+  // Mercado e geladeira dividem a mesma aba (o seletor flutuante troca entre os dois).
+  { to: '/geladeira', label: 'Mercado e geladeira', icon: ShoppingCartIcon, ativoEm: ['/geladeira', '/lista'] },
 ];
 
 function useTema(): [Tema, () => void] {
@@ -87,7 +89,6 @@ export default function App() {
   const localizacaoAtual = useRef(location);
   localizacaoAtual.current = location;
   const [tema, alternarTema] = useTema();
-  const geladeiraCount = useLiveQuery(() => db.geladeira.count(), []) ?? 0;
   const [listaPendente, setListaPendente] = useState(0);
   const [lembreteValidade] = useLembreteValidade();
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
@@ -146,16 +147,16 @@ export default function App() {
   const telaDeReceita = location.pathname.startsWith('/receita/');
 
   const badges: Record<string, number> = {
-    '/': geladeiraCount,
-    '/lista': listaPendente,
+    '/geladeira': listaPendente,
   };
+  const historicoAtivo = location.pathname.startsWith('/historico');
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col">
       {!telaDeReceita && (
       <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-stone-200 bg-brand-50/80 px-4 py-3 backdrop-blur dark:border-stone-700 dark:bg-stone-900/80">
         <FireIcon className="size-7 text-brand-600 dark:text-brand-400" />
-        <h1 className="text-lg font-extrabold tracking-tight text-brand-700 dark:text-brand-300">dumbfood</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-brand-700 dark:text-brand-300">Dumbfood</h1>
         <div className="ml-auto flex items-center gap-1">
           <Link
             to="/importar"
@@ -165,14 +166,13 @@ export default function App() {
           >
             <PlusIcon className="size-5" />
           </Link>
-          <Link
-            to="/perfil"
-            aria-label="Perfil e metas"
-            title="Perfil e metas"
+          <button
+            onClick={alternarTema}
+            aria-label={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
             className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
           >
-            <UserCircleIcon className="size-5" />
-          </Link>
+            {tema === 'dark' ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
+          </button>
           <Link
             to="/config"
             aria-label="Configurações"
@@ -181,28 +181,27 @@ export default function App() {
           >
             <Cog6ToothIcon className="size-5" />
           </Link>
-          <button
-            onClick={alternarTema}
-            aria-label={tema === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+          <Link
+            to="/perfil"
+            aria-label="Perfil e metas"
+            title="Perfil e metas"
             className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
           >
-            {tema === 'dark' ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
-          </button>
+            <UserCircleIcon className="size-5" />
+          </Link>
         </div>
       </header>
       )}
 
-      <main className="flex-1 px-4 py-4 pb-24">
+      <main className="flex-1 px-4 py-4 pb-28">
         <ErrorBoundary>
         <Suspense fallback={<CardListSkeleton />}>
         <Routes>
-          <Route path="/" element={<Geladeira />} />
+          <Route path="/" element={<Inicio />} />
           <Route path="/receitas" element={<Receitas />} />
           <Route path="/importar" element={<Importar />} />
           <Route path="/receita/:id" element={<Detalhe />} />
-          {/* A geladeira virou a tela inicial; o endereço antigo continua valendo para
-              links salvos e para os avisos que mandam o usuário para lá. */}
-          <Route path="/geladeira" element={<Navigate to="/" replace />} />
+          <Route path="/geladeira" element={<Geladeira />} />
           <Route path="/plano" element={<PlanoSemana />} />
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />
@@ -217,33 +216,44 @@ export default function App() {
       <ConfirmHost />
       <TimersOverlay />
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-2xl border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
-        <ul className="flex">
-          {navItens.map((n) => (
-            <li key={n.to} className="flex-1">
-              <NavLink
-                to={n.to}
-                end={n.end}
-                aria-label={n.label}
-                title={n.label}
-                className="flex items-center justify-center py-2"
-              >
-                {({ isActive }) => (
-                  <span
-                    className={`relative rounded-2xl px-5 py-2 transition-colors ${
-                      isActive
-                        ? 'bg-brand-100 text-brand-600 dark:bg-stone-800 dark:text-brand-400'
-                        : 'text-stone-500 dark:text-stone-400'
-                    }`}
-                  >
+      <nav className="fixed inset-x-0 bottom-3 z-30 mx-auto flex max-w-2xl items-center gap-2 px-3 pb-[env(safe-area-inset-bottom)]">
+        <ul className="flex flex-1 items-center rounded-full border border-white/60 bg-white/60 p-1 shadow-lg backdrop-blur-md dark:border-stone-700/60 dark:bg-stone-900/60">
+          {navItens.map((n) => {
+            const ativo = n.ativoEm.some((p) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p)));
+            return (
+              <li key={n.to} className="flex-1">
+                <Link
+                  to={n.to}
+                  aria-label={n.label}
+                  title={n.label}
+                  aria-current={ativo ? 'page' : undefined}
+                  className={`relative flex items-center justify-center rounded-full py-2.5 transition-colors ${
+                    ativo
+                      ? 'bg-brand-200 text-brand-700 dark:bg-brand-900/60 dark:text-brand-300'
+                      : 'text-stone-700 dark:text-stone-300'
+                  }`}
+                >
+                  <span className="relative">
                     <n.icon className="size-6" />
                     <NavBadge n={badges[n.to] ?? 0} />
                   </span>
-                )}
-              </NavLink>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
+        <NavLink
+          to="/historico"
+          aria-label="Histórico"
+          title="Histórico"
+          className={`flex size-14 flex-shrink-0 items-center justify-center rounded-full border border-white/60 shadow-lg backdrop-blur-md dark:border-stone-700/60 ${
+            historicoAtivo
+              ? 'bg-brand-200 text-brand-700 dark:bg-brand-900/60 dark:text-brand-300'
+              : 'bg-white/60 text-stone-700 dark:bg-stone-900/60 dark:text-stone-300'
+          }`}
+        >
+          <ChartBarIcon className="size-6" />
+        </NavLink>
       </nav>
     </div>
   );

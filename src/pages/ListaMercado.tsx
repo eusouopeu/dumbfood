@@ -42,13 +42,13 @@ import SecaoGondola from '../components/lista/SecaoGondola';
 import OrcamentoCard from '../components/lista/OrcamentoCard';
 import ComparativoMercados from '../components/lista/ComparativoMercados';
 import FinalizarCompra from '../components/lista/FinalizarCompra';
-import AbasInicio from '../components/AbasInicio';
+import AbasMercado from '../components/AbasMercado';
 import type { CompraItem } from '../types';
 
 function ListaSkeleton() {
   return (
     <div className="space-y-4">
-      <AbasInicio />
+      <h2 className="text-xl font-bold">Lista de mercado</h2>
       <LinhaSkeleton linhas={6} />
     </div>
   );
@@ -241,7 +241,10 @@ export default function ListaMercado() {
 
   return (
     <div className="space-y-4">
-      <AbasInicio />
+      {/* Mesmo seletor flutuante da geladeira, no mesmo canto, para a troca não mudar de lugar. */}
+      <div className="fixed bottom-24 right-4 z-20">
+        <AbasMercado />
+      </div>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Lista de mercado</h2>
         <span className="chip">{total} itens</span>

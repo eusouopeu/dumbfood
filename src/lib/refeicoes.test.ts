@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chaveRefeicaoNova, distribuicaoRefeicoes, kcalRecomendada } from './refeicoes';
+import { chaveRefeicaoNova, distribuicaoRefeicoes, kcalRecomendada, refeicaoPorHorario } from './refeicoes';
 
 describe('chaveRefeicaoNova', () => {
   it('normaliza o rótulo e evita colidir com refeições já existentes', () => {
@@ -36,5 +36,20 @@ describe('distribuicaoRefeicoes', () => {
     const chaves = ['cafe', 'almoco', 'lanche', 'jantar', 'ceia'];
     const soma = chaves.reduce((s, c) => s + kcalRecomendada(2200, c, chaves), 0);
     expect(Math.abs(soma - 2200)).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('refeicaoPorHorario', () => {
+  const as = (h: number, m = 0) => new Date(2026, 8, 12, h, m);
+
+  it('escolhe a refeição fixa pela hora do registro', () => {
+    expect(refeicaoPorHorario(as(7, 30))).toBe('cafe');
+    expect(refeicaoPorHorario(as(12, 15))).toBe('almoco');
+    expect(refeicaoPorHorario(as(16))).toBe('lanche');
+    expect(refeicaoPorHorario(as(20))).toBe('jantar');
+  });
+
+  it('madrugada conta como jantar (o registro atrasado da noite anterior)', () => {
+    expect(refeicaoPorHorario(as(1))).toBe('jantar');
   });
 });

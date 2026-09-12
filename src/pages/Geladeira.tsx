@@ -31,7 +31,7 @@ import { hapticForte, hapticLeve } from '../lib/haptics';
 import { useLongPress } from '../lib/useLongPress';
 import { CardListSkeleton } from '../components/Skeleton';
 import PullToRefresh from '../components/PullToRefresh';
-import AbasInicio from '../components/AbasInicio';
+import AbasMercado from '../components/AbasMercado';
 import EscanearProduto from '../components/EscanearProduto';
 import type { GeladeiraItem } from '../types';
 
@@ -146,7 +146,7 @@ export default function Geladeira() {
   if (recipes === undefined || geladeira === undefined)
     return (
       <div className="space-y-4">
-        <AbasInicio />
+        <h2 className="text-xl font-bold">Geladeira</h2>
         <CardListSkeleton linhas={3} />
       </div>
     );
@@ -154,7 +154,7 @@ export default function Geladeira() {
   return (
     <PullToRefresh onRefresh={atualizar}>
     <div className="space-y-4">
-      <AbasInicio />
+      <h2 className="text-xl font-bold">Geladeira</h2>
 
       {/* Geladeira atual */}
       {itens.length > 0 && (
@@ -252,17 +252,10 @@ export default function Geladeira() {
         </>
       )}
 
-      {/* Botões flutuantes: o de adicionar é o que a tela pede o tempo todo, e o leitor
-          de código de barras é o atalho para quem está guardando a compra agora. */}
-      <div className="fixed bottom-24 right-4 z-20 flex flex-col items-center gap-2">
-        <button
-          onClick={() => setEscaneando(true)}
-          aria-label="Ler código de barras do produto"
-          title="Código de barras"
-          className="flex size-11 items-center justify-center rounded-full bg-white text-stone-600 shadow-lg dark:bg-stone-800 dark:text-stone-300"
-        >
-          <QrCodeIcon className="size-5" />
-        </button>
+      {/* Canto de baixo: o seletor geladeira/mercado ao lado do botão de adicionar, que é
+          o que a tela pede o tempo todo. O leitor de código de barras fica dentro da folha. */}
+      <div className="fixed bottom-24 right-4 z-20 flex items-center gap-2">
+        <AbasMercado />
         <button
           onClick={() => setAdicionando(true)}
           aria-label="Adicionar à geladeira"

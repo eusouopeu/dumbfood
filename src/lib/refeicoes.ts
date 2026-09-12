@@ -141,3 +141,17 @@ export function distribuicaoRefeicoes(chaves: Refeicao[]): Record<string, number
 export function kcalRecomendada(kcalDia: number, chave: Refeicao, chaves: Refeicao[]): number {
   return Math.round(kcalDia * (distribuicaoRefeicoes(chaves)[chave] ?? 0));
 }
+
+/**
+ * Refeição fixa que corresponde à hora do registro, para a barra de adição rápida da
+ * tela inicial não perguntar "em qual refeição?" a cada item. Madrugada conta como
+ * jantar: é o registro atrasado da noite, não um café da manhã às 2h.
+ */
+export function refeicaoPorHorario(agora: Date = new Date()): Refeicao {
+  const minutos = agora.getHours() * 60 + agora.getMinutes();
+  if (minutos < 4 * 60) return 'jantar';
+  if (minutos < 10 * 60 + 30) return 'cafe';
+  if (minutos < 15 * 60) return 'almoco';
+  if (minutos < 18 * 60 + 30) return 'lanche';
+  return 'jantar';
+}

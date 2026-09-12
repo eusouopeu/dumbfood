@@ -47,13 +47,23 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   (pura e testável) e os pedaços de UI para `src/components/<área>/` (`lista/`, `plano/`,
   `receita/`, `receitas/`).
 - As telas fora da inicial entram por `React.lazy` em `App.tsx`, para o OCR (tesseract), o
-  leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura. A tela inicial (`/`) é a
-  **Geladeira**; as receitas ficam em `/receitas` e `/geladeira` redireciona para `/`.
-- Geladeira e Mercado são as duas abas da tela inicial (`src/components/AbasInicio.tsx`);
-  cada aba é um link de verdade (`/` e `/lista`), não estado local.
-- A barra inferior é **só de ícones** (sem rótulo), com pílula de fundo no destino ativo.
-- Ações principais de uma tela entram como botão flutuante (a geladeira tem o `+` e o QR),
-  e o formulário correspondente vira folha/modal em vez de ocupar o topo da tela.
+  leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura. A tela inicial (`/`,
+  `src/pages/Inicio.tsx`) é **o dia**: só o painel de calorias/macros/refeições
+  (`PainelDia`) e a barra flutuante "inserir refeição…" acima da navegação, que abre a
+  busca de registro já filtrada, na refeição da hora (`refeicaoPorHorario`).
+- Abas da barra: Início (`/`), Receitas (`/receitas`), Semana (`/plano`, sem o painel do
+  dia) e Mercado (`/geladeira` e `/lista`, a mesma aba). Histórico (`/historico`) fica
+  separado, num círculo à direita.
+- A barra inferior é **flutuante e vítrea** (`backdrop-blur`, fundo translúcido), em duas
+  peças: pílula com os quatro destinos e círculo do histórico. Só ícones, com pílula de
+  fundo no ativo.
+- Dentro da aba Mercado, geladeira e lista trocam por uma **pílula flutuante de ícones**
+  (`src/components/AbasMercado.tsx`) no canto de baixo, ao lado do FAB laranja; cada ícone
+  é um link de verdade.
+- Ordem dos botões da barra superior: nova receita, tema, configurações, perfil.
+- Ações principais de uma tela entram como botão flutuante (a geladeira tem o `+`; o
+  leitor de código de barras fica dentro da folha de adicionar), e o formulário
+  correspondente vira folha/modal em vez de ocupar o topo da tela.
 - Cores das gôndolas (`src/lib/aisles.ts`) são as mesmas nos dois temas: fundo escuro,
   texto claro.
 - Preferências de interface (tema, dieta, orçamento, perfil, meta diária) ficam em
