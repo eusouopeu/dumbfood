@@ -61,9 +61,9 @@ export default function LinhaRefeicao({
           onClick={onRegistrar}
           aria-label={`Registrar ${def.label}`}
           title={`Registrar ${def.label}`}
-          className="btn-icon flex-shrink-0 p-2"
+          className="inline-flex flex-shrink-0 items-center justify-center rounded-full p-2 text-stone-700 transition hover:bg-stone-100 active:scale-95 dark:text-stone-200 dark:hover:bg-stone-800"
         >
-          <PlusIcon className="size-4" />
+          <PlusIcon className="size-5" />
         </button>
       </div>
 

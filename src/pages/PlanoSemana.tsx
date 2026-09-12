@@ -9,7 +9,6 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowPathIcon,
-  BellAlertIcon,
   BookOpenIcon,
   ShoppingCartIcon,
   SparklesIcon,
@@ -25,13 +24,13 @@ import { custoReceita, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
 import { useDieta } from '../lib/diet';
 import { useLembreteCompras } from '../lib/lembretes';
-import { agendarLembreteSemanal, notificacoesNativasDisponiveis, pedirPermissaoNotificacoes } from '../lib/notifications';
+import { agendarLembreteSemanal, notificacoesNativasDisponiveis } from '../lib/notifications';
 import { sugerirReceitasParaPlano } from '../lib/autoPlano';
-import { CabecalhoMacros, MacroResumoCard } from '../components/MacroResumo';
+import { CabecalhoMacros, MacroBarrasCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
-import { DIAS_SEMANA, agruparPorDia } from '../lib/agenda';
+import { agruparPorDia } from '../lib/agenda';
 import AgendaSemana from '../components/plano/AgendaSemana';
 import CardReceitaPlano from '../components/plano/CardReceitaPlano';
 import type { Ingredient } from '../types';
@@ -42,24 +41,13 @@ export default function PlanoSemana() {
   const precos = useLiveQuery(() => db.precos.toArray(), []);
   const plano = usePlano();
   const [dieta, setDieta] = useDieta();
-  const [lembreteCompras, setLembreteCompras] = useLembreteCompras();
+  // O controle do lembrete saiu da tela; o que já estava configurado continua agendado.
+  const [lembreteCompras] = useLembreteCompras();
   const [alvoAuto, setAlvoAuto] = useState(5);
 
   useEffect(() => {
     if (notificacoesNativasDisponiveis()) agendarLembreteSemanal(lembreteCompras);
   }, [lembreteCompras]);
-
-  async function alternarLembreteCompras(ativo: boolean) {
-    if (ativo) {
-      const concedida = await pedirPermissaoNotificacoes();
-      if (!concedida) {
-        toast('Permissão de notificação negada.', 'erro');
-        return;
-      }
-    }
-    setLembreteCompras({ ...lembreteCompras, ativo });
-    hapticLeve();
-  }
 
   // A agenda começa no dia de hoje: é isso que o usuário quer ver ao abrir a aba.
   const hoje = new Date().getDay();
@@ -223,46 +211,10 @@ export default function PlanoSemana() {
         </div>
       )}
 
-      {notificacoesNativasDisponiveis() && (
-        <div className="card space-y-2 p-3 text-sm">
-          <label className="flex items-center gap-3">
-            <BellAlertIcon className="size-5 flex-shrink-0 text-brand-500" />
-            <span className="flex-1 font-medium">Lembrete semanal de compras</span>
-            <input
-              type="checkbox"
-              className="h-5 w-5 flex-shrink-0 accent-brand-500"
-              checked={lembreteCompras.ativo}
-              onChange={(e) => alternarLembreteCompras(e.target.checked)}
-            />
-          </label>
-          {lembreteCompras.ativo && (
-            <div className="flex items-center gap-2 pl-8 text-xs text-stone-500 dark:text-stone-400">
-              <select
-                className="input py-1 text-xs"
-                value={lembreteCompras.diaSemana}
-                onChange={(e) => setLembreteCompras({ ...lembreteCompras, diaSemana: Number(e.target.value) })}
-              >
-                {DIAS_SEMANA.map((d, i) => (
-                  <option key={d} value={i}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="time"
-                className="input py-1 text-xs"
-                value={lembreteCompras.hora}
-                onChange={(e) => setLembreteCompras({ ...lembreteCompras, hora: e.target.value })}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
       {plano.itens.length > 0 && (
         <div className="card p-4">
           <CabecalhoMacros titulo="Macros do plano" dieta={dieta} onChange={setDieta} />
-          <MacroResumoCard titulo="" real={nutriTotal} dieta={dieta} />
+          <MacroBarrasCard real={nutriTotal} dieta={dieta} />
           {custoTotal.cobertos > 0 && (
             <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
               Custo estimado da semana: <span className="font-semibold">{formatBRL(custoTotal.total)}</span>

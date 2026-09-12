@@ -1,5 +1,5 @@
-// Biblioteca de receitas: busca, filtros, seleção múltipla e os dois atalhos que a
-// geladeira habilita — "use antes de vencer" e "o que dá pra fazer com o que eu tenho".
+// Biblioteca de receitas: busca, filtros, seleção múltipla e o atalho que a geladeira
+// habilita — "use antes de vencer" (e o filtro/ordenação pelo que já tem em casa).
 
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -33,7 +33,6 @@ import { CardListSkeleton } from '../components/Skeleton';
 import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
 import PullToRefresh from '../components/PullToRefresh';
 import CardReceita from '../components/receitas/CardReceita';
-import ComOQueTenho from '../components/receitas/ComOQueTenho';
 import FiltrosReceitas, {
   FILTROS_TEMPO,
   type FiltroTempo,
@@ -69,8 +68,8 @@ export default function Receitas() {
     [recipes, geladeira],
   );
 
-  // Receitas ordenadas pelo quanto a geladeira já cobre: alimenta o bloco "Com o que
-  // você tem", a ordenação por geladeira e a porcentagem exibida em cada card.
+  // Receitas ordenadas pelo quanto a geladeira já cobre: alimenta a ordenação por
+  // geladeira e a porcentagem exibida em cada card.
   const porCobertura = useMemo(
     () =>
       temGeladeira
@@ -321,8 +320,6 @@ export default function Receitas() {
             </ul>
           </div>
         )}
-
-        {!selecionando && <ComOQueTenho receitas={porCobertura.slice(0, 4)} />}
 
         {recipes.length === 0 ? (
           <div className="card p-6 text-center">

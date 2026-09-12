@@ -1,7 +1,8 @@
 // Seletor de dieta + card de composição de macros, reutilizado nas abas Semana,
 // Mercado e Histórico.
 
-import { DIETA_ORDEM, DIETAS, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
+import { DIETA_ORDEM, DIETAS, barrasComposicao, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
+import BarraMacro from './BarraMacro';
 
 // Cores vivas, usadas onde precisa de contraste forte (ex.: preenchimento do gráfico de barras).
 export const CORES_MACRO = {
@@ -125,6 +126,27 @@ export function MacroResumoCard({ titulo, real, dieta }: { titulo: string; real:
           <LinhaMacro rotulo="Gord." atual={pct.gorduraTotal} meta={meta.gorduraTotal} estilo={MACRO_ESTILO.gordura} />
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const COR_BARRA: Record<keyof GramasMacro, string> = {
+  carboidrato: CORES_MACRO.carboidrato,
+  proteina: CORES_MACRO.proteina,
+  gorduraTotal: CORES_MACRO.gordura,
+};
+
+/**
+ * Composição de macros em barras, no mesmo desenho do painel do dia: rótulo, "atual /
+ * meta" em percentual e a barra preenchida até a meta. Serve às abas Semana e Mercado,
+ * para as três telas lerem macros do mesmo jeito.
+ */
+export function MacroBarrasCard({ real, dieta }: { real: ValoresMacro; dieta: Dieta }) {
+  return (
+    <div className="space-y-2">
+      {barrasComposicao(real, dieta).map((b) => (
+        <BarraMacro key={b.chave} rotulo={b.rotulo} atual={b.atual} meta={b.meta} unidade="%" cor={COR_BARRA[b.chave]} />
+      ))}
     </div>
   );
 }

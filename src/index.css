@@ -65,3 +65,14 @@ textarea:focus-visible,
     @apply text-base font-extrabold uppercase tracking-wide text-stone-800 dark:text-stone-100;
   }
 }
+
+/* No celular, campo de texto com fonte menor que 16px faz o navegador dar zoom ao tocar
+   nele — e a tela fica ampliada depois (era o "zoom" da aba Receitas, que abre na busca).
+   Fora do @layer e com !important para vencer os utilitários text-sm/text-xs dos campos. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

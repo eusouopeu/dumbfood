@@ -31,7 +31,7 @@ import {
 } from '../db/repo';
 import { confirmar } from '../lib/confirm';
 import { useDieta } from '../lib/diet';
-import { CabecalhoMacros, MacroResumoCard } from '../components/MacroResumo';
+import { CabecalhoMacros, MacroBarrasCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { definirPendentesLista } from '../lib/listaStatus';
@@ -252,7 +252,7 @@ export default function ListaMercado() {
 
       <div className="card p-4">
         <CabecalhoMacros titulo="Macros da lista" dieta={dieta} onChange={setDieta} />
-        <MacroResumoCard titulo="" real={lista.nutriTotal} dieta={dieta} />
+        <MacroBarrasCard real={lista.nutriTotal} dieta={dieta} />
       </div>
 
       <OrcamentoCard valorEstimado={valorEstimadoTotal} />

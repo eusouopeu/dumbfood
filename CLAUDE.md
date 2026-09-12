@@ -61,6 +61,12 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   (`src/components/AbasMercado.tsx`) no canto de baixo, ao lado do FAB laranja; cada ícone
   é um link de verdade.
 - Ordem dos botões da barra superior: nova receita, tema, configurações, perfil.
+- A barra "inserir refeição…" também é vítrea e fica colada acima da barra inferior.
+- Macros das abas Semana e Mercado usam barras (`MacroBarrasCard`, com `barrasComposicao` em
+  `diet.ts`): mesmo desenho do painel do dia, em percentual atual / meta da dieta. A tabela
+  (`MacroResumoCard`) ficou só no Histórico.
+- No celular, `input`/`select`/`textarea` têm fonte de 16px (regra em `index.css`): abaixo
+  disso o navegador dá zoom ao focar o campo.
 - Ações principais de uma tela entram como botão flutuante (a geladeira tem o `+`; o
   leitor de código de barras fica dentro da folha de adicionar), e o formulário
   correspondente vira folha/modal em vez de ocupar o topo da tela.
