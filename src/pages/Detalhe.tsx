@@ -44,6 +44,7 @@ import Secao from '../components/Secao';
 import ListaIngredientes from '../components/receita/ListaIngredientes';
 import ControleReescala, { type Modo } from '../components/receita/ControleReescala';
 import { TabelaNutricional, TabelaMicronutrientes } from '../components/receita/TabelasNutricionais';
+import SelosQualidade from '../components/receita/SelosQualidade';
 import VideoReceita, { type VideoReceitaHandle } from '../components/VideoReceita';
 import RestricaoModal from '../components/RestricaoModal';
 import TimerFab from '../components/TimerFab';
@@ -514,6 +515,12 @@ export default function Detalhe() {
 
       {escalados.length > 0 && (
         <>
+          {/* O selo vem antes da tabela: "é pesado?" é a pergunta que decide se a
+              receita entra na semana; os sete números respondem a outra coisa. */}
+          <div className="card p-4">
+            <h3 className="section-heading mb-2 text-sm">Qualidade nutricional</h3>
+            <SelosQualidade nutri={nutriPor100g} micro={microPor100g} />
+          </div>
           <TabelaNutricional nutri={nutriPor100g} />
           <TabelaMicronutrientes micro={microPor100g} cobertura={cobertura} />
         </>

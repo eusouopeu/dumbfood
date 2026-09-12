@@ -50,6 +50,24 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura.
 - Cores das gôndolas (`src/lib/aisles.ts`) são as mesmas nos dois temas: fundo escuro,
   texto claro.
+- Preferências de interface (tema, dieta, orçamento, perfil, meta diária) ficam em
+  `localStorage` sob o prefixo `dumbfood:`; tudo com esse prefixo entra e volta no backup
+  JSON automaticamente. Dado do usuário (receitas, plano, consumo, compras) fica no Dexie.
+
+## Metas nutricionais: duas bases de percentual
+
+- `src/lib/diet.ts` trabalha em **percentual da massa** de macros e serve às telas de
+  composição da compra (Mercado, Histórico), que não têm "dia".
+- `src/lib/metas.ts` trabalha em **percentual da energia** (kcal) e é a meta *do dia*:
+  calorias-alvo + divisão de macros, convertidas em gramas com 4/4/9 kcal por grama.
+  `ajustarMacros` renormaliza para 100% a cada movimento, respeitando o macro travado —
+  não existe estado inválido para "salvar".
+- `src/lib/perfil.ts` estima o gasto diário (Mifflin-St Jeor × fator de atividade ×
+  ajuste do objetivo). A tela `/perfil` edita perfil, calorias e macros juntos.
+- `src/lib/rating.ts` transforma a tabela nutricional em selos de qualidade (limites por
+  100 g, na lógica das alegações da ANVISA). Sempre alimentado com valores **por 100 g**.
+- O consumo de fato comido fica na tabela `consumo` (Dexie v10), com `dia` em
+  'AAAA-MM-DD' local. A tabela `codigos` guarda código de barras → ingrediente.
 
 ## Testes
 

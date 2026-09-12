@@ -1,7 +1,17 @@
 // Banco local (IndexedDB) via Dexie.
 
 import Dexie, { type Table } from 'dexie';
-import type { Compra, GeladeiraItem, ListaEstado, PrecoItem, Recipe, VideoReceita, WeekPlan } from '../types';
+import type {
+  CodigoBarras,
+  Compra,
+  GeladeiraItem,
+  ListaEstado,
+  PrecoItem,
+  Recipe,
+  RegistroConsumo,
+  VideoReceita,
+  WeekPlan,
+} from '../types';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -13,6 +23,8 @@ export class DumbfoodDB extends Dexie {
   geladeira!: Table<GeladeiraItem, string>;
   videos!: Table<VideoReceita, string>;
   listaEstado!: Table<ListaEstado, string>;
+  consumo!: Table<RegistroConsumo, string>;
+  codigos!: Table<CodigoBarras, string>;
 
   constructor() {
     super('dumbfood');
@@ -120,6 +132,20 @@ export class DumbfoodDB extends Dexie {
           });
         });
       });
+    // v10: o que foi *de fato* comido (o plano só dizia o que era para ser) e os códigos
+    // de barras já identificados. `dia` é string 'AAAA-MM-DD' para o painel do dia
+    // consultar por igualdade, sem conversão de fuso no meio do caminho.
+    this.version(10).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
+      listaEstado: 'id',
+      consumo: 'id, dia, criadoEm, recipeId',
+      codigos: 'codigo, itemKey',
+    });
   }
 }
 

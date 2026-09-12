@@ -21,12 +21,17 @@ const INTERVALO_LEITURA_MS = 250;
 
 type Decodificador = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => Promise<string | null>;
 
-async function montarDecodificador(): Promise<Decodificador> {
+/**
+ * Monta o decodificador para os formatos pedidos. `jsQR` só entra quando QR está entre
+ * eles: ele não lê código de barras linear, e oferecer a câmera sem decodificador é pior
+ * que avisar que o aparelho não dá conta.
+ */
+async function montarDecodificador(formatos: string[]): Promise<Decodificador | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Detector = (window as any).BarcodeDetector;
   if (Detector) {
     try {
-      const detector = new Detector({ formats: ['qr_code'] });
+      const detector = new Detector({ formats: formatos });
       return async (canvas) => {
         const codigos = await detector.detect(canvas);
         return codigos?.[0]?.rawValue ?? null;
@@ -35,6 +40,7 @@ async function montarDecodificador(): Promise<Decodificador> {
       // Construtor existe mas o formato não é suportado: cai no jsQR.
     }
   }
+  if (!formatos.includes('qr_code')) return null;
   const { default: jsQR } = await import('jsqr');
   return async (canvas, ctx) => {
     const imagem = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -43,7 +49,25 @@ async function montarDecodificador(): Promise<Decodificador> {
   };
 }
 
-export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string) => void; onCancelar: () => void }) {
+export default function LeitorQr({
+  onLer,
+  onCancelar,
+  formatos = ['qr_code'],
+  dica,
+  erroCamera,
+  alvoLargo = false,
+}: {
+  onLer: (texto: string) => void;
+  onCancelar: () => void;
+  /** Formatos aceitos pelo BarcodeDetector; QR por padrão. */
+  formatos?: string[];
+  /** Texto de orientação sob a câmera. */
+  dica?: string;
+  /** Mensagem quando a câmera não abre; o padrão fala do QR da nota fiscal. */
+  erroCamera?: string;
+  /** Moldura deitada, no formato de um código de barras, em vez do quadrado do QR. */
+  alvoLargo?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -73,7 +97,11 @@ export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string)
         video.srcObject = stream;
         await video.play();
 
-        const decodificar = await montarDecodificador();
+        const decodificar = await montarDecodificador(formatos);
+        if (!decodificar) {
+          setErro('Este aparelho não sabe ler esse tipo de código pela câmera. Digite o número à mão.');
+          return;
+        }
         const canvas = canvasRef.current ?? document.createElement('canvas');
         canvasRef.current = canvas;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -100,7 +128,7 @@ export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string)
           }
         }, INTERVALO_LEITURA_MS);
       } catch {
-        setErro('Não foi possível abrir a câmera. Autorize o acesso ou cole o link do QR Code.');
+        setErro(erroCamera ?? 'Não foi possível abrir a câmera. Autorize o acesso ou cole o link do QR Code.');
       }
     }
 
@@ -110,7 +138,8 @@ export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string)
       if (timer) clearInterval(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatos.join(',')]);
 
   return (
     <div className="space-y-3">
@@ -118,7 +147,7 @@ export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string)
         <video ref={videoRef} playsInline muted autoPlay className="h-64 w-full object-cover" />
         {/* Alvo: o QR da NFC-e é pequeno e fica no rodapé do cupom — a moldura ajuda a mirar. */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="size-40 rounded-xl border-4 border-white/70" />
+          <div className={`rounded-xl border-4 border-white/70 ${alvoLargo ? 'h-24 w-64' : 'size-40'}`} />
         </div>
         <button
           onClick={onCancelar}
@@ -129,7 +158,7 @@ export default function LeitorQr({ onLer, onCancelar }: { onLer: (texto: string)
         </button>
       </div>
       <p className="text-center text-sm text-stone-500 dark:text-stone-400">
-        {erro ?? 'Aponte para o QR Code impresso no rodapé do cupom. Chegue perto até ele preencher a moldura.'}
+        {erro ?? dica ?? 'Aponte para o QR Code impresso no rodapé do cupom. Chegue perto até ele preencher a moldura.'}
       </p>
     </div>
   );

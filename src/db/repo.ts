@@ -2,6 +2,7 @@
 
 import type {
   Agendamento,
+  CodigoBarras,
   Compra,
   GeladeiraItem,
   Ingredient,
@@ -11,6 +12,7 @@ import type {
   PrecoItem,
   Recipe,
   Refeicao,
+  RegistroConsumo,
   VideoReceita,
   WeekPlan,
   YieldType,
@@ -269,7 +271,7 @@ export async function definirNotas(recipe: Recipe, notas: string): Promise<void>
  * inflariam o JSON) — por isso `videos` não aparece aqui.
  */
 interface BackupData {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
@@ -277,6 +279,10 @@ interface BackupData {
   precos?: PrecoItem[];
   geladeira?: GeladeiraItem[];
   listaEstado?: ListaEstado[];
+  /** Refeições registradas (versão 3 do backup em diante). */
+  consumo?: RegistroConsumo[];
+  /** Códigos de barras já identificados (versão 3 em diante). */
+  codigos?: CodigoBarras[];
   /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
   preferencias?: Record<string, string>;
 }
@@ -304,16 +310,18 @@ function gravarPreferencias(prefs: Record<string, string> | undefined): void {
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans, compras, precos, geladeira, listaEstado] = await Promise.all([
+  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos] = await Promise.all([
     db.recipes.toArray(),
     db.plans.toArray(),
     db.compras.toArray(),
     db.precos.toArray(),
     db.geladeira.toArray(),
     db.listaEstado.toArray(),
+    db.consumo.toArray(),
+    db.codigos.toArray(),
   ]);
   const data: BackupData = {
-    version: 2,
+    version: 3,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
@@ -321,6 +329,8 @@ export async function exportarJSON(): Promise<string> {
     precos,
     geladeira,
     listaEstado,
+    consumo,
+    codigos,
     preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
@@ -333,6 +343,7 @@ export interface ResumoImportacao {
   compras: number;
   precos: number;
   geladeira: number;
+  consumo: number;
 }
 
 /**
@@ -349,7 +360,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
 
   await db.transaction(
     'rw',
-    [db.recipes, db.plans, db.compras, db.precos, db.geladeira, db.listaEstado],
+    [db.recipes, db.plans, db.compras, db.precos, db.geladeira, db.listaEstado, db.consumo, db.codigos],
     async () => {
       if (modo === 'substituir') {
         await db.recipes.clear();
@@ -358,6 +369,8 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
         if (data.precos) await db.precos.clear();
         if (data.geladeira) await db.geladeira.clear();
         if (data.listaEstado) await db.listaEstado.clear();
+        if (data.consumo) await db.consumo.clear();
+        if (data.codigos) await db.codigos.clear();
       }
       await db.recipes.bulkPut(data.recipes as Recipe[]);
       if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
@@ -365,6 +378,8 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       if (Array.isArray(data.precos)) await db.precos.bulkPut(data.precos);
       if (Array.isArray(data.geladeira)) await db.geladeira.bulkPut(data.geladeira);
       if (Array.isArray(data.listaEstado)) await db.listaEstado.bulkPut(data.listaEstado);
+      if (Array.isArray(data.consumo)) await db.consumo.bulkPut(data.consumo);
+      if (Array.isArray(data.codigos)) await db.codigos.bulkPut(data.codigos);
     },
   );
 
@@ -375,6 +390,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
     compras: data.compras?.length ?? 0,
     precos: data.precos?.length ?? 0,
     geladeira: data.geladeira?.length ?? 0,
+    consumo: data.consumo?.length ?? 0,
   };
 }
 
@@ -548,4 +564,65 @@ export async function definirValidadeGeladeira(itemKey: string, validade: number
 
 export async function limparGeladeira(): Promise<void> {
   await db.geladeira.clear();
+}
+
+// ---- Consumo do dia ----
+
+/** Grava uma refeição comida. Os nutrientes já vêm multiplicados pelas porções. */
+export async function registrarConsumo(
+  registro: Omit<RegistroConsumo, 'id' | 'criadoEm'>,
+): Promise<RegistroConsumo> {
+  const novo: RegistroConsumo = { ...registro, id: novoId(), criadoEm: Date.now() };
+  await db.consumo.put(novo);
+  return novo;
+}
+
+export async function removerConsumo(id: string): Promise<void> {
+  await db.consumo.delete(id);
+}
+
+/** Troca a quantidade de porções de um registro, recalculando os nutrientes na proporção. */
+export async function ajustarPorcoesConsumo(id: string, porcoes: number): Promise<void> {
+  const atual = await db.consumo.get(id);
+  if (!atual || porcoes <= 0) return;
+  const fator = porcoes / (atual.porcoes || 1);
+  const n = atual.nutrientes;
+  await db.consumo.put({
+    ...atual,
+    porcoes,
+    nutrientes: {
+      kcal: n.kcal * fator,
+      gorduraTotal: n.gorduraTotal * fator,
+      gorduraSaturada: n.gorduraSaturada * fator,
+      colesterolMg: n.colesterolMg * fator,
+      carboidrato: n.carboidrato * fator,
+      acucares: n.acucares * fator,
+      proteina: n.proteina * fator,
+      fibra: n.fibra * fator,
+    },
+  });
+}
+
+/** Apaga tudo que foi registrado num dia (o botão "limpar" do painel). */
+export async function limparConsumoDoDia(dia: string): Promise<number> {
+  return db.consumo.where('dia').equals(dia).delete();
+}
+
+// ---- Códigos de barras ----
+
+/** Guarda a associação código de barras -> ingrediente, para a próxima leitura ser instantânea. */
+export async function salvarCodigoBarras(codigo: string, nome: string, marca?: string): Promise<CodigoBarras> {
+  const registro: CodigoBarras = {
+    codigo,
+    itemKey: normalizeItemKey(nome),
+    nome: nome.trim(),
+    ...(marca ? { marca } : {}),
+    atualizadoEm: Date.now(),
+  };
+  await db.codigos.put(registro);
+  return registro;
+}
+
+export async function buscarCodigoBarras(codigo: string): Promise<CodigoBarras | undefined> {
+  return db.codigos.get(codigo);
 }

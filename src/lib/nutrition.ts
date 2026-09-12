@@ -117,6 +117,20 @@ export function nutrientesDeGramas(item: string, gramas: number): Nutrientes100g
   return somar(ZERO, info, gramas / 100);
 }
 
+/**
+ * Tabela por 100 g de uma lista de ingredientes — a base em que rótulos e alegações
+ * nutricionais são escritos, e a única em que dá para comparar duas receitas de
+ * rendimentos diferentes. Devolve zeros quando nenhum ingrediente tem peso estimável.
+ */
+export function nutrientesPor100g(ingredientes: Ingredient[]): Nutrientes100g {
+  const pesoTotalG = ingredientes.reduce(
+    (soma, ing) => soma + (pesoEmGramas(ing.item, ing.quantidade, ing.unidade) ?? 0),
+    0,
+  );
+  if (pesoTotalG <= 0) return ZERO;
+  return dividirPorPorcoes(calcularNutricaoTotal(ingredientes), pesoTotalG / 100);
+}
+
 export function dividirPorPorcoes(total: Nutrientes100g, porcoes: number): Nutrientes100g {
   const n = porcoes > 0 ? porcoes : 1;
   return {

@@ -1,5 +1,7 @@
 // Tipos centrais do dumbfood.
 
+import type { Nutrientes100g } from './lib/nutrition';
+
 export type YieldType = 'porcoes' | 'pessoas' | 'unidades';
 
 export interface RecipeYield {
@@ -197,4 +199,38 @@ export interface VideoReceita {
   /** Tamanho em bytes, para avisar sobre espaço ocupado sem precisar ler o blob. */
   tamanho: number;
   criadoEm: number;
+}
+
+/**
+ * Uma refeição de fato comida, registrada pelo usuário. O plano da semana diz o que
+ * era para ser; o consumo diz o que foi — é a diferença entre os dois que o painel do
+ * dia mostra. Os nutrientes ficam congelados no registro: se a receita for editada ou
+ * apagada depois, o que já foi comido não muda retroativamente.
+ */
+export interface RegistroConsumo {
+  id: string;
+  /** Dia no formato local 'AAAA-MM-DD' — comparável por igualdade, sem fuso pelo caminho. */
+  dia: string;
+  refeicao: Refeicao;
+  /** Nome exibido (título da receita ou texto digitado). */
+  nome: string;
+  /** Receita de origem, quando veio do acervo. */
+  recipeId?: string;
+  /** Quantas porções foram comidas; multiplica os nutrientes gravados. */
+  porcoes: number;
+  /** Valores já multiplicados pelas porções. */
+  nutrientes: Nutrientes100g;
+  criadoEm: number;
+}
+
+/** Produto de mercado identificado por código de barras (EAN/UPC). */
+export interface CodigoBarras {
+  /** O número lido, como veio da câmera — chave primária. */
+  codigo: string;
+  /** Chave normalizada do ingrediente correspondente (casa com geladeira e preços). */
+  itemKey: string;
+  /** Nome legível do produto. */
+  nome: string;
+  marca?: string;
+  atualizadoEm: number;
 }

@@ -9,6 +9,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CubeIcon,
+  QrCodeIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
@@ -27,6 +28,7 @@ import { hapticForte, hapticLeve } from '../lib/haptics';
 import { useLongPress } from '../lib/useLongPress';
 import { CardListSkeleton } from '../components/Skeleton';
 import PullToRefresh from '../components/PullToRefresh';
+import EscanearProduto from '../components/EscanearProduto';
 import type { GeladeiraItem } from '../types';
 
 /** Classes de cor do chip conforme a proximidade da validade. */
@@ -49,6 +51,7 @@ export default function Geladeira() {
   /** Esconde receitas que ainda precisam de compras. */
   const [soCompletas, setSoCompletas] = useState(false);
   const [lembreteValidade] = useLembreteValidade();
+  const [escaneando, setEscaneando] = useState(false);
 
   const itensBrutos = geladeira ?? [];
   const lista = recipes ?? [];
@@ -182,6 +185,15 @@ export default function Geladeira() {
             <option key={s.itemKey} value={s.nome} />
           ))}
         </datalist>
+        <button
+          type="button"
+          onClick={() => setEscaneando(true)}
+          aria-label="Ler código de barras do produto"
+          title="Código de barras"
+          className="btn-icon shrink-0"
+        >
+          <QrCodeIcon className="size-4" />
+        </button>
         <button type="submit" disabled={!texto.trim()} className="btn-primary shrink-0">
           Adicionar
         </button>
@@ -281,6 +293,10 @@ export default function Geladeira() {
             </ul>
           )}
         </>
+      )}
+
+      {escaneando && (
+        <EscanearProduto onConfirmar={(nome) => adicionar(nome)} onFechar={() => setEscaneando(false)} />
       )}
     </div>
     </PullToRefresh>

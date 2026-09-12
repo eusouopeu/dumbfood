@@ -59,6 +59,7 @@ export default function Configuracoes() {
       if (r.compras) partes.push(`${r.compras} compra(s)`);
       if (r.precos) partes.push(`${r.precos} preço(s)`);
       if (r.geladeira) partes.push(`${r.geladeira} item(ns) de geladeira`);
+      if (r.consumo) partes.push(`${r.consumo} registro(s) de consumo`);
       toast(`Backup importado: ${partes.join(', ')}.`);
     } catch (e) {
       toast(`Erro ao importar: ${(e as Error).message}`, 'erro');
@@ -91,8 +92,8 @@ export default function Configuracoes() {
           />
         </div>
         <p className="text-xs text-stone-500 dark:text-stone-400">
-          O arquivo leva receitas, plano, histórico de compras, preços, geladeira, a lista em
-          andamento e estas preferências. Só os vídeos das receitas ficam de fora — eles pesam
+          O arquivo leva receitas, plano, histórico de compras, preços, geladeira, o consumo
+          registrado, os códigos de barras já lidos, a lista em andamento e estas preferências. Só os vídeos das receitas ficam de fora — eles pesam
           megabytes e continuam no aparelho.
         </p>
       </div>

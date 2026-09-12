@@ -29,7 +29,8 @@ import { itensComHistoricoDePreco } from '../lib/precoHistorico';
 import { mercadosDoHistorico } from '../lib/mercados';
 import BarChart from '../components/BarChart';
 import StackedBarChart from '../components/StackedBarChart';
-import { useDieta } from '../lib/diet';
+import RoscaMacro from '../components/RoscaMacro';
+import { DIETAS, composicaoRelativa, useDieta } from '../lib/diet';
 import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
 import { confirmar } from '../lib/confirm';
@@ -364,6 +365,20 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
           real={real}
           dieta={dieta}
         />
+      </div>
+
+      {/* Meta e realizado no mesmo tamanho e no mesmo formato: a diferença vira um
+          pedaço de cor maior ou menor, sem precisar subtrair dois números de cabeça. */}
+      <div className="card grid grid-cols-2 gap-3 p-4">
+        <RoscaMacro
+          titulo="Meta da dieta"
+          fatias={{
+            carboidrato: DIETAS[dieta].carboidrato,
+            proteina: DIETAS[dieta].proteina,
+            gorduraTotal: DIETAS[dieta].gorduraTotal,
+          }}
+        />
+        <RoscaMacro titulo="Sua composição" fatias={composicaoRelativa(real)} />
       </div>
 
       <div className="card p-4">

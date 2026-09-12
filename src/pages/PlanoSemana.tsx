@@ -33,6 +33,7 @@ import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
 import { DIAS_SEMANA, agruparPorDia } from '../lib/agenda';
 import AgendaSemana from '../components/plano/AgendaSemana';
+import PainelDia from '../components/plano/PainelDia';
 import CardReceitaPlano from '../components/plano/CardReceitaPlano';
 import type { Ingredient } from '../types';
 
@@ -170,6 +171,10 @@ export default function PlanoSemana() {
         <h2 className="text-xl font-bold">Semana</h2>
         <span className="chip">{plano.itens.length} selecionada(s)</span>
       </div>
+
+      {/* O dia vem antes da semana: quem abre o app no meio da tarde quer saber quanto
+          ainda cabe hoje, não rever a seleção de receitas feita no domingo. */}
+      <PainelDia recipes={recipes} itensPlano={plano.itens} />
 
       {/* O que fazer com a semana inteira vem antes da escolha receita a receita: é a
           ação que o usuário procura ao abrir a aba com o plano já montado. */}

@@ -14,6 +14,7 @@ import {
   PlusIcon,
   ShoppingCartIcon,
   SunIcon,
+  UserCircleIcon,
 } from '@heroicons/react/24/outline';
 import ErrorBoundary from './components/ErrorBoundary';
 import { CardListSkeleton } from './components/Skeleton';
@@ -32,6 +33,7 @@ const ListaMercado = lazy(() => import('./pages/ListaMercado'));
 const Historico = lazy(() => import('./pages/Historico'));
 const Geladeira = lazy(() => import('./pages/Geladeira'));
 const Configuracoes = lazy(() => import('./pages/Configuracoes'));
+const Perfil = lazy(() => import('./pages/Perfil'));
 import { ShareReceiver } from './lib/shareReceiver';
 import { db } from './db/db';
 import { aplicarTema, salvarTema, temaInicial, type Tema } from './lib/theme';
@@ -162,6 +164,14 @@ export default function App() {
             <PlusIcon className="size-5" />
           </Link>
           <Link
+            to="/perfil"
+            aria-label="Perfil e metas"
+            title="Perfil e metas"
+            className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
+          >
+            <UserCircleIcon className="size-5" />
+          </Link>
+          <Link
             to="/config"
             aria-label="Configurações"
             title="Configurações"
@@ -192,6 +202,7 @@ export default function App() {
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/config" element={<Configuracoes />} />
+          <Route path="/perfil" element={<Perfil />} />
         </Routes>
         </Suspense>
         </ErrorBoundary>
