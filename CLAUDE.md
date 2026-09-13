@@ -62,9 +62,13 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   é um link de verdade.
 - Ordem dos botões da barra superior: nova receita, tema, configurações, perfil.
 - A barra "inserir refeição…" também é vítrea e fica colada acima da barra inferior.
-- Macros das abas Semana e Mercado usam barras (`MacroBarrasCard`, com `barrasComposicao` em
-  `diet.ts`): mesmo desenho do painel do dia, em percentual atual / meta da dieta. A tabela
-  (`MacroResumoCard`) ficou só no Histórico.
+- Macros das abas Semana e Mercado usam barras (`MacroBarrasCard`, com `barrasEnergia` em
+  `metas.ts`), sem seletor de dieta: percentual da **energia** de cada macro contra a meta
+  definida em Perfil e metas — a mesma do painel do dia. A tabela por dieta
+  (`MacroResumoCard`, em massa) ficou só no Histórico.
+- Na aba Mercado, importar nota fiscal e adicionar item saem de um FAB (`lista/FabLista.tsx`)
+  como cards, ao lado do seletor geladeira/lista. Orçamento da semana e atualizar preços
+  ficam em Configurações. As sugestões da geladeira ficam recolhidas atrás de um toggle.
 - No celular, `input`/`select`/`textarea` têm fonte de 16px (regra em `index.css`): abaixo
   disso o navegador dá zoom ao focar o campo.
 - Ações principais de uma tela entram como botão flutuante (a geladeira tem o `+`; o
@@ -78,8 +82,8 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
 
 ## Metas nutricionais: duas bases de percentual
 
-- `src/lib/diet.ts` trabalha em **percentual da massa** de macros e serve às telas de
-  composição da compra (Mercado, Histórico), que não têm "dia".
+- `src/lib/diet.ts` trabalha em **percentual da massa** de macros e hoje serve só ao
+  Histórico (composição das compras passadas).
 - `src/lib/metas.ts` trabalha em **percentual da energia** (kcal) e é a meta *do dia*:
   calorias-alvo + divisão de macros, convertidas em gramas com 4/4/9 kcal por grama.
   `ajustarMacros` renormaliza para 100% a cada movimento, respeitando o macro travado —

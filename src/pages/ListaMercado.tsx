@@ -5,15 +5,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowUturnLeftIcon,
-  BanknotesIcon,
-  CameraIcon,
-  CheckCircleIcon,
   ClipboardDocumentIcon,
   CubeIcon,
-  PlusIcon,
-  ShareIcon,
   ShoppingCartIcon,
-  XCircleIcon,
 } from '@heroicons/react/24/outline';
 import { resumoLinha } from '../lib/shoppingList';
 import { useListaCompras, type LinhaLista } from '../lib/useListaCompras';
@@ -30,19 +24,16 @@ import {
   type EntradaGeladeira,
 } from '../db/repo';
 import { confirmar } from '../lib/confirm';
-import { useDieta } from '../lib/diet';
-import { CabecalhoMacros, MacroBarrasCard } from '../components/MacroResumo';
+import { MacroBarrasCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { definirPendentesLista } from '../lib/listaStatus';
 import { LinhaSkeleton } from '../components/Skeleton';
 import EscanearNota from '../components/EscanearNota';
-import EditarPrecos from '../components/EditarPrecos';
 import SecaoGondola from '../components/lista/SecaoGondola';
-import OrcamentoCard from '../components/lista/OrcamentoCard';
 import ComparativoMercados from '../components/lista/ComparativoMercados';
 import FinalizarCompra from '../components/lista/FinalizarCompra';
-import AbasMercado from '../components/AbasMercado';
+import FabLista from '../components/lista/FabLista';
 import type { CompraItem } from '../types';
 
 function ListaSkeleton() {
@@ -60,12 +51,9 @@ export default function ListaMercado() {
   const lista = useListaCompras(descontarGeladeira, arredondarEmbalagem);
   const { estado, secoes, jaTenho, custoPorLinha, total, valorEstimadoTotal } = lista;
 
-  const [dieta, setDieta] = useDieta();
   const [editandoQtd, setEditandoQtd] = useState<string | null>(null);
   const [qtdTexto, setQtdTexto] = useState('');
-  const [novoExtraTexto, setNovoExtraTexto] = useState('');
   const [escaneando, setEscaneando] = useState(false);
-  const [editandoPrecos, setEditandoPrecos] = useState(false);
 
   const comprados = new Set(estado.comprados);
 
@@ -79,7 +67,6 @@ export default function ListaMercado() {
   if (lista.carregando) return <ListaSkeleton />;
 
   const todosIds = secoes.flatMap((s) => s.linhas.map((l) => l.id));
-  const todosMarcados = todosIds.length > 0 && todosIds.every((id) => comprados.has(id));
   const marcados = todosIds.filter((id) => comprados.has(id)).length;
 
   function alternarComprado(id: string) {
@@ -89,11 +76,6 @@ export default function ListaMercado() {
         ? atual.comprados.filter((x) => x !== id)
         : [...atual.comprados, id],
     }));
-  }
-
-  function alternarTodos() {
-    hapticLeve();
-    atualizarListaEstado({ comprados: todosMarcados ? [] : todosIds });
   }
 
   function iniciarEdicaoQtd(l: LinhaLista) {
@@ -124,12 +106,10 @@ export default function ListaMercado() {
     hapticLeve();
   }
 
-  function adicionarExtra() {
-    const texto = novoExtraTexto.trim();
-    if (!texto) return;
+  function adicionarExtra(texto: string) {
     const ing = parseIngredient(texto);
     atualizarListaEstado((atual) => ({ extras: [...atual.extras, { ...ing, id: novoId() }] }));
-    setNovoExtraTexto('');
+    toast(`${nomeItem(ing.item)} adicionado à lista.`);
   }
 
   /**
@@ -162,26 +142,6 @@ export default function ListaMercado() {
     } catch {
       toast('Não foi possível copiar.', 'erro');
     }
-  }
-
-  // Texto simples (sem markdown) para WhatsApp: *negrito* nos títulos de gôndola,
-  // checkbox como ☐/☑ pra dar pra ler numa conversa sem nenhuma formatação especial.
-  async function compartilharWhatsApp() {
-    const linhas = secoes.map(
-      (s) =>
-        `*${s.gondola}*\n` +
-        s.linhas.map((l) => `${comprados.has(l.id) ? '☑' : '☐'} ${l.rotulo} ${nomeItem(l.item)}`).join('\n'),
-    );
-    const texto = `*Lista de mercado*\n\n${linhas.join('\n\n')}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: texto });
-      } catch {
-        // Usuário cancelou o share nativo — nada a fazer.
-      }
-      return;
-    }
-    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
   }
 
   async function salvarNoHistorico(valorInformado: number | null, mercado: string) {
@@ -241,68 +201,30 @@ export default function ListaMercado() {
 
   return (
     <div className="space-y-4">
-      {/* Mesmo seletor flutuante da geladeira, no mesmo canto, para a troca não mudar de lugar. */}
-      <div className="fixed bottom-24 right-4 z-20">
-        <AbasMercado />
-      </div>
-      <div className="flex items-center justify-between">
+      <FabLista onImportarNota={() => setEscaneando(true)} onAdicionarItem={adicionarExtra} />
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-bold">Lista de mercado</h2>
-        <span className="chip">{total} itens</span>
+        <div className="flex items-center gap-2">
+          <span className="chip">{total} itens</span>
+          <button onClick={copiar} aria-label="Copiar lista" title="Copiar" className="btn-icon">
+            <ClipboardDocumentIcon className="size-4" />
+          </button>
+        </div>
       </div>
 
       <div className="card p-4">
-        <CabecalhoMacros titulo="Macros da lista" dieta={dieta} onChange={setDieta} />
-        <MacroBarrasCard real={lista.nutriTotal} dieta={dieta} />
+        <h3 className="section-heading mb-2 text-sm">Macros da lista</h3>
+        <MacroBarrasCard real={lista.nutriTotal} />
       </div>
-
-      <OrcamentoCard valorEstimado={valorEstimadoTotal} />
 
       <ComparativoMercados comparacao={lista.comparacao} />
-
-      <div className="flex flex-wrap gap-2">
-        <button onClick={copiar} aria-label="Copiar lista" title="Copiar" className="btn-icon">
-          <ClipboardDocumentIcon className="size-4" />
-        </button>
-        <button onClick={compartilharWhatsApp} aria-label="Compartilhar no WhatsApp" title="WhatsApp" className="btn-icon">
-          <ShareIcon className="size-4" />
-        </button>
-        <button onClick={() => setEditandoPrecos(true)} aria-label="Atualizar preços" title="Atualizar preços" className="btn-icon">
-          <BanknotesIcon className="size-4" />
-        </button>
-        <button onClick={() => setEscaneando(true)} aria-label="Importar nota fiscal" title="Importar nota fiscal" className="btn-icon">
-          <CameraIcon className="size-4" />
-        </button>
-        {total > 0 && (
-          <button
-            onClick={alternarTodos}
-            aria-label={todosMarcados ? 'Desmarcar tudo' : 'Marcar tudo'}
-            title={todosMarcados ? 'Desmarcar tudo' : 'Marcar tudo'}
-            className="btn-icon"
-          >
-            {todosMarcados ? <XCircleIcon className="size-4" /> : <CheckCircleIcon className="size-4" />}
-          </button>
-        )}
-      </div>
-
-      <div className="card flex gap-2 p-3">
-        <input
-          className="input"
-          placeholder='Adicionar item (ex.: "2 kg de arroz")'
-          value={novoExtraTexto}
-          onChange={(e) => setNovoExtraTexto(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && adicionarExtra()}
-        />
-        <button onClick={adicionarExtra} aria-label="Adicionar item" title="Adicionar" className="btn-icon flex-shrink-0">
-          <PlusIcon className="size-4" />
-        </button>
-      </div>
 
       {total === 0 ? (
         <div className="card p-6 text-center">
           <ShoppingCartIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
           <p className="font-semibold">Lista vazia</p>
           <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">
-            Nenhuma receita na semana ainda, ou adicione itens manualmente acima.
+            Nenhuma receita na semana ainda, ou adicione itens pelo botão +.
           </p>
           <Link to="/plano" className="btn-primary">
             Selecionar receitas
@@ -374,9 +296,6 @@ export default function ListaMercado() {
       )}
 
       {escaneando && <EscanearNota onClose={() => setEscaneando(false)} />}
-      {editandoPrecos && (
-        <EditarPrecos itens={lista.itensParaPrecos} precos={lista.listaPrecos} onClose={() => setEditandoPrecos(false)} />
-      )}
     </div>
   );
 }

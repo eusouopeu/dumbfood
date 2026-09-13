@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { barrasComposicao, composicaoRelativa, DIETAS, DIETA_ORDEM } from './diet';
+import { composicaoRelativa, DIETAS, DIETA_ORDEM } from './diet';
 
 describe('composicaoRelativa', () => {
   it('divide cada macro pela soma dos três', () => {
@@ -34,23 +34,5 @@ describe('DIETAS', () => {
       const { proteina, carboidrato, gorduraTotal } = DIETAS[d];
       expect(proteina + carboidrato + gorduraTotal).toBe(100);
     }
-  });
-});
-
-describe('barrasComposicao', () => {
-  it('põe o percentual atual de cada macro ao lado da meta da dieta, na ordem carb/prot/gord', () => {
-    const real = { proteina: 30, carboidrato: 50, gorduraTotal: 20 };
-    const barras = barrasComposicao(real, 'normal');
-    const pct = composicaoRelativa(real);
-    expect(barras.map((b) => b.chave)).toEqual(['carboidrato', 'proteina', 'gorduraTotal']);
-    expect(barras[0]).toMatchObject({ atual: pct.carboidrato, meta: DIETAS.normal.carboidrato });
-    expect(barras[1]).toMatchObject({ atual: pct.proteina, meta: DIETAS.normal.proteina });
-    expect(barras[2]).toMatchObject({ atual: pct.gorduraTotal, meta: DIETAS.normal.gorduraTotal });
-  });
-
-  it('sem dados, as barras ficam zeradas mas a meta continua visível', () => {
-    const barras = barrasComposicao({ proteina: 0, carboidrato: 0, gorduraTotal: 0 }, 'cutting');
-    expect(barras.every((b) => b.atual === 0)).toBe(true);
-    expect(barras[1].meta).toBe(DIETAS.cutting.proteina);
   });
 });

@@ -54,29 +54,6 @@ function loadDieta(): Dieta {
 }
 
 /** Preferência de dieta persistida localmente e compartilhada entre as abas Semana, Mercado e Histórico. */
-export interface BarraComposicao {
-  chave: keyof GramasMacro;
-  rotulo: string;
-  /** Percentual atual do macro na soma dos três (0 quando não há nada medido). */
-  atual: number;
-  /** Percentual-alvo da dieta escolhida. */
-  meta: number;
-}
-
-/**
- * Linhas das barras de composição (plano da semana, lista de mercado): cada macro com o
- * percentual atual contra o da dieta, na mesma ordem das barras do painel do dia.
- */
-export function barrasComposicao(real: GramasMacro, dieta: Dieta): BarraComposicao[] {
-  const pct = composicaoRelativa(real);
-  const meta = DIETAS[dieta];
-  return [
-    { chave: 'carboidrato', rotulo: 'Carboidratos', atual: pct.carboidrato, meta: meta.carboidrato },
-    { chave: 'proteina', rotulo: 'Proteínas', atual: pct.proteina, meta: meta.proteina },
-    { chave: 'gorduraTotal', rotulo: 'Gorduras', atual: pct.gorduraTotal, meta: meta.gorduraTotal },
-  ];
-}
-
 export function useDieta(): [Dieta, (d: Dieta) => void] {
   const [dieta, setDieta] = useState<Dieta>(() => loadDieta());
   useEffect(() => {

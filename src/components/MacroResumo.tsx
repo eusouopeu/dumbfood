@@ -1,7 +1,8 @@
 // Seletor de dieta + card de composição de macros, reutilizado nas abas Semana,
 // Mercado e Histórico.
 
-import { DIETA_ORDEM, DIETAS, barrasComposicao, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
+import { DIETA_ORDEM, DIETAS, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
+import { barrasEnergia, useMetaDiaria } from '../lib/metas';
 import BarraMacro from './BarraMacro';
 
 // Cores vivas, usadas onde precisa de contraste forte (ex.: preenchimento do gráfico de barras).
@@ -138,13 +139,14 @@ const COR_BARRA: Record<keyof GramasMacro, string> = {
 
 /**
  * Composição de macros em barras, no mesmo desenho do painel do dia: rótulo, "atual /
- * meta" em percentual e a barra preenchida até a meta. Serve às abas Semana e Mercado,
- * para as três telas lerem macros do mesmo jeito.
+ * meta" em percentual da energia e a barra preenchida até a meta. A meta é a mesma da
+ * tela Perfil e metas — plano, lista e dia leem um único alvo, sem seletor de dieta.
  */
-export function MacroBarrasCard({ real, dieta }: { real: ValoresMacro; dieta: Dieta }) {
+export function MacroBarrasCard({ real }: { real: ValoresMacro }) {
+  const meta = useMetaDiaria();
   return (
     <div className="space-y-2">
-      {barrasComposicao(real, dieta).map((b) => (
+      {barrasEnergia(real, meta.macros).map((b) => (
         <BarraMacro key={b.chave} rotulo={b.rotulo} atual={b.atual} meta={b.meta} unidade="%" cor={COR_BARRA[b.chave]} />
       ))}
     </div>

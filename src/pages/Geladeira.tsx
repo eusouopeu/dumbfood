@@ -59,6 +59,7 @@ export default function Geladeira() {
   /** Folha de adicionar: saiu do corpo da tela para o botão flutuante. */
   const [adicionando, setAdicionando] = useState(false);
   const [quantidadeTexto, setQuantidadeTexto] = useState('');
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
 
   const itensBrutos = geladeira ?? [];
   const lista = recipes ?? [];
@@ -184,23 +185,31 @@ export default function Geladeira() {
         />
       )}
 
-      {/* Sugestões a partir da biblioteca */}
+      {/* Sugestões a partir da biblioteca: recolhidas por padrão, atrás de um toggle —
+          ajudam no começo, mas empurravam a geladeira para baixo em todo acesso. */}
       {sugestoes.length > 0 && lista.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
-            {itens.length === 0 ? 'Comece pelos mais usados nas suas receitas:' : 'Adicionar rápido:'}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {sugestoes.slice(0, 10).map((s) => (
-              <button
-                key={s.itemKey}
-                onClick={() => adicionar(s.nome)}
-                className="rounded-full bg-stone-100 dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300"
-              >
-                + {nomeItem(s.nome)}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setMostrarSugestoes((v) => !v)}
+            aria-expanded={mostrarSugestoes}
+            className="inline-flex items-center gap-1 text-xs font-medium text-stone-500 dark:text-stone-400"
+          >
+            {mostrarSugestoes ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+            {itens.length === 0 ? 'Mais usados nas suas receitas' : 'Adicionar rápido'}
+          </button>
+          {mostrarSugestoes && (
+            <div className="flex flex-wrap gap-1.5">
+              {sugestoes.slice(0, 10).map((s) => (
+                <button
+                  key={s.itemKey}
+                  onClick={() => adicionar(s.nome)}
+                  className="rounded-full bg-stone-100 dark:bg-stone-800 px-2.5 py-1 text-xs font-medium text-stone-600 dark:text-stone-300"
+                >
+                  + {nomeItem(s.nome)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

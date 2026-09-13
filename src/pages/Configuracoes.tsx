@@ -3,6 +3,7 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowUpTrayIcon,
+  BanknotesIcon,
   BellAlertIcon,
   CubeIcon,
   ShoppingCartIcon,
@@ -10,6 +11,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { exportarJSON, importarJSON, type ModoImportacao } from '../db/repo';
 import ActionSheet from '../components/ActionSheet';
+import EditarPrecos from '../components/EditarPrecos';
+import OrcamentoCard from '../components/lista/OrcamentoCard';
+import { useListaCompras } from '../lib/useListaCompras';
 import { useLembreteValidade } from '../lib/lembretes';
 import { useArredondarEmbalagem, useDescontarGeladeira } from '../lib/preferencias';
 import {
@@ -26,6 +30,9 @@ export default function Configuracoes() {
   const [lembreteValidade, setLembreteValidade] = useLembreteValidade();
   const [descontarGeladeira, setDescontarGeladeira] = useDescontarGeladeira();
   const [arredondarEmbalagem, setArredondarEmbalagem] = useArredondarEmbalagem();
+  // Orçamento e preços saíram da lista de mercado, mas são calculados sobre ela.
+  const lista = useListaCompras(descontarGeladeira, arredondarEmbalagem);
+  const [editandoPrecos, setEditandoPrecos] = useState(false);
 
   async function alternarLembreteValidade(ligar: boolean) {
     if (ligar && notificacoesNativasDisponiveis()) {
@@ -137,6 +144,31 @@ export default function Configuracoes() {
           />
         </label>
       </div>
+
+      <OrcamentoCard valorEstimado={lista.valorEstimadoTotal} />
+
+      <div className="card flex items-center gap-3 p-3 text-sm">
+        <BanknotesIcon className="size-5 flex-shrink-0 text-brand-500" />
+        <span className="flex-1">
+          <span className="block font-medium">Preços dos ingredientes</span>
+          <span className="block text-xs text-stone-500 dark:text-stone-400">
+            Preço por kg, litro ou unidade dos itens da lista atual.
+          </span>
+        </span>
+        <button
+          onClick={() => setEditandoPrecos(true)}
+          disabled={lista.carregando}
+          aria-label="Atualizar preços"
+          title="Atualizar preços"
+          className="btn-icon flex-shrink-0"
+        >
+          <ArrowPathIcon className="size-4" />
+        </button>
+      </div>
+
+      {editandoPrecos && (
+        <EditarPrecos itens={lista.itensParaPrecos} precos={lista.listaPrecos} onClose={() => setEditandoPrecos(false)} />
+      )}
 
       {arquivoPendente && (
         <ActionSheet

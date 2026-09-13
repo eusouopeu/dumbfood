@@ -22,11 +22,10 @@ import { capitalizar } from '../lib/format';
 import { calcularNutricaoTotal, type Nutrientes100g } from '../lib/nutrition';
 import { custoReceita, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
-import { useDieta } from '../lib/diet';
 import { useLembreteCompras } from '../lib/lembretes';
 import { agendarLembreteSemanal, notificacoesNativasDisponiveis } from '../lib/notifications';
 import { sugerirReceitasParaPlano } from '../lib/autoPlano';
-import { CabecalhoMacros, MacroBarrasCard } from '../components/MacroResumo';
+import { MacroBarrasCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
@@ -40,7 +39,6 @@ export default function PlanoSemana() {
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const precos = useLiveQuery(() => db.precos.toArray(), []);
   const plano = usePlano();
-  const [dieta, setDieta] = useDieta();
   // O controle do lembrete saiu da tela; o que já estava configurado continua agendado.
   const [lembreteCompras] = useLembreteCompras();
   const [alvoAuto, setAlvoAuto] = useState(5);
@@ -213,8 +211,8 @@ export default function PlanoSemana() {
 
       {plano.itens.length > 0 && (
         <div className="card p-4">
-          <CabecalhoMacros titulo="Macros do plano" dieta={dieta} onChange={setDieta} />
-          <MacroBarrasCard real={nutriTotal} dieta={dieta} />
+          <h3 className="section-heading mb-2 text-sm">Macros do plano</h3>
+          <MacroBarrasCard real={nutriTotal} />
           {custoTotal.cobertos > 0 && (
             <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
               Custo estimado da semana: <span className="font-semibold">{formatBRL(custoTotal.total)}</span>

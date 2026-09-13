@@ -187,3 +187,33 @@ export function kcalRecomendadaRefeicao(kcalDia: number, refeicao: Refeicao): nu
   const peso = DISTRIBUICAO_REFEICAO[refeicao as RefeicaoPadrao] ?? 0.15;
   return Math.round(kcalDia * peso);
 }
+
+export interface BarraEnergia {
+  chave: ChaveMacro;
+  rotulo: string;
+  /** Percentual da energia que o macro representa no que foi medido (0 sem dados). */
+  atual: number;
+  /** Percentual-alvo da meta do perfil. */
+  meta: number;
+}
+
+/**
+ * Barras de composição do plano e da lista, na mesma base da meta do perfil: quanto da
+ * energia vem de cada macro (4/4/9 kcal por grama) contra o percentual escolhido em
+ * Perfil e metas. Antes essas telas usavam um seletor de dieta próprio, em massa, e os
+ * números não batiam com o painel do dia.
+ */
+export function barrasEnergia(gramas: MetaMacrosPct, meta: MetaMacrosPct): BarraEnergia[] {
+  const kcal = {
+    carboidrato: gramas.carboidrato * KCAL_POR_GRAMA.carboidrato,
+    proteina: gramas.proteina * KCAL_POR_GRAMA.proteina,
+    gorduraTotal: gramas.gorduraTotal * KCAL_POR_GRAMA.gorduraTotal,
+  };
+  const total = kcal.carboidrato + kcal.proteina + kcal.gorduraTotal;
+  return MACROS_ORDEM.map((chave) => ({
+    chave,
+    rotulo: MACRO_LABEL[chave],
+    atual: total > 0 ? Math.round((kcal[chave] / total) * 100) : 0,
+    meta: meta[chave],
+  }));
+}

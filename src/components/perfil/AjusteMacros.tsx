@@ -11,7 +11,6 @@ import { LockClosedIcon, LockOpenIcon, MinusIcon, PlusIcon } from '@heroicons/re
 import {
   MACROS_ORDEM,
   MACRO_LABEL,
-  KCAL_POR_GRAMA,
   ajustarMacros,
   gramasDaMeta,
   kcalDoMacro,
@@ -67,11 +66,13 @@ export default function AjusteMacros({
                 >
                   {estaTravado ? <LockClosedIcon className="size-4" /> : <LockOpenIcon className="size-4" />}
                 </button>
-                <span className="min-w-0 flex-1 font-semibold">{MACRO_LABEL[campo]}</span>
-                <span className="flex-shrink-0 text-right">
-                  <span className="block tabular-nums font-semibold leading-tight">{gramas[campo]} g</span>
-                  <span className="block text-[11px] tabular-nums leading-tight text-stone-400 dark:text-stone-500">
-                    {macros[campo]}% · {kcalDoMacro(kcal, macros[campo]).toLocaleString('pt-BR')} kcal
+                {/* Nome, gramas e kcal numa linha só: o percentual já está na rosca e no slider. */}
+                <span className="min-w-0 flex-1 truncate font-semibold">{MACRO_LABEL[campo]}</span>
+                <span className="flex-shrink-0 tabular-nums">
+                  <span className="font-semibold">{gramas[campo]} g</span>
+                  <span className="mx-1.5 text-stone-300 dark:text-stone-600">|</span>
+                  <span className="text-stone-500 dark:text-stone-400">
+                    {kcalDoMacro(kcal, macros[campo]).toLocaleString('pt-BR')} kcal
                   </span>
                 </span>
               </div>
@@ -109,12 +110,6 @@ export default function AjusteMacros({
           );
         })}
       </ul>
-
-      <p className="text-xs text-stone-500 dark:text-stone-400">
-        Os percentuais são da energia do dia ({KCAL_POR_GRAMA.carboidrato} kcal por grama de
-        carboidrato e de proteína, {KCAL_POR_GRAMA.gorduraTotal} para gordura) e somam 100
-        automaticamente — o macro travado fica de fora do reequilíbrio.
-      </p>
     </div>
   );
 }

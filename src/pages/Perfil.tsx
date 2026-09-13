@@ -221,8 +221,8 @@ export default function Perfil() {
           onTravado={(travado) => setMeta({ ...meta, travado })}
         />
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3 dark:border-stone-700">
-          <span className="text-xs text-stone-500 dark:text-stone-400">Partir de:</span>
+        {/* Pontos de partida e o retorno ao padrão numa só fileira de botões do mesmo tamanho. */}
+        <div className="flex flex-nowrap items-center gap-2 border-t border-stone-100 pt-3 dark:border-stone-700">
           {DIETA_ORDEM.map((d) => (
             <button
               key={d}
@@ -242,9 +242,11 @@ export default function Perfil() {
               hapticLeve();
               toast('Macros de volta ao padrão.');
             }}
-            className="btn-ghost ml-auto h-8 px-2 text-xs"
+            aria-label="Voltar ao original"
+            title="Voltar ao original"
+            className="btn-outline ml-auto h-8 flex-shrink-0 px-2 text-xs"
           >
-            <ArrowUturnLeftIcon className="size-3.5" /> Voltar ao original
+            <ArrowUturnLeftIcon className="size-4" />
           </button>
         </div>
       </div>
