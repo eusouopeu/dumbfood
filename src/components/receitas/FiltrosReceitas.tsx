@@ -5,20 +5,9 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export type Ordem = 'recentes' | 'ingredientes' | 'tempo' | 'geladeira';
 export type ModoTag = 'ou' | 'e';
-export type FiltroTempo = 'qualquer' | 'rapido' | 'medio' | 'longo';
-
-export const FILTROS_TEMPO: { valor: FiltroTempo; rotulo: string; testar: (min?: number) => boolean }[] = [
-  { valor: 'qualquer', rotulo: 'Qualquer', testar: () => true },
-  { valor: 'rapido', rotulo: 'Até 30 min', testar: (min) => min != null && min <= 30 },
-  { valor: 'medio', rotulo: '30–60 min', testar: (min) => min != null && min > 30 && min <= 60 },
-  { valor: 'longo', rotulo: 'Mais de 1h', testar: (min) => min != null && min > 60 },
-];
-
 export default function FiltrosReceitas({
   busca,
   onBusca,
-  filtroTempo,
-  onFiltroTempo,
   todasTags,
   tagsSel,
   onToggleTag,
@@ -32,8 +21,6 @@ export default function FiltrosReceitas({
 }: {
   busca: string;
   onBusca: (v: string) => void;
-  filtroTempo: FiltroTempo;
-  onFiltroTempo: (v: FiltroTempo) => void;
   todasTags: string[];
   tagsSel: Set<string>;
   onToggleTag: (t: string) => void;
@@ -55,22 +42,6 @@ export default function FiltrosReceitas({
           value={busca}
           onChange={(e) => onBusca(e.target.value)}
         />
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {FILTROS_TEMPO.map((f) => (
-          <button
-            key={f.valor}
-            onClick={() => onFiltroTempo(f.valor)}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-              filtroTempo === f.valor
-                ? 'bg-brand-500 text-white'
-                : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
-            }`}
-          >
-            {f.rotulo}
-          </button>
-        ))}
       </div>
 
       {todasTags.length > 0 && (

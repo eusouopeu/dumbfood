@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { barrasEnergia } from './metas';
+import { barrasSemana } from './metas';
 import { ajustarMacros, gramasDaMeta, kcalDoMacro, type MetaMacrosPct } from './metas';
 
 const BASE: MetaMacrosPct = { carboidrato: 50, proteina: 20, gorduraTotal: 30 };
@@ -47,24 +47,18 @@ describe('gramasDaMeta', () => {
   });
 });
 
-describe('barrasEnergia', () => {
-  it('compara a fatia de energia de cada macro com a meta do perfil', () => {
-    // 50 g carb (200 kcal), 25 g prot (100 kcal), 20 g gord (180 kcal): 480 kcal no total.
-    const barras = barrasEnergia(
-      { carboidrato: 50, proteina: 25, gorduraTotal: 20 },
-      { carboidrato: 45, proteina: 30, gorduraTotal: 25 },
+describe('barrasSemana', () => {
+  it('leva a meta diária do perfil para a semana, em gramas, mantendo o percentual do perfil', () => {
+    const barras = barrasSemana(
+      { carboidrato: 850.4, proteina: 400, gorduraTotal: 300 },
+      {
+        gramas: { carboidrato: 245, proteina: 115, gorduraTotal: 62 },
+        macros: { carboidrato: 49, proteina: 23, gorduraTotal: 28 },
+      },
     );
     expect(barras.map((b) => b.chave)).toEqual(['carboidrato', 'proteina', 'gorduraTotal']);
-    expect(barras.map((b) => b.atual)).toEqual([42, 21, 38]);
-    expect(barras.map((b) => b.meta)).toEqual([45, 30, 25]);
-  });
-
-  it('sem nada medido, atual fica zerado e a meta continua', () => {
-    const barras = barrasEnergia(
-      { carboidrato: 0, proteina: 0, gorduraTotal: 0 },
-      { carboidrato: 40, proteina: 30, gorduraTotal: 30 },
-    );
-    expect(barras.every((b) => b.atual === 0)).toBe(true);
-    expect(barras[2].meta).toBe(30);
+    expect(barras.map((b) => b.metaSemanal)).toEqual([1715, 805, 434]);
+    expect(barras.map((b) => b.pct)).toEqual([49, 23, 28]);
+    expect(barras[0].atual).toBe(850);
   });
 });

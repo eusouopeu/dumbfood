@@ -23,6 +23,7 @@ import { scaleIngredients } from '../lib/scale';
 import { mesclarTags } from '../lib/tags';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 import { agendamentosDoItem, mesmoAgendamento } from '../lib/agenda';
+import { distribuirSemana, tipoDaReceita } from '../lib/distribuirSemana';
 
 export function novoId(): string {
   return (
@@ -199,6 +200,34 @@ async function gravarAgendamentos(plano: WeekPlan, idx: number, agendamentos: Ag
   const { dia: _dia, refeicao: _refeicao, ...resto } = itens[idx];
   itens[idx] = { ...resto, agendamentos };
   await db.plans.put({ ...plano, itens });
+}
+
+/**
+ * Põe na agenda as receitas do plano que ainda não têm dia, a partir de `hoje`, sem mexer
+ * no que já foi agendado à mão (ver lib/distribuirSemana.ts). Devolve quantas receitas
+ * ganharam lugar.
+ */
+export async function distribuirPlanoNaSemana(recipes: Recipe[], hoje: number): Promise<number> {
+  const plano = await getOrCreatePlanoAtual();
+  const porId = new Map(recipes.map((r) => [r.id, r]));
+  const ocupados = plano.itens.flatMap(agendamentosDoItem);
+  const pendentes = plano.itens.flatMap((item) => {
+    const r = porId.get(item.recipeId);
+    if (!r || agendamentosDoItem(item).length > 0) return [];
+    const tipo = tipoDaReceita(r);
+    if (!tipo) return [];
+    return [{ recipeId: r.id, porcoes: (r.rendimentoBase.valor || 1) * item.fator, tipo }];
+  });
+  if (pendentes.length === 0) return 0;
+  const distribuicao = distribuirSemana(pendentes, hoje, ocupados);
+  const itens = plano.itens.map((item) => {
+    const agendamentos = distribuicao.get(item.recipeId);
+    if (!agendamentos || agendamentos.length === 0) return item;
+    const { dia: _dia, refeicao: _refeicao, ...resto } = item;
+    return { ...resto, agendamentos };
+  });
+  await db.plans.put({ ...plano, itens });
+  return distribuicao.size;
 }
 
 export async function removerDoPlano(recipeId: string): Promise<void> {

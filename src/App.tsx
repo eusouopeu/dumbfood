@@ -88,6 +88,10 @@ export default function App() {
   const location = useLocation();
   const localizacaoAtual = useRef(location);
   localizacaoAtual.current = location;
+  // Última aba fora de Ajustes/Perfil: tocar de novo no ícone da página aberta volta para ela.
+  const ultimaAba = useRef('/');
+  const telaDeConta = location.pathname === '/config' || location.pathname === '/perfil';
+  if (!telaDeConta) ultimaAba.current = location.pathname + location.search;
   const [tema, alternarTema] = useTema();
   const [listaPendente, setListaPendente] = useState(0);
   const [lembreteValidade] = useLembreteValidade();
@@ -174,7 +178,7 @@ export default function App() {
             {tema === 'dark' ? <SunIcon className="size-5" /> : <MoonIcon className="size-5" />}
           </button>
           <Link
-            to="/config"
+            to={location.pathname === '/config' ? ultimaAba.current : '/config'}
             aria-label="Configurações"
             title="Configurações"
             className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
@@ -182,7 +186,7 @@ export default function App() {
             <Cog6ToothIcon className="size-5" />
           </Link>
           <Link
-            to="/perfil"
+            to={location.pathname === '/perfil' ? ultimaAba.current : '/perfil'}
             aria-label="Perfil e metas"
             title="Perfil e metas"
             className="rounded-full p-2 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-stone-800"
@@ -202,7 +206,8 @@ export default function App() {
           <Route path="/importar" element={<Importar />} />
           <Route path="/receita/:id" element={<Detalhe />} />
           <Route path="/geladeira" element={<Geladeira />} />
-          <Route path="/plano" element={<PlanoSemana />} />
+          <Route path="/plano" element={<PlanoSemana visao="receitas" />} />
+          <Route path="/plano/dias" element={<PlanoSemana visao="dias" />} />
           <Route path="/lista" element={<ListaMercado />} />
           <Route path="/historico" element={<Historico />} />
           <Route path="/config" element={<Configuracoes />} />

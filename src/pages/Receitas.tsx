@@ -1,4 +1,4 @@
-// Biblioteca de receitas: busca, filtros, seleção múltipla e o atalho que a geladeira
+// Biblioteca de receitas: busca, filtros e o atalho que a geladeira
 // habilita — "use antes de vencer" (e o filtro/ordenação pelo que já tem em casa).
 
 import { Link } from 'react-router-dom';
@@ -6,21 +6,18 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import {
   BookOpenIcon,
-  CheckCircleIcon,
   CubeIcon,
   DocumentDuplicateIcon,
   PlusIcon,
   ExclamationTriangleIcon,
   ShareIcon,
-  Squares2X2Icon,
   StarIcon as StarOutlineIcon,
   TrashIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { salvarReceita, alternarFavorito, duplicarReceita, removerReceita, definirNoPlano } from '../db/repo';
+import { salvarReceita, alternarFavorito, duplicarReceita, removerReceita } from '../db/repo';
 import { receitasExemplo } from '../lib/seed';
 import { deburr } from '../lib/ingredientParser';
 import { capitalizar, nomeItem } from '../lib/format';
@@ -33,12 +30,7 @@ import { CardListSkeleton } from '../components/Skeleton';
 import ActionSheet, { type AcaoSheet } from '../components/ActionSheet';
 import PullToRefresh from '../components/PullToRefresh';
 import CardReceita from '../components/receitas/CardReceita';
-import FiltrosReceitas, {
-  FILTROS_TEMPO,
-  type FiltroTempo,
-  type ModoTag,
-  type Ordem,
-} from '../components/receitas/FiltrosReceitas';
+import FiltrosReceitas, { type ModoTag, type Ordem } from '../components/receitas/FiltrosReceitas';
 import type { Recipe } from '../types';
 
 export default function Receitas() {
@@ -52,7 +44,6 @@ export default function Receitas() {
   const [modoTag, setModoTag] = useState<ModoTag>('ou');
   const [ordem, setOrdem] = useState<Ordem>('recentes');
   const [soFavoritas, setSoFavoritas] = useState(false);
-  const [filtroTempo, setFiltroTempo] = useState<FiltroTempo>('qualquer');
   const [soPossoFazer, setSoPossoFazer] = useState(false);
   const [menuAberto, setMenuAberto] = useState<Recipe | null>(null);
 
@@ -84,11 +75,6 @@ export default function Receitas() {
     return m;
   }, [porCobertura]);
 
-  // Modo de seleção múltipla: some com o filtro de tags e busca só por simplicidade
-  // de interação (evita selecionar itens que já saíram de vista).
-  const [selecionando, setSelecionando] = useState(false);
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
-
   const todasTags = useMemo(() => {
     const s = new Set<string>();
     for (const r of recipes ?? []) for (const t of r.tags ?? []) s.add(t);
@@ -100,11 +86,6 @@ export default function Receitas() {
 
     if (soFavoritas) lista = lista.filter((r) => r.favorito);
     if (soPossoFazer) lista = lista.filter((r) => (coberturaPorReceita.get(r.id) ?? 0) >= 1);
-
-    if (filtroTempo !== 'qualquer') {
-      const teste = FILTROS_TEMPO.find((f) => f.valor === filtroTempo)!.testar;
-      lista = lista.filter((r) => teste(r.tempoPreparoMin));
-    }
 
     // Busca textual (título, ingredientes, tags).
     const q = deburr(busca).toLowerCase().trim();
@@ -146,7 +127,7 @@ export default function Receitas() {
       lista.sort((a, b) => (posicao.get(a.id) ?? Infinity) - (posicao.get(b.id) ?? Infinity));
     }
     return lista;
-  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas, filtroTempo, soPossoFazer, coberturaPorReceita, porCobertura]);
+  }, [recipes, busca, tagsSel, modoTag, ordem, soFavoritas, soPossoFazer, coberturaPorReceita, porCobertura]);
 
   function toggleTag(tag: string) {
     setTagsSel((prev) => {
@@ -154,26 +135,6 @@ export default function Receitas() {
       next.has(tag) ? next.delete(tag) : next.add(tag);
       return next;
     });
-  }
-
-  function toggleSelecionada(id: string) {
-    hapticLeve();
-    setSelecionadas((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function sairDaSelecao() {
-    setSelecionando(false);
-    setSelecionadas(new Set());
-  }
-
-  async function adicionarSelecionadasNaSemana() {
-    for (const id of selecionadas) await definirNoPlano(id, 1);
-    toast(`${selecionadas.size} receita(s) adicionada(s) à semana!`);
-    sairDaSelecao();
   }
 
   async function excluirReceita(r: Recipe) {
@@ -185,18 +146,6 @@ export default function Receitas() {
     await removerReceita(r.id);
     hapticForte();
     toast('Receita excluída.');
-  }
-
-  async function excluirSelecionadas() {
-    const ok = await confirmar(`Excluir ${selecionadas.size} receita(s)? Essa ação não pode ser desfeita.`, {
-      textoConfirmar: 'Excluir',
-      perigo: true,
-    });
-    if (!ok) return;
-    for (const id of selecionadas) await removerReceita(id);
-    hapticForte();
-    toast(`${selecionadas.size} receita(s) excluída(s).`);
-    sairDaSelecao();
   }
 
   async function adicionarExemplos() {
@@ -285,21 +234,11 @@ export default function Receitas() {
                   <CubeIcon className="size-4" />
                 </button>
               )}
-              {!selecionando && (
-                <button
-                  onClick={() => setSelecionando(true)}
-                  aria-label="Selecionar receitas"
-                  title="Selecionar"
-                  className="rounded-full p-2 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
-                >
-                  <Squares2X2Icon className="size-4" />
-                </button>
-              )}
             </div>
           )}
         </div>
 
-        {urgentes.length > 0 && !selecionando && (
+        {urgentes.length > 0 && (
           <div className="card space-y-2 border-2 border-amber-400 p-4 dark:border-amber-600">
             <div className="flex items-center gap-2">
               <ExclamationTriangleIcon className="size-4 text-amber-500" />
@@ -340,8 +279,6 @@ export default function Receitas() {
             <FiltrosReceitas
               busca={busca}
               onBusca={setBusca}
-              filtroTempo={filtroTempo}
-              onFiltroTempo={setFiltroTempo}
               todasTags={todasTags}
               tagsSel={tagsSel}
               onToggleTag={toggleTag}
@@ -357,10 +294,6 @@ export default function Receitas() {
             {filtradas.length === 0 ? (
               <p className="card p-6 text-center text-stone-500 dark:text-stone-400">Nenhuma receita corresponde ao filtro.</p>
             ) : (
-              <>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
-                  Arraste uma receita para a esquerda para excluí-la.
-                </p>
                 <ul className="space-y-3">
                   {filtradas.map((r) => (
                     <li key={r.id}>
@@ -369,9 +302,6 @@ export default function Receitas() {
                         naSemana={noPlano.has(r.id)}
                         busca={busca}
                         cobertura={temGeladeira ? (coberturaPorReceita.get(r.id) ?? 0) : undefined}
-                        selecionando={selecionando}
-                        selecionada={selecionadas.has(r.id)}
-                        onToggleSelecionar={() => toggleSelecionada(r.id)}
                         onAbrirMenu={() => setMenuAberto(r)}
                         onToggleFavorito={() => {
                           hapticLeve();
@@ -382,47 +312,18 @@ export default function Receitas() {
                     </li>
                   ))}
                 </ul>
-              </>
             )}
           </>
         )}
 
         {/* FAB: acesso rápido a "Nova receita" mesmo com a lista rolada. */}
-        {!selecionando && (
-          <Link
+        <Link
             to="/importar"
             aria-label="Nova receita"
-            className="fixed bottom-24 right-4 z-20 flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600 active:scale-95"
+            className="fixed bottom-[4.9rem] right-4 z-20 flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600 active:scale-95"
           >
             <PlusIcon className="size-7" />
           </Link>
-        )}
-
-        {/* Barra de ações do modo de seleção múltipla */}
-        {selecionando && (
-          <div className="fixed inset-x-0 bottom-16 z-20 mx-auto flex max-w-2xl items-center gap-2 border-t border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-800">
-            <button onClick={sairDaSelecao} aria-label="Cancelar seleção" className="rounded-full p-2 text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-700">
-              <XMarkIcon className="size-5" />
-            </button>
-            <span className="text-sm font-semibold">{selecionadas.size} selecionada(s)</span>
-            <div className="ml-auto flex gap-2">
-              <button
-                onClick={adicionarSelecionadasNaSemana}
-                disabled={selecionadas.size === 0}
-                className="btn-primary h-9 py-0 text-xs"
-              >
-                <CheckCircleIcon className="size-4" /> Add. à semana
-              </button>
-              <button
-                onClick={excluirSelecionadas}
-                disabled={selecionadas.size === 0}
-                className="btn-outline h-9 py-0 text-xs text-red-600 dark:text-red-400"
-              >
-                <TrashIcon className="size-4" /> Excluir
-              </button>
-            </div>
-          </div>
-        )}
 
         {menuAberto && (
           <ActionSheet

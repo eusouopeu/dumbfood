@@ -1,8 +1,6 @@
-// Aba Semana: escolher as receitas da semana, em que quantidade e em que dias.
-//
-// A ordem da tela segue a ordem da decisão: primeiro as ações da semana inteira (gerar
-// a lista, limpar, montar/repetir), depois o que é resumo (macros), depois a escolha
-// receita a receita — e a agenda no fim, que é o resultado de tudo isso.
+// Aba Semana: montar a semana de duas formas, trocadas por uma pílula flutuante —
+// a partir das receitas (quais e quanto) ou a partir dos dias (o que entra em cada um).
+// As duas visões começam pelo que vale para a semana inteira: montar/repetir e macros.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -10,13 +8,21 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowPathIcon,
   BookOpenIcon,
-  ShoppingCartIcon,
+  CalendarDaysIcon,
+  RectangleStackIcon,
   SparklesIcon,
-  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
 import { usePlano } from '../db/usePlano';
-import { definirNoPlano, removerDoPlano, limparPlano, planoAnteriorDisponivel, repetirPlanoAnterior } from '../db/repo';
+import {
+  adicionarAgendamento,
+  definirNoPlano,
+  distribuirPlanoNaSemana,
+  planoAnteriorDisponivel,
+  removerAgendamento,
+  removerDoPlano,
+  repetirPlanoAnterior,
+} from '../db/repo';
 import { scaleIngredients } from '../lib/scale';
 import { capitalizar } from '../lib/format';
 import { calcularNutricaoTotal, type Nutrientes100g } from '../lib/nutrition';
@@ -31,10 +37,12 @@ import { hapticLeve } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
 import { agruparPorDia } from '../lib/agenda';
 import AgendaSemana from '../components/plano/AgendaSemana';
+import AdicionarNoDia from '../components/plano/AdicionarNoDia';
 import CardReceitaPlano from '../components/plano/CardReceitaPlano';
+import PilulaAbas from '../components/PilulaAbas';
 import type { Ingredient } from '../types';
 
-export default function PlanoSemana() {
+export default function PlanoSemana({ visao }: { visao: 'receitas' | 'dias' }) {
   const recipes = useLiveQuery(() => db.recipes.orderBy('titulo').toArray(), []);
   const geladeira = useLiveQuery(() => db.geladeira.toArray(), []);
   const precos = useLiveQuery(() => db.precos.toArray(), []);
@@ -42,6 +50,7 @@ export default function PlanoSemana() {
   // O controle do lembrete saiu da tela; o que já estava configurado continua agendado.
   const [lembreteCompras] = useLembreteCompras();
   const [alvoAuto, setAlvoAuto] = useState(5);
+  const [diaAdicionando, setDiaAdicionando] = useState<number | null>(null);
 
   useEffect(() => {
     if (notificacoesNativasDisponiveis()) agendarLembreteSemanal(lembreteCompras);
@@ -101,6 +110,17 @@ export default function PlanoSemana() {
     );
   }, [recipes, plano, precos]);
 
+  const pilula = (
+    <div className="fixed bottom-[4.9rem] right-4 z-20">
+      <PilulaAbas
+        abas={[
+          { to: '/plano', label: 'Montar pelas receitas', icon: RectangleStackIcon, end: true },
+          { to: '/plano/dias', label: 'Montar pelos dias', icon: CalendarDaysIcon },
+        ]}
+      />
+    </div>
+  );
+
   if (!recipes)
     return (
       <div className="space-y-4">
@@ -120,22 +140,25 @@ export default function PlanoSemana() {
     }
   }
 
-  /** Completa o plano até `alvoAuto` receitas: prioriza favoritos e o que a geladeira já cobre. */
+  /**
+   * Completa o plano até `alvoAuto` receitas (favoritos e o que a geladeira já cobre
+   * primeiro) e distribui na agenda tudo o que ainda está sem dia.
+   */
   async function montarSemanaAutomaticamente() {
     const jaSelecionadas = new Set(plano.itens.map((i) => i.recipeId));
     const faltam = alvoAuto - jaSelecionadas.size;
-    if (faltam <= 0) {
-      toast('O plano já tem essa quantidade de receitas ou mais.', 'info');
-      return;
-    }
-    const sugeridas = sugerirReceitasParaPlano(recipes ?? [], geladeira ?? [], jaSelecionadas, faltam);
-    if (sugeridas.length === 0) {
-      toast('Nenhuma receita nova para sugerir.', 'erro');
-      return;
-    }
+    const sugeridas = faltam > 0 ? sugerirReceitasParaPlano(recipes ?? [], geladeira ?? [], jaSelecionadas, faltam) : [];
     for (const r of sugeridas) await definirNoPlano(r.id, 1);
+    const agendadas = await distribuirPlanoNaSemana(recipes ?? [], hoje);
+    if (sugeridas.length === 0 && agendadas === 0) {
+      toast('A semana já está montada.', 'info');
+      return;
+    }
     hapticLeve();
-    toast(`${sugeridas.length} receita(s) adicionada(s) à semana.`);
+    const partes = [];
+    if (sugeridas.length > 0) partes.push(`${sugeridas.length} receita(s) adicionada(s)`);
+    if (agendadas > 0) partes.push(`${agendadas} distribuída(s) na agenda`);
+    toast(`${capitalizar(partes.join(' e '))}.`);
   }
 
   /** Repõe no plano as receitas da semana anterior (as que ainda existem). */
@@ -150,29 +173,20 @@ export default function PlanoSemana() {
     toast(`${n} receita(s) da semana anterior de volta ao plano.`);
   }
 
+  async function adicionarNoDia(recipeId: string, dia: number, refeicao: Parameters<typeof adicionarAgendamento>[2]) {
+    if (!plano.itens.some((i) => i.recipeId === recipeId)) await definirNoPlano(recipeId, 1);
+    await adicionarAgendamento(recipeId, dia, refeicao);
+    hapticLeve();
+    setDiaAdicionando(null);
+  }
+
   return (
     <div className="space-y-4">
+      {pilula}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Semana</h2>
         <span className="chip">{plano.itens.length} selecionada(s)</span>
       </div>
-
-      {/* O que fazer com a semana inteira vem antes da escolha receita a receita: é a
-          ação que o usuário procura ao abrir a aba com o plano já montado. */}
-      <div className="flex gap-2">
-        <Link to="/lista" className="btn-primary flex-1">
-          <ShoppingCartIcon className="size-4" /> Gerar lista de mercado
-        </Link>
-        {plano.itens.length > 0 && (
-          <button onClick={() => limparPlano()} aria-label="Limpar a semana" title="Limpar" className="btn-icon">
-            <TrashIcon className="size-4" />
-          </button>
-        )}
-      </div>
-
-      <p className="text-sm text-stone-500 dark:text-stone-400">
-        Marque as receitas da semana e ajuste a quantidade. Depois gere a lista de mercado.
-      </p>
 
       {recipes.length > 0 && (
         <div className="card flex flex-nowrap items-center gap-2 overflow-x-auto p-3">
@@ -233,8 +247,8 @@ export default function PlanoSemana() {
             Importar receita
           </Link>
         </div>
-      ) : (
-        <ul className="space-y-2">
+      ) : visao === 'receitas' ? (
+        <ul className="space-y-2 pb-16">
           {recipes.map((r) => (
             <CardReceitaPlano
               key={r.id}
@@ -244,9 +258,26 @@ export default function PlanoSemana() {
             />
           ))}
         </ul>
+      ) : (
+        <div className="pb-16">
+          <AgendaSemana
+            agenda={agenda}
+            hoje={hoje}
+            nutriPorDia={nutriPorDia}
+            onAdicionar={setDiaAdicionando}
+            onRemover={(recipeId, agendamento) => removerAgendamento(recipeId, agendamento)}
+          />
+        </div>
       )}
 
-      {plano.itens.length > 0 && <AgendaSemana agenda={agenda} hoje={hoje} nutriPorDia={nutriPorDia} />}
+      {diaAdicionando !== null && (
+        <AdicionarNoDia
+          dia={diaAdicionando}
+          recipes={recipes}
+          onAdicionar={(recipeId, refeicao) => adicionarNoDia(recipeId, diaAdicionando, refeicao)}
+          onFechar={() => setDiaAdicionando(null)}
+        />
+      )}
     </div>
   );
 }

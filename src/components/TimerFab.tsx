@@ -33,7 +33,7 @@ export default function TimerFab({ tituloSugerido }: { tituloSugerido: string })
         }}
         aria-label="Novo temporizador"
         title="Novo temporizador"
-        className="fixed bottom-24 right-4 z-20 flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600 active:scale-95"
+        className="fixed bottom-[4.9rem] right-4 z-20 flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600 active:scale-95"
       >
         <ClockIcon className="size-7" />
       </button>

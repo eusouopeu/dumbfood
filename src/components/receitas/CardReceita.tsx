@@ -15,9 +15,6 @@ export default function CardReceita({
   naSemana,
   busca,
   cobertura,
-  selecionando,
-  selecionada,
-  onToggleSelecionar,
   onAbrirMenu,
   onToggleFavorito,
   onExcluir,
@@ -27,9 +24,6 @@ export default function CardReceita({
   busca: string;
   /** Fração dos ingredientes já disponíveis na geladeira (0 a 1), quando há geladeira. */
   cobertura?: number;
-  selecionando: boolean;
-  selecionada: boolean;
-  onToggleSelecionar: () => void;
   onAbrirMenu: () => void;
   onToggleFavorito: () => void;
   onExcluir: () => void;
@@ -39,25 +33,14 @@ export default function CardReceita({
 
   const card = (
     <Link
-      to={selecionando ? '#' : `/receita/${r.id}`}
-      onClick={(e) => {
-        longPress.onClickCapture(e);
-        if (selecionando) {
-          e.preventDefault();
-          onToggleSelecionar();
-        }
-      }}
+      to={`/receita/${r.id}`}
+      onClick={(e) => longPress.onClickCapture(e)}
       onPointerDown={longPress.onPointerDown}
       onPointerMove={longPress.onPointerMove}
       onPointerUp={longPress.onPointerUp}
       onPointerLeave={longPress.onPointerLeave}
-      className={`card relative flex gap-3 bg-white p-3 dark:bg-stone-800 ${selecionada ? 'ring-2 ring-brand-400' : ''}`}
+      className="card relative flex gap-3 bg-white p-3 dark:bg-stone-800"
     >
-      {selecionando && (
-        <div className="flex items-center">
-          <input type="checkbox" readOnly checked={selecionada} className="h-5 w-5 accent-brand-500" />
-        </div>
-      )}
       <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 dark:bg-brand-900/40">
         {r.imagem ? (
           <img src={r.imagem} alt="" className="h-full w-full object-cover" />
@@ -94,25 +77,19 @@ export default function CardReceita({
           ))}
         </div>
       </div>
-      {!selecionando && (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleFavorito();
-          }}
-          aria-label={r.favorito ? `Remover ${capitalizar(r.titulo)} dos favoritos` : `Favoritar ${capitalizar(r.titulo)}`}
-          className="absolute right-2 top-2 rounded-full p-1 text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-700"
-        >
-          {r.favorito ? <StarSolidIcon className="size-5" /> : <StarOutlineIcon className="size-5 text-stone-300 dark:text-stone-600" />}
-        </button>
-      )}
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorito();
+        }}
+        aria-label={r.favorito ? `Remover ${capitalizar(r.titulo)} dos favoritos` : `Favoritar ${capitalizar(r.titulo)}`}
+        className="absolute right-2 top-2 rounded-full p-1 text-amber-400 hover:bg-amber-50 dark:hover:bg-stone-700"
+      >
+        {r.favorito ? <StarSolidIcon className="size-5" /> : <StarOutlineIcon className="size-5 text-stone-300 dark:text-stone-600" />}
+      </button>
     </Link>
   );
-
-  // No modo de seleção múltipla o arraste sai de cena: ali o gesto esperado é tocar
-  // para marcar, e excluir tem o próprio botão na barra de ações.
-  if (selecionando) return card;
 
   return (
     <div className="overflow-hidden rounded-2xl">

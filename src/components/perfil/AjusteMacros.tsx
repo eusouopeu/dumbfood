@@ -81,7 +81,7 @@ export default function AjusteMacros({
                   onClick={() => mexer(campo, macros[campo] - 1)}
                   disabled={estaTravado}
                   aria-label={`Diminuir ${MACRO_LABEL[campo]}`}
-                  className="btn-icon flex-shrink-0 p-1.5"
+                  className="inline-flex flex-shrink-0 items-center justify-center rounded-full p-1.5 text-stone-700 transition hover:bg-stone-100 active:scale-95 disabled:pointer-events-none disabled:opacity-50 dark:text-stone-200 dark:hover:bg-stone-800"
                 >
                   <MinusIcon className="size-4" />
                 </button>
@@ -101,7 +101,7 @@ export default function AjusteMacros({
                   onClick={() => mexer(campo, macros[campo] + 1)}
                   disabled={estaTravado}
                   aria-label={`Aumentar ${MACRO_LABEL[campo]}`}
-                  className="btn-icon flex-shrink-0 p-1.5"
+                  className="inline-flex flex-shrink-0 items-center justify-center rounded-full p-1.5 text-stone-700 transition hover:bg-stone-100 active:scale-95 disabled:pointer-events-none disabled:opacity-50 dark:text-stone-200 dark:hover:bg-stone-800"
                 >
                   <PlusIcon className="size-4" />
                 </button>

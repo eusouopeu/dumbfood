@@ -33,7 +33,7 @@ export default function FabLista({
         <div className="fixed inset-0 z-20 bg-stone-900/30" onClick={() => setAberto(false)} aria-hidden />
       )}
 
-      <div className="fixed bottom-24 right-4 z-30 flex flex-col items-end gap-2">
+      <div className="fixed bottom-[4.9rem] right-4 z-30 flex flex-col items-end gap-2">
         {aberto && (
           <div className="flex flex-col items-end gap-2">
             <button

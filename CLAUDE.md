@@ -51,9 +51,20 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   `src/pages/Inicio.tsx`) é **o dia**: só o painel de calorias/macros/refeições
   (`PainelDia`) e a barra flutuante "inserir refeição…" acima da navegação, que abre a
   busca de registro já filtrada, na refeição da hora (`refeicaoPorHorario`).
-- Abas da barra: Início (`/`), Receitas (`/receitas`), Semana (`/plano`, sem o painel do
-  dia) e Mercado (`/geladeira` e `/lista`, a mesma aba). Histórico (`/historico`) fica
+- Abas da barra: Início (`/`), Receitas (`/receitas`), Semana (`/plano` e `/plano/dias`, a
+  mesma aba) e Mercado (`/geladeira` e `/lista`, a mesma aba). Histórico (`/historico`) fica
   separado, num círculo à direita.
+- Semana e Mercado trocam de visão por uma pílula flutuante de ícones
+  (`src/components/PilulaAbas.tsx`). Semana: montar pelas receitas (lista) ou pelos dias
+  (agenda com "+" por dia); as duas visões têm "montar semana" e "macros do plano".
+- "Montar semana" escolhe as receitas e também as distribui na agenda
+  (`src/lib/distribuirSemana.ts`): uma porção por refeição, a partir de hoje, pratos em
+  almoço/jantar, bolos e doces no lanche, molhos e acompanhamentos fora; não mexe no que já
+  foi agendado à mão.
+- Tocar de novo no ícone de Configurações ou Perfil, estando na própria página, volta para a
+  última aba aberta antes dela.
+- Todo botão flutuante (FABs, pílulas) fica a `bottom-[4.9rem]`, a mesma distância da barra
+  "inserir refeição…" até a barra inferior.
 - A barra inferior é **flutuante e vítrea** (`backdrop-blur`, fundo translúcido), em duas
   peças: pílula com os quatro destinos e círculo do histórico. Só ícones, com pílula de
   fundo no ativo.
@@ -62,10 +73,11 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   é um link de verdade.
 - Ordem dos botões da barra superior: nova receita, tema, configurações, perfil.
 - A barra "inserir refeição…" também é vítrea e fica colada acima da barra inferior.
-- Macros das abas Semana e Mercado usam barras (`MacroBarrasCard`, com `barrasEnergia` em
-  `metas.ts`), sem seletor de dieta: percentual da **energia** de cada macro contra a meta
-  definida em Perfil e metas — a mesma do painel do dia. A tabela por dieta
+- Macros das abas Semana e Mercado usam barras (`MacroBarrasCard`, com `barrasSemana` em
+  `metas.ts`), sem seletor de dieta: gramas do plano/lista contra a meta em gramas de Perfil
+  e metas multiplicada por 7, com o percentual do perfil ao lado do nome. A tabela por dieta
   (`MacroResumoCard`, em massa) ficou só no Histórico.
+- Receitas não têm mais seleção múltipla nem filtro por tempo.
 - Na aba Mercado, importar nota fiscal e adicionar item saem de um FAB (`lista/FabLista.tsx`)
   como cards, ao lado do seletor geladeira/lista. Orçamento da semana e atualizar preços
   ficam em Configurações. As sugestões da geladeira ficam recolhidas atrás de um toggle.

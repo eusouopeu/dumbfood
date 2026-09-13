@@ -188,32 +188,31 @@ export function kcalRecomendadaRefeicao(kcalDia: number, refeicao: Refeicao): nu
   return Math.round(kcalDia * peso);
 }
 
-export interface BarraEnergia {
+export interface BarraSemana {
   chave: ChaveMacro;
   rotulo: string;
-  /** Percentual da energia que o macro representa no que foi medido (0 sem dados). */
+  /** Percentual do macro na meta do perfil. */
+  pct: number;
+  /** Gramas somadas no plano (ou na lista). */
   atual: number;
-  /** Percentual-alvo da meta do perfil. */
-  meta: number;
+  /** Gramas da meta diária do perfil multiplicadas pelos 7 dias. */
+  metaSemanal: number;
 }
 
 /**
- * Barras de composição do plano e da lista, na mesma base da meta do perfil: quanto da
- * energia vem de cada macro (4/4/9 kcal por grama) contra o percentual escolhido em
- * Perfil e metas. Antes essas telas usavam um seletor de dieta próprio, em massa, e os
- * números não batiam com o painel do dia.
+ * Barras de macros do plano e da lista: o que se tem, em gramas, contra a meta do perfil
+ * levada para a semana (plano e lista cobrem sete dias), com o percentual do perfil ao
+ * lado do nome. Assim os três lugares — dia, plano, lista — leem a mesma meta.
  */
-export function barrasEnergia(gramas: MetaMacrosPct, meta: MetaMacrosPct): BarraEnergia[] {
-  const kcal = {
-    carboidrato: gramas.carboidrato * KCAL_POR_GRAMA.carboidrato,
-    proteina: gramas.proteina * KCAL_POR_GRAMA.proteina,
-    gorduraTotal: gramas.gorduraTotal * KCAL_POR_GRAMA.gorduraTotal,
-  };
-  const total = kcal.carboidrato + kcal.proteina + kcal.gorduraTotal;
+export function barrasSemana(
+  gramas: MetaMacrosPct,
+  meta: Pick<MetaDiaria, 'gramas' | 'macros'>,
+): BarraSemana[] {
   return MACROS_ORDEM.map((chave) => ({
     chave,
     rotulo: MACRO_LABEL[chave],
-    atual: total > 0 ? Math.round((kcal[chave] / total) * 100) : 0,
-    meta: meta[chave],
+    pct: meta.macros[chave],
+    atual: Math.round(gramas[chave]),
+    metaSemanal: meta.gramas[chave] * 7,
   }));
 }

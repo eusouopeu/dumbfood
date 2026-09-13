@@ -263,7 +263,7 @@ export default function Geladeira() {
 
       {/* Canto de baixo: o seletor geladeira/mercado ao lado do botão de adicionar, que é
           o que a tela pede o tempo todo. O leitor de código de barras fica dentro da folha. */}
-      <div className="fixed bottom-24 right-4 z-20 flex items-center gap-2">
+      <div className="fixed bottom-[4.9rem] right-4 z-20 flex items-center gap-2">
         <AbasMercado />
         <button
           onClick={() => setAdicionando(true)}
