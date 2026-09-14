@@ -1,8 +1,7 @@
-// Seletor de dieta + card de composição de macros, reutilizado nas abas Semana,
-// Mercado e Histórico.
+// Card de composição de macros, reutilizado nas abas Semana, Mercado e Histórico.
 
-import { DIETA_ORDEM, DIETAS, composicaoRelativa, type Dieta, type GramasMacro } from '../lib/diet';
-import { barrasSemana, useMetaDiaria } from '../lib/metas';
+import { composicaoRelativa, type GramasMacro } from '../lib/diet';
+import { barrasSemana, useMetaDiaria, type MetaMacrosPct } from '../lib/metas';
 import BarraMacro from './BarraMacro';
 
 // Cores vivas, usadas onde precisa de contraste forte (ex.: preenchimento do gráfico de barras).
@@ -19,45 +18,7 @@ const MACRO_ESTILO = {
   gordura: { ponto: 'bg-yellow-500', texto: 'text-yellow-700 dark:text-yellow-300' },
 };
 
-export function SeletorDieta({ dieta, onChange }: { dieta: Dieta; onChange: (d: Dieta) => void }) {
-  return (
-    <div className="flex gap-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 p-0.5 text-xs">
-      {DIETA_ORDEM.map((d) => (
-        <button
-          key={d}
-          onClick={() => onChange(d)}
-          className={`rounded-md px-2 py-1 font-semibold ${dieta === d ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
-        >
-          {DIETAS[d].label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export type ValoresMacro = GramasMacro;
-
-/**
- * Cabeçalho de uma seção de macros: título numa linha, seletor de dieta na linha de
- * baixo. Empilhado porque o seletor tem três botões e, na mesma linha do título, ele
- * espremia os dois numa tela de celular.
- */
-export function CabecalhoMacros({
-  titulo,
-  dieta,
-  onChange,
-}: {
-  titulo: string;
-  dieta: Dieta;
-  onChange: (d: Dieta) => void;
-}) {
-  return (
-    <div className="mb-2 space-y-2">
-      <h3 className="section-heading text-sm">{titulo}</h3>
-      <SeletorDieta dieta={dieta} onChange={onChange} />
-    </div>
-  );
-}
 
 function LinhaMacro({
   rotulo,
@@ -84,15 +45,14 @@ function LinhaMacro({
 
 /**
  * Composição de macros em percentual do total de gramas (proteína + carboidrato +
- * gordura), com a meta da dieta escolhida ao lado para comparação. Sempre relativo:
- * os percentuais somam 100 e não dependem de quantas porções ou pessoas a lista cobre.
+ * gordura), com a meta do perfil ao lado para comparação. Sempre relativo: os
+ * percentuais somam 100 e não dependem de quantas porções ou pessoas a lista cobre.
  *
  * Em tabela, e não em tags soltas: são três pares de números comparáveis entre si, e a
  * coluna alinhada mostra de relance qual macro está longe da meta.
  */
-export function MacroResumoCard({ titulo, real, dieta }: { titulo: string; real: ValoresMacro; dieta: Dieta }) {
+export function MacroResumoCard({ titulo, real, meta }: { titulo: string; real: ValoresMacro; meta: MetaMacrosPct }) {
   const pct = composicaoRelativa(real);
-  const meta = DIETAS[dieta];
   const semDados = pct.proteina + pct.carboidrato + pct.gorduraTotal === 0;
 
   if (semDados) {

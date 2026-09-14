@@ -116,145 +116,145 @@ export default function EscanearNota({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-white dark:bg-stone-900">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-stone-100 px-4 py-3 dark:border-stone-700">
-        <h3 className="text-lg font-bold">Importar nota fiscal</h3>
-        <button onClick={onClose} aria-label="Fechar" className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700">
-          <XMarkIcon className="size-5" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4">
-        {etapa === 'inicial' && (
-          <div className="space-y-3">
-            {erro && <p className="card p-3 text-sm text-red-600 dark:text-red-400">{erro}</p>}
-
-            <div className="card space-y-3 p-5 text-center">
-              <QrCodeIcon className="mx-auto size-10 text-brand-400 dark:text-brand-300" />
-              <p className="font-semibold">Ler o QR Code da nota</p>
-              <p className="text-sm text-stone-500 dark:text-stone-400">
-                Traz item, quantidade e valor direto da Fazenda, sem erro de leitura. Precisa de internet.
-              </p>
-              {leitorQrDisponivel() ? (
-                <button onClick={() => setEtapa('qr')} className="btn-primary w-full">
-                  <QrCodeIcon className="size-4" /> Abrir a câmera
-                </button>
-              ) : (
-                <p className="text-xs text-stone-400 dark:text-stone-500">
-                  Este aparelho não lê QR pela câmera — cole o endereço abaixo.
-                </p>
-              )}
-              <form
-                className="flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (linkQr.trim()) lerNotaPelaUrl(linkQr);
-                }}
-              >
-                <input
-                  className="input"
-                  placeholder="ou cole aqui o link do QR Code"
-                  value={linkQr}
-                  onChange={(e) => setLinkQr(e.target.value)}
-                />
-                <button type="submit" className="btn-outline flex-shrink-0">
-                  Ler
-                </button>
-              </form>
-            </div>
-
-            <div className="card space-y-3 p-5 text-center">
-              <CameraIcon className="mx-auto size-8 text-stone-400 dark:text-stone-500" />
-              <p className="font-semibold">Foto da nota (sem internet)</p>
-              <p className="text-sm text-stone-500 dark:text-stone-400">
-                O texto é lido no próprio aparelho. Funciona melhor com boa luz e a nota esticada, sem dobras.
-              </p>
-              <button onClick={() => fileRef.current?.click()} className="btn-outline w-full">
-                <CameraIcon className="size-4" /> Tirar foto ou escolher da galeria
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && processarImagem(e.target.files[0])}
-              />
-            </div>
-          </div>
-        )}
-
-        {etapa === 'qr' && <LeitorQr onLer={lerNotaPelaUrl} onCancelar={() => setEtapa('inicial')} />}
-
-        {etapa === 'buscando' && (
-          <div className="card space-y-3 p-6 text-center">
-            <div className="mx-auto size-8 animate-spin rounded-full border-4 border-stone-200 border-t-brand-500 dark:border-stone-700 dark:border-t-brand-400" />
-            <p className="text-sm text-stone-500 dark:text-stone-400">Consultando a nota no site da Fazenda…</p>
-          </div>
-        )}
-
-        {etapa === 'lendo' && (
-          <div className="card space-y-3 p-6 text-center">
-            <div className="mx-auto h-2 w-full max-w-xs overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
-              <div className="h-full bg-brand-500 transition-all" style={{ width: `${progresso}%` }} />
-            </div>
-            <p className="text-sm text-stone-500 dark:text-stone-400">Lendo o texto da nota… {progresso}%</p>
-          </div>
-        )}
-
-        {etapa === 'revisao' && (
-          <div className="space-y-3">
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              Confira os itens antes de importar. Ajuste nome/preço ou remova o que não for ingrediente.
-            </p>
-            <ul className="space-y-2">
-              {precos.map((p, idx) => (
-                <li key={idx} className="flex items-center gap-2 rounded-xl bg-stone-50 dark:bg-stone-800 p-2.5">
-                  <input
-                    className="input min-w-0 flex-1 py-1.5 text-sm"
-                    value={p.item}
-                    onChange={(e) => atualizarPreco(idx, 'item', e.target.value)}
-                  />
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    <span className="text-xs text-stone-400">R$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="input w-20 py-1.5 text-right text-sm"
-                      value={String(p.precoUnitario).replace('.', ',')}
-                      onChange={(e) => atualizarPreco(idx, 'precoUnitario', e.target.value)}
-                    />
-                    <span className="w-12 text-xs text-stone-400 dark:text-stone-500">{ROTULO_UNIDADE[p.unidade]}</span>
-                  </div>
-                  <button
-                    onClick={() => setPrecos((prev) => prev.filter((_, i) => i !== idx))}
-                    aria-label={`remover ${p.item}`}
-                    className="flex-shrink-0 text-stone-400 hover:text-red-600 dark:text-stone-500"
-                  >
-                    <TrashIcon className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {precos.length === 0 && (
-              <p className="card p-4 text-center text-sm text-stone-500 dark:text-stone-400">Todos os itens foram removidos.</p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {etapa === 'revisao' && (
-        <div className="flex-shrink-0 border-t border-stone-100 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] dark:border-stone-700">
-          {totalNota !== null && (
-            <p className="mb-2 text-center text-xs text-stone-400 dark:text-stone-500">
-              Total da nota: {formatBRL(totalNota)}
-            </p>
-          )}
-          <button onClick={confirmarImportacao} className="btn-primary w-full">
-            <CheckIcon className="size-4" /> Importar {precos.length} preço(s)
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-stone-900/50 sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        className="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl dark:bg-stone-900 sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-stone-100 px-4 py-3 dark:border-stone-700">
+          <h3 className="text-base font-bold">Importar nota fiscal</h3>
+          <button onClick={onClose} aria-label="Fechar" className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700">
+            <XMarkIcon className="size-5" />
           </button>
         </div>
-      )}
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {etapa === 'inicial' && (
+            <div className="space-y-2.5">
+              {erro && <p className="rounded-xl bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-900/30 dark:text-red-400">{erro}</p>}
+
+              <div className="space-y-2 rounded-xl bg-stone-50 p-3 dark:bg-stone-800">
+                <p className="text-sm font-semibold">
+                  <QrCodeIcon className="mr-1 inline size-4 text-brand-500" /> QR Code da nota
+                </p>
+                {leitorQrDisponivel() ? (
+                  <button onClick={() => setEtapa('qr')} className="btn-primary w-full py-1.5 text-sm">
+                    <QrCodeIcon className="size-4" /> Abrir a câmera
+                  </button>
+                ) : (
+                  <p className="text-xs text-stone-400 dark:text-stone-500">Sem leitor de QR neste aparelho — cole o link abaixo.</p>
+                )}
+                <form
+                  className="flex gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (linkQr.trim()) lerNotaPelaUrl(linkQr);
+                  }}
+                >
+                  <input
+                    className="input py-1.5 text-sm"
+                    placeholder="ou cole o link do QR"
+                    value={linkQr}
+                    onChange={(e) => setLinkQr(e.target.value)}
+                  />
+                  <button type="submit" className="btn-outline flex-shrink-0 py-1.5 text-sm">
+                    Ler
+                  </button>
+                </form>
+              </div>
+
+              <div className="space-y-2 rounded-xl bg-stone-50 p-3 dark:bg-stone-800">
+                <p className="text-sm font-semibold">
+                  <CameraIcon className="mr-1 inline size-4 text-stone-400" /> Foto da nota
+                </p>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Sem internet; funciona melhor com boa luz.</p>
+                <button onClick={() => fileRef.current?.click()} className="btn-outline w-full py-1.5 text-sm">
+                  <CameraIcon className="size-4" /> Tirar foto ou escolher da galeria
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && processarImagem(e.target.files[0])}
+                />
+              </div>
+            </div>
+          )}
+
+          {etapa === 'qr' && <LeitorQr onLer={lerNotaPelaUrl} onCancelar={() => setEtapa('inicial')} />}
+
+          {etapa === 'buscando' && (
+            <div className="space-y-2 py-4 text-center">
+              <div className="mx-auto size-6 animate-spin rounded-full border-4 border-stone-200 border-t-brand-500 dark:border-stone-700 dark:border-t-brand-400" />
+              <p className="text-xs text-stone-500 dark:text-stone-400">Consultando a nota na Fazenda…</p>
+            </div>
+          )}
+
+          {etapa === 'lendo' && (
+            <div className="space-y-2 py-4 text-center">
+              <div className="mx-auto h-2 w-full overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
+                <div className="h-full bg-brand-500 transition-all" style={{ width: `${progresso}%` }} />
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400">Lendo a nota… {progresso}%</p>
+            </div>
+          )}
+
+          {etapa === 'revisao' && (
+            <div className="space-y-2">
+              <p className="text-xs text-stone-500 dark:text-stone-400">Confira os itens antes de importar.</p>
+              <ul className="space-y-1.5">
+                {precos.map((p, idx) => (
+                  <li key={idx} className="flex items-center gap-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 p-2">
+                    <input
+                      className="input min-w-0 flex-1 py-1 text-sm"
+                      value={p.item}
+                      onChange={(e) => atualizarPreco(idx, 'item', e.target.value)}
+                    />
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      <span className="text-xs text-stone-400">R$</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="input w-16 py-1 text-right text-sm"
+                        value={String(p.precoUnitario).replace('.', ',')}
+                        onChange={(e) => atualizarPreco(idx, 'precoUnitario', e.target.value)}
+                      />
+                      <span className="w-10 text-xs text-stone-400 dark:text-stone-500">{ROTULO_UNIDADE[p.unidade]}</span>
+                    </div>
+                    <button
+                      onClick={() => setPrecos((prev) => prev.filter((_, i) => i !== idx))}
+                      aria-label={`remover ${p.item}`}
+                      className="flex-shrink-0 text-stone-400 hover:text-red-600 dark:text-stone-500"
+                    >
+                      <TrashIcon className="size-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {precos.length === 0 && (
+                <p className="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+                  Todos os itens foram removidos.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {etapa === 'revisao' && (
+          <div className="flex-shrink-0 border-t border-stone-100 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] dark:border-stone-700">
+            {totalNota !== null && (
+              <p className="mb-1.5 text-center text-xs text-stone-400 dark:text-stone-500">
+                Total da nota: {formatBRL(totalNota)}
+              </p>
+            )}
+            <button onClick={confirmarImportacao} className="btn-primary w-full">
+              <CheckIcon className="size-4" /> Importar {precos.length} preço(s)
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

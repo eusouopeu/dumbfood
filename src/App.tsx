@@ -53,7 +53,7 @@ const navItens = [
   { to: '/receitas', label: 'Receitas', icon: BookOpenIcon, ativoEm: ['/receitas'] },
   { to: '/plano', label: 'Semana', icon: CalendarDaysIcon, ativoEm: ['/plano'] },
   // Mercado e geladeira dividem a mesma aba (o seletor flutuante troca entre os dois).
-  { to: '/geladeira', label: 'Mercado e geladeira', icon: ShoppingCartIcon, ativoEm: ['/geladeira', '/lista'] },
+  { to: '/geladeira', label: 'Mercado e despensa', icon: ShoppingCartIcon, ativoEm: ['/geladeira', '/lista'] },
 ];
 
 function useTema(): [Tema, () => void] {
@@ -111,7 +111,7 @@ export default function App() {
     if (criticos.length === 0) return;
     marcarAvisadoHoje();
     toast(
-      `${criticos.length} ${criticos.length === 1 ? 'item vencendo' : 'itens vencendo'} na geladeira.`,
+      `${criticos.length} ${criticos.length === 1 ? 'item vencendo' : 'itens vencendo'} na despensa.`,
       'info',
       { rotulo: 'Ver', onClick: () => navigate('/geladeira') },
     );

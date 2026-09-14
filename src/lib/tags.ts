@@ -45,6 +45,12 @@ export function gerarTags(titulo: string, ingredientes: Ingredient[]): string[] 
   return Array.from(found);
 }
 
+/** Remove uma tag (case-insensitive), preservando a ordem das demais. */
+export function removerTag(atuais: string[], tag: string): string[] {
+  const alvo = tag.trim().toLowerCase();
+  return atuais.filter((t) => t.toLowerCase() !== alvo);
+}
+
 /** Une tags existentes com novas, sem duplicar (case-insensitive), preservando ordem. */
 export function mesclarTags(atuais: string[], novas: string[]): string[] {
   const vistas = new Set(atuais.map((t) => t.toLowerCase()));

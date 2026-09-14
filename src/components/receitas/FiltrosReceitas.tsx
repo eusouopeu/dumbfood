@@ -1,10 +1,20 @@
 // Busca, filtros e ordenação da biblioteca de receitas, num componente só —
 // a tela em si fica com o que é decisão (o que fazer com a receita), não com controles.
 
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { ArrowsUpDownIcon, CheckIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import ActionSheet, { type AcaoSheet } from '../ActionSheet';
 
 export type Ordem = 'recentes' | 'ingredientes' | 'tempo' | 'geladeira';
 export type ModoTag = 'ou' | 'e';
+
+const ROTULO_ORDEM: Record<Ordem, string> = {
+  recentes: 'Mais recentes',
+  ingredientes: 'Nº de ingredientes',
+  tempo: 'Tempo de preparo',
+  // Só faz sentido com a geladeira preenchida: sem ela, toda receita fica em 0%.
+  geladeira: 'O que dá pra fazer com o que tenho',
+};
 export default function FiltrosReceitas({
   busca,
   onBusca,
@@ -32,6 +42,11 @@ export default function FiltrosReceitas({
   temGeladeira: boolean;
   quantidade: number;
 }) {
+  const [ordemAberta, setOrdemAberta] = useState(false);
+  const opcoesOrdem: Ordem[] = temGeladeira
+    ? ['recentes', 'ingredientes', 'tempo', 'geladeira']
+    : ['recentes', 'ingredientes', 'tempo'];
+
   return (
     <>
       <div className="relative">
@@ -89,20 +104,30 @@ export default function FiltrosReceitas({
       )}
 
       <div className="flex items-center gap-2 text-sm">
-        <span className="flex-shrink-0 text-stone-500 dark:text-stone-400">Ordenar:</span>
-        <select
-          className="input w-auto flex-shrink-0 py-1"
-          value={ordem}
-          onChange={(e) => onOrdem(e.target.value as Ordem)}
+        <button
+          onClick={() => setOrdemAberta(true)}
+          aria-label={`Ordenar: ${ROTULO_ORDEM[ordem]}`}
+          title="Ordenar"
+          className="btn-icon flex-shrink-0"
         >
-          <option value="recentes">Mais recentes</option>
-          <option value="ingredientes">Nº de ingredientes</option>
-          <option value="tempo">Tempo de preparo</option>
-          {/* Só faz sentido com a geladeira preenchida: sem ela, toda receita fica em 0%. */}
-          {temGeladeira && <option value="geladeira">O que dá pra fazer com o que tenho</option>}
-        </select>
+          <ArrowsUpDownIcon className="size-4" />
+        </button>
         <span className="ml-auto flex-shrink-0 text-xs text-stone-400 dark:text-stone-500">{quantidade} receita(s)</span>
       </div>
+
+      {ordemAberta && (
+        <ActionSheet
+          titulo="Ordenar por"
+          onFechar={() => setOrdemAberta(false)}
+          acoes={opcoesOrdem.map(
+            (o): AcaoSheet => ({
+              rotulo: ROTULO_ORDEM[o],
+              icone: o === ordem ? CheckIcon : () => <span className="inline-block size-5" />,
+              onClick: () => onOrdem(o),
+            }),
+          )}
+        />
+      )}
     </>
   );
 }

@@ -158,9 +158,14 @@ export default function ListaMercado() {
         const custo = custoPorLinha.get(l.id)?.valor ?? null;
         if (custo !== null) valorTotalEstimado += custo;
         itens.push({ item: l.item, gondola: s.gondola, quantidadeG, quantidadeUnidades: unidades, precoEstimado: custo });
+        // A sobra da embalagem (quando arredondada) é o que fica na despensa; sem sobra
+        // definida (item pesado à mão, ou sem embalagem mapeada), o que foi comprado é
+        // exatamente o que a lista pedia — e é isso que entra como quantidade.
         const sobra = l.sobras[0];
+        const quantidade = sobra?.quantidade ?? quantidadeG ?? unidades ?? undefined;
+        const unidade = sobra?.unidade ?? (quantidadeG != null ? 'g' : null);
         paraGeladeira.push(
-          sobra ? { nome: l.item, quantidade: sobra.quantidade, unidade: sobra.unidade } : { nome: l.item },
+          quantidade != null ? { nome: l.item, quantidade, unidade } : { nome: l.item },
         );
       }
     }
@@ -182,11 +187,11 @@ export default function ListaMercado() {
 
     // O que acabou de ser comprado está, por definição, na despensa: fecha o ciclo
     // mercado -> geladeira sem obrigar o usuário a redigitar item por item.
-    const comSobra = paraGeladeira.filter((i) => i.quantidade != null).length;
+    const comQuantidade = paraGeladeira.filter((i) => i.quantidade != null).length;
     const ok = await confirmar(
-      comSobra > 0
-        ? `Adicionar os ${itens.length} itens comprados à geladeira? (${comSobra} com a sobra da embalagem)`
-        : `Adicionar os ${itens.length} itens comprados à geladeira?`,
+      comQuantidade > 0
+        ? `Adicionar os ${itens.length} itens comprados à despensa? (${comQuantidade} com a quantidade registrada)`
+        : `Adicionar os ${itens.length} itens comprados à despensa?`,
       { textoConfirmar: 'Adicionar' },
     );
     if (!ok) return;
@@ -194,14 +199,14 @@ export default function ListaMercado() {
     hapticLeve();
     toast(
       novos === 0
-        ? 'Todos os itens já estavam na geladeira.'
-        : `${novos} ${novos === 1 ? 'item adicionado' : 'itens adicionados'} à geladeira.`,
+        ? 'Todos os itens já estavam na despensa.'
+        : `${novos} ${novos === 1 ? 'item adicionado' : 'itens adicionados'} à despensa.`,
     );
   }
 
   return (
     <div className="space-y-4">
-      <FabLista onImportarNota={() => setEscaneando(true)} onAdicionarItem={adicionarExtra} />
+      <FabLista onAdicionarItem={adicionarExtra} />
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-bold">Lista de mercado</h2>
         <div className="flex items-center gap-2">
@@ -279,7 +284,7 @@ export default function ListaMercado() {
                 ))}
               </ul>
               <p className="text-xs text-stone-400 dark:text-stone-500">
-                Fora da lista e das somas porque está na geladeira.
+                Fora da lista e das somas porque está na despensa.
               </p>
             </div>
           )}
@@ -291,6 +296,7 @@ export default function ListaMercado() {
             valorEstimado={valorEstimadoTotal}
             mercadosConhecidos={lista.mercadosConhecidos}
             onSalvar={salvarNoHistorico}
+            onImportarNota={() => setEscaneando(true)}
           />
         </>
       )}

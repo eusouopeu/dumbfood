@@ -189,18 +189,18 @@ export default function Detalhe() {
     const geladeira = await db.geladeira.toArray();
     const { usados } = combinarReceita(recipe, geladeira);
     if (usados.length === 0) {
-      toast('Nenhum ingrediente desta receita está na geladeira.', 'info');
+      toast('Nenhum ingrediente desta receita está na despensa.', 'info');
       return;
     }
     const nomes = geladeira.filter((g) => usados.includes(g.itemKey)).map((g) => nomeItem(g.nome));
     const ok = await confirmar(
-      `Dar baixa na geladeira dos ingredientes usados? (${nomes.join(', ')})`,
+      `Dar baixa na despensa dos ingredientes usados? (${nomes.join(', ')})`,
       { textoConfirmar: 'Dar baixa' },
     );
     if (!ok) return;
     const n = await baixarDaGeladeira(usados);
     hapticLeve();
-    toast(`${n} ${n === 1 ? 'item removido' : 'itens removidos'} da geladeira.`);
+    toast(`${n} ${n === 1 ? 'item removido' : 'itens removidos'} da despensa.`);
   }
 
   async function addTag() {
@@ -238,9 +238,9 @@ export default function Detalhe() {
           </button>
           <button
             onClick={() => setRestricaoAberta(true)}
-            aria-label="Ajustar para restrição alimentar"
-            title="Ajustar para restrição alimentar"
-            className={ICONE_BARRA}
+            aria-label={recipe.restricaoAplicada ? `Ajustada para ${recipe.restricaoAplicada.label}` : 'Ajustar para restrição alimentar'}
+            title={recipe.restricaoAplicada ? `Ajustada para ${recipe.restricaoAplicada.label}` : 'Ajustar para restrição alimentar'}
+            className={recipe.restricaoAplicada ? 'rounded-full bg-brand-500 p-1.5 text-white' : ICONE_BARRA}
           >
             <ArrowsRightLeftIcon className="size-6" />
           </button>
@@ -254,8 +254,8 @@ export default function Detalhe() {
           </button>
           <button
             onClick={darBaixaNaGeladeira}
-            aria-label="Dar baixa na geladeira dos ingredientes usados"
-            title="Dar baixa na geladeira"
+            aria-label="Dar baixa na despensa dos ingredientes usados"
+            title="Dar baixa na despensa"
             className={ICONE_BARRA}
           >
             <HomeIcon className="size-6" />
@@ -530,10 +530,9 @@ export default function Detalhe() {
         <RestricaoModal
           recipe={recipe}
           onClose={() => setRestricaoAberta(false)}
-          onAplicar={async (novaReceita) => {
+          onAplicar={(atualizada) => {
             setRestricaoAberta(false);
-            toast('Nova versão da receita criada!');
-            navigate(`/receita/${novaReceita.id}`);
+            toast(atualizada.restricaoAplicada ? 'Receita ajustada!' : 'Ajuste revertido.');
           }}
         />
       )}

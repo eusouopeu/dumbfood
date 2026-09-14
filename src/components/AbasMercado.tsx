@@ -8,7 +8,7 @@ export default function AbasMercado() {
   return (
     <PilulaAbas
       abas={[
-        { to: '/geladeira', label: 'Geladeira', icon: CubeIcon },
+        { to: '/geladeira', label: 'Despensa', icon: CubeIcon },
         { to: '/lista', label: 'Lista de mercado', icon: ShoppingCartIcon },
       ]}
     />

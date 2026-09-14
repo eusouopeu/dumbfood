@@ -20,10 +20,11 @@ import type {
 } from '../types';
 import { db, LISTA_ATUAL_ID, PLANO_ATUAL_ID, getOrCreatePlanoAtual, listaEstadoVazio } from './db';
 import { scaleIngredients } from '../lib/scale';
-import { mesclarTags } from '../lib/tags';
+import { mesclarTags, removerTag } from '../lib/tags';
 import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 import { agendamentosDoItem, mesmoAgendamento } from '../lib/agenda';
 import { distribuirSemana, tipoDaReceita } from '../lib/distribuirSemana';
+import { sugerirReceitasParaPlano } from '../lib/autoPlano';
 
 export function novoId(): string {
   return (
@@ -91,26 +92,38 @@ export async function adicionarTags(recipe: Recipe, novas: string[]): Promise<vo
 }
 
 /**
- * Salva a receita com ingredientes ajustados para uma restrição alimentar como uma
- * nova receita (não sobrescreve o original — a versão "com lactose" continua
- * disponível), marcada com a tag da restrição.
+ * Ajusta os ingredientes da própria receita para uma restrição alimentar — sem criar
+ * cópia. Guarda os ingredientes de antes (só na primeira vez; um segundo ajuste sem
+ * reverter o primeiro não deve perder o original de verdade) para permitir reverter
+ * depois, e marca a receita com a tag da restrição.
  */
-export async function salvarVersaoComRestricao(
+export async function aplicarRestricao(
   recipe: Recipe,
   ingredientesAjustados: Ingredient[],
-  tagRestricao: string,
+  restricao: { tag: string; label: string },
 ): Promise<Recipe> {
-  const copia: Recipe = {
+  const atualizada: Recipe = {
     ...recipe,
-    id: novoId(),
-    titulo: `${recipe.titulo} (${tagRestricao})`,
     ingredientes: ingredientesAjustados,
-    tags: mesclarTags(recipe.tags ?? [], [tagRestricao]),
-    favorito: false,
-    criadoEm: Date.now(),
+    ingredientesOriginais: recipe.ingredientesOriginais ?? recipe.ingredientes,
+    restricaoAplicada: restricao,
+    tags: mesclarTags(recipe.tags ?? [], [restricao.tag]),
   };
-  await db.recipes.put(copia);
-  return copia;
+  await db.recipes.put(atualizada);
+  return atualizada;
+}
+
+/** Desfaz o último ajuste por restrição: volta aos ingredientes originais e tira a tag. */
+export async function reverterRestricao(recipe: Recipe): Promise<Recipe> {
+  if (!recipe.ingredientesOriginais || !recipe.restricaoAplicada) return recipe;
+  const { ingredientesOriginais, restricaoAplicada, ...resto } = recipe;
+  const revertida: Recipe = {
+    ...resto,
+    ingredientes: ingredientesOriginais,
+    tags: removerTag(recipe.tags ?? [], restricaoAplicada.tag),
+  };
+  await db.recipes.put(revertida);
+  return revertida;
 }
 
 export async function removerReceita(id: string): Promise<void> {
@@ -228,6 +241,26 @@ export async function distribuirPlanoNaSemana(recipes: Recipe[], hoje: number): 
   });
   await db.plans.put({ ...plano, itens });
   return distribuicao.size;
+}
+
+/**
+ * "Montar semana": as duas metades de escolher + agendar (autoPlano.ts +
+ * distribuirSemana.ts) por trás de uma chamada só, pra elas nunca rodarem separadas e
+ * ficarem fora de sincronia entre si.
+ */
+export async function montarSemana(
+  recipes: Recipe[],
+  geladeira: GeladeiraItem[],
+  alvo: number,
+  hoje: number,
+): Promise<{ adicionadas: number; distribuidas: number }> {
+  const plano = await getOrCreatePlanoAtual();
+  const jaSelecionadas = new Set(plano.itens.map((i) => i.recipeId));
+  const faltam = alvo - jaSelecionadas.size;
+  const sugeridas = faltam > 0 ? sugerirReceitasParaPlano(recipes, geladeira, jaSelecionadas, faltam) : [];
+  for (const r of sugeridas) await definirNoPlano(r.id, 1);
+  const distribuidas = await distribuirPlanoNaSemana(recipes, hoje);
+  return { adicionadas: sugeridas.length, distribuidas };
 }
 
 export async function removerDoPlano(recipeId: string): Promise<void> {

@@ -1,12 +1,11 @@
-// Metas de composição de macronutrientes por tipo de dieta, e persistência da escolha.
+// Presets de composição de macronutrientes por tipo de dieta (usados pela tela de Perfil
+// como ponto de partida para a meta de macros) e o cálculo de composição relativa do que
+// foi de fato comprado.
 //
-// As metas são *relativas*: o percentual que cada macro representa da soma em gramas de
-// proteína + carboidrato + gordura. Metas absolutas (g/dia, kcal/dia) valiam para uma
-// pessoa por dia, mas a lista de mercado e o plano da semana cobrem várias refeições e
-// mais de uma pessoa — daí saírem percentuais sem sentido, como "228% de gordura".
-// Em proporção, o número se mantém legível independentemente do tamanho da compra.
-
-import { useEffect, useState } from 'react';
+// A meta de verdade do dia — a que o app compara contra o que foi comido/comprado — é
+// sempre a de metas.ts, em percentual de energia (kcal), calculada a partir do Perfil.
+// Aqui os percentuais são só da massa (proteína + carboidrato + gordura), que é a base
+// que faz sentido para "quanto, em gramas, eu de fato comprei" — sem ligação com um "dia".
 
 export type Dieta = 'normal' | 'bulking' | 'cutting';
 
@@ -44,20 +43,4 @@ export function composicaoRelativa(g: GramasMacro): GramasMacro {
     carboidrato: Math.round((g.carboidrato / total) * 100),
     gorduraTotal: Math.round((g.gorduraTotal / total) * 100),
   };
-}
-
-const DIETA_KEY = 'dumbfood:dieta';
-
-function loadDieta(): Dieta {
-  const v = localStorage.getItem(DIETA_KEY);
-  return v === 'bulking' || v === 'cutting' || v === 'normal' ? v : 'normal';
-}
-
-/** Preferência de dieta persistida localmente e compartilhada entre as abas Semana, Mercado e Histórico. */
-export function useDieta(): [Dieta, (d: Dieta) => void] {
-  const [dieta, setDieta] = useState<Dieta>(() => loadDieta());
-  useEffect(() => {
-    localStorage.setItem(DIETA_KEY, dieta);
-  }, [dieta]);
-  return [dieta, setDieta];
 }

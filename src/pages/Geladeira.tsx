@@ -23,7 +23,7 @@ import { statusValidade, rotuloValidade } from '../lib/validade';
 import { prazoPadraoDias, validadeSugerida } from '../lib/prazos';
 import { useLembreteValidade } from '../lib/lembretes';
 import { agendarLembretesValidade } from '../lib/notifications';
-import { capitalizar, nomeItem, formatTempo } from '../lib/format';
+import { capitalizar, nomeItem } from '../lib/format';
 import { formatQtdUnidadeAbrev } from '../lib/displayQty';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
@@ -128,26 +128,26 @@ export default function Geladeira() {
   }
 
   async function esvaziar() {
-    const ok = await confirmar('Esvaziar a geladeira? Todos os itens serão removidos.', {
+    const ok = await confirmar('Esvaziar a despensa? Todos os itens serão removidos.', {
       textoConfirmar: 'Esvaziar',
       perigo: true,
     });
     if (ok) {
       await limparGeladeira();
       hapticForte();
-      toast('Geladeira esvaziada.');
+      toast('Despensa esvaziada.');
     }
   }
 
   async function atualizar() {
     await new Promise((r) => setTimeout(r, 400));
-    toast('Geladeira atualizada.', 'info');
+    toast('Despensa atualizada.', 'info');
   }
 
   if (recipes === undefined || geladeira === undefined)
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Geladeira</h2>
+        <h2 className="text-xl font-bold">Despensa</h2>
         <CardListSkeleton linhas={3} />
       </div>
     );
@@ -155,14 +155,14 @@ export default function Geladeira() {
   return (
     <PullToRefresh onRefresh={atualizar}>
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">Geladeira</h2>
+      <h2 className="text-xl font-bold">Despensa</h2>
 
-      {/* Geladeira atual */}
+      {/* Despensa atual */}
       {itens.length > 0 && (
         <div className="card space-y-2 p-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold">
-              Na geladeira · {itens.length} {itens.length === 1 ? 'item' : 'itens'}
+              Na despensa · {itens.length} {itens.length === 1 ? 'item' : 'itens'}
             </span>
             <button onClick={esvaziar} className="text-xs text-brand-600 dark:text-brand-400 underline">
               esvaziar
@@ -218,7 +218,7 @@ export default function Geladeira() {
         <div className="card p-6 text-center">
           <BookOpenIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
           <p className="font-semibold">Sua biblioteca está vazia</p>
-          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Importe receitas para poder cruzá-las com a geladeira.</p>
+          <p className="mb-4 text-sm text-stone-500 dark:text-stone-400">Importe receitas para poder cruzá-las com a despensa.</p>
           <Link to="/importar" className="btn-primary">
             Importar receita
           </Link>
@@ -267,8 +267,8 @@ export default function Geladeira() {
         <AbasMercado />
         <button
           onClick={() => setAdicionando(true)}
-          aria-label="Adicionar à geladeira"
-          title="Adicionar à geladeira"
+          aria-label="Adicionar à despensa"
+          title="Adicionar à despensa"
           className="flex size-14 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg"
         >
           <PlusIcon className="size-7" />
@@ -397,7 +397,6 @@ function EditorValidade({
 
 function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCombinada; totalGeladeira: number }) {
   const [aberto, setAberto] = useState(false);
-  const tempo = formatTempo(c.recipe.tempoPreparoMin);
   const completa = c.falta.length === 0;
 
   return (
@@ -412,9 +411,6 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{capitalizar(c.recipe.titulo)}</p>
-          <p className="text-sm text-stone-500 dark:text-stone-400">
-            {c.total} ingredientes{tempo ? ` · ${tempo}` : ''}
-          </p>
           <div className="mt-1.5 flex flex-wrap gap-1">
             <span className="chip bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
               usa {c.usados.length} de {totalGeladeira} que você tem
@@ -429,14 +425,6 @@ function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCom
           </div>
         </div>
       </Link>
-
-      {/* Barra de cobertura: quanto da receita a geladeira já cobre. */}
-      <div className="mx-3 mb-3 h-1.5 overflow-hidden rounded-full bg-stone-100 dark:bg-stone-800">
-        <div
-          className={completa ? 'h-full bg-green-500' : 'h-full bg-brand-400'}
-          style={{ width: `${Math.round(c.cobertura * 100)}%` }}
-        />
-      </div>
 
       {!completa && (
         <>
@@ -526,7 +514,7 @@ function FolhaAdicionar({
           if (texto.trim()) onAdicionar();
         }}
       >
-        <p className="text-base font-bold">Adicionar à geladeira</p>
+        <p className="text-base font-bold">Adicionar à despensa</p>
 
         <div className="flex gap-2">
           <input

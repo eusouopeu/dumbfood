@@ -17,7 +17,7 @@ import { usePlano } from '../db/usePlano';
 import {
   adicionarAgendamento,
   definirNoPlano,
-  distribuirPlanoNaSemana,
+  montarSemana,
   planoAnteriorDisponivel,
   removerAgendamento,
   removerDoPlano,
@@ -30,7 +30,6 @@ import { custoReceita, formatBRL } from '../lib/prices';
 import { PRECOS_BASE } from '../lib/precosBase';
 import { useLembreteCompras } from '../lib/lembretes';
 import { agendarLembreteSemanal, notificacoesNativasDisponiveis } from '../lib/notifications';
-import { sugerirReceitasParaPlano } from '../lib/autoPlano';
 import { MacroBarrasCard } from '../components/MacroResumo';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
@@ -142,22 +141,19 @@ export default function PlanoSemana({ visao }: { visao: 'receitas' | 'dias' }) {
 
   /**
    * Completa o plano até `alvoAuto` receitas (favoritos e o que a geladeira já cobre
-   * primeiro) e distribui na agenda tudo o que ainda está sem dia.
+   * primeiro) e distribui na agenda tudo o que ainda está sem dia — as duas metades de
+   * "montar semana" por trás de uma chamada só (ver db/repo.ts).
    */
   async function montarSemanaAutomaticamente() {
-    const jaSelecionadas = new Set(plano.itens.map((i) => i.recipeId));
-    const faltam = alvoAuto - jaSelecionadas.size;
-    const sugeridas = faltam > 0 ? sugerirReceitasParaPlano(recipes ?? [], geladeira ?? [], jaSelecionadas, faltam) : [];
-    for (const r of sugeridas) await definirNoPlano(r.id, 1);
-    const agendadas = await distribuirPlanoNaSemana(recipes ?? [], hoje);
-    if (sugeridas.length === 0 && agendadas === 0) {
+    const { adicionadas, distribuidas } = await montarSemana(recipes ?? [], geladeira ?? [], alvoAuto, hoje);
+    if (adicionadas === 0 && distribuidas === 0) {
       toast('A semana já está montada.', 'info');
       return;
     }
     hapticLeve();
     const partes = [];
-    if (sugeridas.length > 0) partes.push(`${sugeridas.length} receita(s) adicionada(s)`);
-    if (agendadas > 0) partes.push(`${agendadas} distribuída(s) na agenda`);
+    if (adicionadas > 0) partes.push(`${adicionadas} receita(s) adicionada(s)`);
+    if (distribuidas > 0) partes.push(`${distribuidas} distribuída(s) na agenda`);
     toast(`${capitalizar(partes.join(' e '))}.`);
   }
 

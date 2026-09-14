@@ -1,6 +1,7 @@
 // Fechamento da compra: resumo do que foi marcado, valor real pago e em qual mercado.
 
 import { useState } from 'react';
+import { CameraIcon } from '@heroicons/react/24/outline';
 import { formatBRL } from '../../lib/prices';
 
 export default function FinalizarCompra({
@@ -10,6 +11,7 @@ export default function FinalizarCompra({
   valorEstimado,
   mercadosConhecidos,
   onSalvar,
+  onImportarNota,
 }: {
   total: number;
   marcados: number;
@@ -17,6 +19,7 @@ export default function FinalizarCompra({
   valorEstimado: number;
   mercadosConhecidos: string[];
   onSalvar: (valorReal: number | null, mercado: string) => void;
+  onImportarNota: () => void;
 }) {
   const [valorReal, setValorReal] = useState('');
   const [mercado, setMercado] = useState('');
@@ -78,9 +81,19 @@ export default function FinalizarCompra({
           </datalist>
         </div>
       </div>
-      <button onClick={salvar} className="btn-primary w-full">
-        Salvar no histórico
-      </button>
+      <div className="flex gap-2">
+        <button onClick={salvar} className="btn-primary flex-1">
+          Salvar no histórico
+        </button>
+        <button
+          onClick={onImportarNota}
+          aria-label="Importar nota fiscal"
+          title="Importar nota fiscal"
+          className="btn-icon flex-shrink-0"
+        >
+          <CameraIcon className="size-5" />
+        </button>
+      </div>
       <p className="text-xs text-stone-400 dark:text-stone-500">
         Considera apenas os itens marcados na checklist ({marcados} de {total}). Valores em
         itálico são estimativas do app; use “Atualizar preços” para valer os da sua nota fiscal.

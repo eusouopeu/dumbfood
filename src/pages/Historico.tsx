@@ -30,9 +30,10 @@ import { mercadosDoHistorico } from '../lib/mercados';
 import BarChart from '../components/BarChart';
 import StackedBarChart from '../components/StackedBarChart';
 import RoscaMacro from '../components/RoscaMacro';
-import { DIETAS, composicaoRelativa, useDieta } from '../lib/diet';
+import { composicaoRelativa } from '../lib/diet';
+import { useMetaDiaria } from '../lib/metas';
 import { useOrcamento, statusOrcamento } from '../lib/orcamento';
-import { SeletorDieta, MacroResumoCard } from '../components/MacroResumo';
+import { MacroResumoCard } from '../components/MacroResumo';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
 import { hapticForte } from '../lib/haptics';
@@ -338,7 +339,7 @@ function AbaGastos({ compras }: { compras: Compra[] }) {
 function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioStr: string; fimStr: string }) {
   const [inicio, fim] = useIntervalo(compras, inicioStr, fimStr);
   const [granularidade, setGranularidade] = useGranularidade();
-  const [dieta, setDieta] = useDieta();
+  const meta = useMetaDiaria();
   const label = GRANULARIDADES.find((g) => g.chave === granularidade)!.label.toLowerCase();
 
   const real = {
@@ -354,8 +355,7 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SeletorDieta dieta={dieta} onChange={setDieta} />
+      <div className="flex justify-end">
         <SeletorGranularidade granularidade={granularidade} onChange={setGranularidade} />
       </div>
 
@@ -363,21 +363,14 @@ function AbaMacros({ compras, inicioStr, fimStr }: { compras: Compra[]; inicioSt
         <MacroResumoCard
           titulo={`Composição média por ${label} · % das gramas de macros`}
           real={real}
-          dieta={dieta}
+          meta={meta.macros}
         />
       </div>
 
       {/* Meta e realizado no mesmo tamanho e no mesmo formato: a diferença vira um
           pedaço de cor maior ou menor, sem precisar subtrair dois números de cabeça. */}
       <div className="card grid grid-cols-2 gap-3 p-4">
-        <RoscaMacro
-          titulo="Meta da dieta"
-          fatias={{
-            carboidrato: DIETAS[dieta].carboidrato,
-            proteina: DIETAS[dieta].proteina,
-            gorduraTotal: DIETAS[dieta].gorduraTotal,
-          }}
-        />
+        <RoscaMacro titulo="Meta do perfil" fatias={meta.macros} />
         <RoscaMacro titulo="Sua composição" fatias={composicaoRelativa(real)} />
       </div>
 

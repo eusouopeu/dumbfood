@@ -52,6 +52,14 @@ export interface Recipe {
   secoesPreparo?: SecaoPreparo[];
   /** Anotação livre do usuário sobre o próprio uso da receita (ajustes, observações). */
   notas?: string;
+  /**
+   * Ingredientes de antes do último ajuste por restrição alimentar, guardados só
+   * enquanto o ajuste está em vigor — é o que permite reverter na mesma receita em vez
+   * de criar uma cópia. Ausente = a receita nunca foi ajustada (ou o ajuste já foi revertido).
+   */
+  ingredientesOriginais?: Ingredient[];
+  /** Restrição hoje aplicada aos ingredientes desta receita, se houver. */
+  restricaoAplicada?: { tag: string; label: string };
   criadoEm: number;
 }
 
