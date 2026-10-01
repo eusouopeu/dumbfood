@@ -27,6 +27,10 @@ import {
 } from '../lib/metas';
 import { DIETA_ORDEM, DIETAS } from '../lib/diet';
 import AjusteMacros from '../components/perfil/AjusteMacros';
+import EvolucaoPeso from '../components/perfil/EvolucaoPeso';
+import { registrarPeso } from '../db/repo';
+import { chaveDia } from '../lib/consumo';
+import { pesoValido } from '../lib/pesoCorporal';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
 
@@ -135,7 +139,11 @@ export default function Perfil() {
 
         <div className="grid grid-cols-3 gap-2">
           <CampoNumero rotulo="Idade" valor={perfil.idade} sufixo="anos" min={5} max={120} onChange={(v) => mudar({ idade: v })} />
-          <CampoNumero rotulo="Peso" valor={perfil.pesoKg} sufixo="kg" min={20} max={400} step={0.1} onChange={(v) => mudar({ pesoKg: v })} />
+          <CampoNumero rotulo="Peso" valor={perfil.pesoKg} sufixo="kg" min={20} max={400} step={0.1} onChange={(v) => {
+              mudar({ pesoKg: v });
+              // O peso do perfil é o atual; a série por dia guarda a tendência.
+              if (pesoValido(v)) void registrarPeso(chaveDia(), v);
+            }} />
           <CampoNumero rotulo="Altura" valor={perfil.alturaCm} sufixo="cm" min={80} max={250} onChange={(v) => mudar({ alturaCm: v })} />
         </div>
 
@@ -161,6 +169,8 @@ export default function Perfil() {
           </p>
         )}
       </div>
+
+      <EvolucaoPeso />
 
       <div className="card space-y-3 p-4">
         <div className="flex items-center gap-2">

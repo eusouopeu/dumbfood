@@ -1,47 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import {
-  BookOpenIcon,
-  CakeIcon,
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  CubeIcon,
-  HashtagIcon,
-  PlusIcon,
-  QrCodeIcon,
-  TrashIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
+import { BookOpenIcon, CheckCircleIcon, ChevronDownIcon, ChevronRightIcon, CubeIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { db } from '../db/db';
-import { adicionarNaGeladeira, definirValidadeGeladeira, limparGeladeira, removerDaGeladeira } from '../db/repo';
-import { combinarReceitas, sugestoesDeIngredientes, type ReceitaCombinada } from '../lib/geladeira';
-import { sugerirSubstitutosParaItem } from '../lib/substitutions';
-import { statusValidade, rotuloValidade } from '../lib/validade';
-import { prazoPadraoDias, validadeSugerida } from '../lib/prazos';
+import { adicionarNaGeladeira, definirValidadeGeladeira, limparGeladeira } from '../db/repo';
+import { combinarReceitas, ordenarPorValidade, sugestoesDeIngredientes } from '../lib/geladeira';
+import { validadeSugerida } from '../lib/prazos';
 import { useLembreteValidade } from '../lib/lembretes';
 import { agendarLembretesValidade } from '../lib/notifications';
-import { capitalizar, nomeItem } from '../lib/format';
-import { formatQtdUnidadeAbrev } from '../lib/displayQty';
+import { nomeItem } from '../lib/format';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
-import { hapticForte, hapticLeve } from '../lib/haptics';
-import { useLongPress } from '../lib/useLongPress';
+import { hapticForte } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
 import PullToRefresh from '../components/PullToRefresh';
 import AbasMercado from '../components/AbasMercado';
 import EscanearProduto from '../components/EscanearProduto';
-import type { GeladeiraItem } from '../types';
-
-/** Classes de cor do chip conforme a proximidade da validade. */
-const ESTILO_VALIDADE: Record<string, string> = {
-  vencido: 'bg-red-600 dark:bg-red-700',
-  vence_hoje: 'bg-amber-500 dark:bg-amber-600',
-  proximo: 'bg-amber-500 dark:bg-amber-600',
-  ok: 'bg-brand-500',
-};
+import ChipDespensa from '../components/geladeira/ChipDespensa';
+import EditorValidade from '../components/geladeira/EditorValidade';
+import CardCombinada from '../components/geladeira/CardCombinada';
+import FolhaAdicionar from '../components/geladeira/FolhaAdicionar';
 
 export default function Geladeira() {
   const recipes = useLiveQuery(() => db.recipes.orderBy('criadoEm').reverse().toArray(), []);
@@ -65,16 +43,7 @@ export default function Geladeira() {
   const lista = recipes ?? [];
 
   // Itens com validade mais próxima aparecem primeiro — é o que precisa de atenção agora.
-  const itens = useMemo(
-    () =>
-      [...itensBrutos].sort((a, b) => {
-        if (a.validade && b.validade) return a.validade - b.validade;
-        if (a.validade) return -1;
-        if (b.validade) return 1;
-        return a.adicionadoEm - b.adicionadoEm;
-      }),
-    [itensBrutos],
-  );
+  const itens = useMemo(() => ordenarPorValidade(itensBrutos), [itensBrutos]);
 
   const sugestoes = useMemo(() => sugestoesDeIngredientes(lista, itens), [lista, itens]);
 
@@ -170,7 +139,7 @@ export default function Geladeira() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {itens.map((g) => (
-              <ChipGeladeira key={g.itemKey} item={g} onEditarValidade={() => setEditandoValidade(g.itemKey)} />
+              <ChipDespensa key={g.itemKey} item={g} onEditarValidade={() => setEditandoValidade(g.itemKey)} />
             ))}
           </div>
           <p className="text-xs text-stone-400 dark:text-stone-500">Toque para remover · segure para mudar a validade.</p>
@@ -306,283 +275,5 @@ export default function Geladeira() {
       )}
     </div>
     </PullToRefresh>
-  );
-}
-
-/** Chip de um item da geladeira: toque remove, toque longo abre o editor de validade. */
-function ChipGeladeira({ item: g, onEditarValidade }: { item: GeladeiraItem; onEditarValidade: () => void }) {
-  const longPress = useLongPress(onEditarValidade);
-  const status = g.validade ? statusValidade(g.validade) : null;
-  const cor = status ? ESTILO_VALIDADE[status] : 'bg-brand-500';
-
-  return (
-    <button
-      onPointerDown={longPress.onPointerDown}
-      onPointerMove={longPress.onPointerMove}
-      onPointerUp={longPress.onPointerUp}
-      onPointerLeave={longPress.onPointerLeave}
-      onClick={async (e) => {
-        longPress.onClickCapture(e);
-        if (e.defaultPrevented) return;
-        await removerDaGeladeira(g.itemKey);
-        hapticLeve();
-        toast(`${nomeItem(g.nome)} removido.`, 'sucesso', {
-          rotulo: 'Desfazer',
-          onClick: () => adicionarNaGeladeira(g.nome, g.validade),
-        });
-      }}
-      className={`inline-flex items-center gap-1 rounded-full ${cor} px-2.5 py-1 text-xs font-medium text-white`}
-      aria-label={`${nomeItem(g.nome)}${g.validade ? `, ${rotuloValidade(g.validade)}` : ''}. Toque para remover, toque e segure para definir validade.`}
-      title={g.validade ? rotuloValidade(g.validade) : 'Remover · toque e segure para definir validade'}
-    >
-      {g.validade && (
-        <>
-          <CalendarDaysIcon className="size-3.5 text-white/80" />
-          <span className="text-white/90">{new Date(g.validade).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
-          <span className="text-white/50">·</span>
-        </>
-      )}
-      <span>{nomeItem(g.nome)}</span>
-      {/* Quantidade aparece quando se sabe (sobra da embalagem comprada, ou "2 kg" digitado). */}
-      {g.quantidade != null && (
-        <span className="text-white/80">{formatQtdUnidadeAbrev(g.quantidade, g.unidade ?? null)}</span>
-      )}
-      <XMarkIcon className="size-3.5 text-white/70" />
-    </button>
-  );
-}
-
-function EditorValidade({
-  item,
-  onSalvar,
-  onFechar,
-}: {
-  item: GeladeiraItem;
-  onSalvar: (valor: string) => void;
-  onFechar: () => void;
-}) {
-  const [valor, setValor] = useState(() => (item.validade ? new Date(item.validade).toISOString().slice(0, 10) : ''));
-
-  return (
-    <div className="fixed inset-0 z-[55] flex items-end justify-center bg-stone-900/50" onClick={onFechar}>
-      <div
-        className="w-full max-w-2xl space-y-3 rounded-t-2xl bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl dark:bg-stone-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="text-sm font-semibold">Validade de {nomeItem(item.nome)}</p>
-        <input
-          type="date"
-          className="input w-full"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          autoFocus
-        />
-        <div className="flex gap-2">
-          <button onClick={() => onSalvar(valor)} className="btn-primary flex-1">
-            Salvar
-          </button>
-          {item.validade && (
-            <button onClick={() => onSalvar('')} className="btn-outline">
-              Remover validade
-            </button>
-          )}
-          <button onClick={onFechar} className="btn-outline">
-            Cancelar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CardCombinada({ combinada: c, totalGeladeira }: { combinada: ReceitaCombinada; totalGeladeira: number }) {
-  const [aberto, setAberto] = useState(false);
-  const completa = c.falta.length === 0;
-
-  return (
-    <div className="card overflow-hidden">
-      <Link to={`/receita/${c.recipe.id}`} className="flex gap-3 p-3">
-        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-brand-100 dark:bg-brand-900/40">
-          {c.recipe.imagem ? (
-            <img src={c.recipe.imagem} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <CakeIcon className="size-8 text-brand-500 dark:text-brand-400" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{capitalizar(c.recipe.titulo)}</p>
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            <span className="chip bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-              usa {c.usados.length} de {totalGeladeira} que você tem
-            </span>
-            {completa ? (
-              <span className="chip bg-green-600 dark:bg-green-700 text-white">dá pra fazer agora</span>
-            ) : (
-              <span className="chip bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
-                faltam {c.falta.length} {c.falta.length === 1 ? 'ingrediente' : 'ingredientes'}
-              </span>
-            )}
-          </div>
-        </div>
-      </Link>
-
-      {!completa && (
-        <>
-          <button
-            onClick={() => setAberto((v) => !v)}
-            className="inline-flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium text-brand-600 dark:text-brand-400"
-          >
-            {aberto ? (
-              <>
-                <ChevronDownIcon className="size-3.5" /> ocultar o que falta
-              </>
-            ) : (
-              <>
-                <ChevronRightIcon className="size-3.5" /> ver o que falta comprar
-              </>
-            )}
-          </button>
-          {aberto && (
-            <div className="space-y-2 px-3 pb-3 text-sm">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Falta comprar</p>
-                <ul className="space-y-0.5 text-stone-600 dark:text-stone-300">
-                  {c.falta.map((i) => {
-                    const substitutos = sugerirSubstitutosParaItem(i.item);
-                    return (
-                      <li key={i.item}>
-                        {nomeItem(i.item)}
-                        {substitutos.length > 0 && (
-                          <span className="text-stone-400 dark:text-stone-500"> — ou use {substitutos.join(', ')}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">Você já tem</p>
-                <p className="text-stone-600 dark:text-stone-300">{c.tem.map((i) => nomeItem(i.item)).join(', ')}</p>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/**
- * Folha de adicionar item. Saiu do topo da tela (onde ocupava espaço mesmo quando não
- * estava em uso) para o botão flutuante: guardar compra é uma rajada de vários itens,
- * e a folha mantém o foco no campo entre um e outro.
- */
-function FolhaAdicionar({
-  texto,
-  onTexto,
-  quantidade,
-  onQuantidade,
-  validade,
-  validadeAutomatica,
-  onValidade,
-  sugestoes,
-  onEscanear,
-  onLimpar,
-  onFechar,
-  onAdicionar,
-}: {
-  texto: string;
-  onTexto: (v: string) => void;
-  quantidade: string;
-  onQuantidade: (v: string) => void;
-  validade: string;
-  validadeAutomatica: boolean;
-  onValidade: (v: string) => void;
-  sugestoes: { itemKey: string; nome: string }[];
-  onEscanear: () => void;
-  onLimpar: () => void;
-  onFechar: () => void;
-  onAdicionar: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-stone-900/50 p-4" onClick={onFechar}>
-      <form
-        className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-4 shadow-xl dark:bg-stone-800"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (texto.trim()) onAdicionar();
-        }}
-      >
-        <p className="text-base font-bold">Adicionar à despensa</p>
-
-        <div className="flex gap-2">
-          <input
-            className="input min-w-0 flex-1"
-            placeholder="ex.: cebola, ovo…"
-            list="ingredientes-biblioteca"
-            value={texto}
-            onChange={(e) => onTexto(e.target.value)}
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={onEscanear}
-            aria-label="Ler código de barras do produto"
-            title="Código de barras"
-            className="btn-icon shrink-0"
-          >
-            <QrCodeIcon className="size-5" />
-          </button>
-        </div>
-        <datalist id="ingredientes-biblioteca">
-          {sugestoes.map((s) => (
-            <option key={s.itemKey} value={s.nome} />
-          ))}
-        </datalist>
-
-        <div className="flex items-center gap-2">
-          <HashtagIcon className="size-5 shrink-0 text-stone-400 dark:text-stone-500" />
-          <input
-            className="input w-20 shrink-0"
-            inputMode="decimal"
-            placeholder="ex.: 4"
-            aria-label="Quantidade (opcional)"
-            value={quantidade}
-            onChange={(e) => onQuantidade(e.target.value)}
-          />
-          <CalendarDaysIcon className="size-5 shrink-0 text-stone-400 dark:text-stone-500" />
-          <input
-            type="date"
-            className={`input min-w-0 flex-1 text-sm ${
-              validadeAutomatica && validade ? 'text-stone-500 dark:text-stone-400' : ''
-            }`}
-            value={validade}
-            onChange={(e) => onValidade(e.target.value)}
-            aria-label="Validade (opcional, sugerida pelo tipo do item)"
-            title={
-              validadeAutomatica && texto.trim() && prazoPadraoDias(texto) !== undefined
-                ? `Sugestão: ${prazoPadraoDias(texto)} dias para ${nomeItem(texto)}`
-                : 'Validade (opcional)'
-            }
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onLimpar}
-            aria-label="Limpar campos"
-            title="Limpar campos"
-            className="btn-icon shrink-0 text-red-500 dark:text-red-400"
-          >
-            <TrashIcon className="size-5" />
-          </button>
-          <button type="submit" disabled={!texto.trim()} className="btn-primary flex-1">
-            Adicionar
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }

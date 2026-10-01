@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atalhos do ícone (toque longo no launcher). Cada um abre a MainActivity com uma URI
+     dumbfood://<destino>, que o AtalhosPlugin repassa ao JS. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="registrar"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/atalho_registrar">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="dumbfood://registrar"
+            android:targetPackage="br.com.dumbfood.app"
+            android:targetClass="br.com.dumbfood.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="lista"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/atalho_lista">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="dumbfood://lista"
+            android:targetPackage="br.com.dumbfood.app"
+            android:targetClass="br.com.dumbfood.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="importar"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/atalho_importar">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="dumbfood://importar"
+            android:targetPackage="br.com.dumbfood.app"
+            android:targetClass="br.com.dumbfood.app.MainActivity" />
+    </shortcut>
+</shortcuts>

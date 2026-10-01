@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         // Precisa ser registrado antes do super.onCreate(): é ele quem monta o Bridge e
         // dispara a intent inicial (compartilhamento a frio) para os plugins já carregados.
         registerPlugin(ShareReceiverPlugin.class);
+        registerPlugin(AtalhosPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

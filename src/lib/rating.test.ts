@@ -40,3 +40,15 @@ describe('avaliarAlimento', () => {
     expect(r.nota).toBe('moderado');
   });
 });
+
+describe('motivo dos selos', () => {
+  it('explica cada selo com o valor por 100 g e o limite usado', () => {
+    const r = avaliarAlimento(n({ kcal: 120, acucares: 18, proteina: 12 }), { sodio: 900 });
+    const acucar = r.negativos.find((s) => s.chave === 'acucar');
+    const sodio = r.negativos.find((s) => s.chave === 'sodio');
+    const proteina = r.positivos.find((s) => s.chave === 'proteina');
+    expect(acucar?.motivo).toBe('Açúcares: 18 g por 100 g (limite 15 g)');
+    expect(sodio?.motivo).toBe('Sódio: 900 mg por 100 g (limite 600 mg)');
+    expect(proteina?.motivo).toBe('Proteína: 12 g por 100 g (a partir de 10 g)');
+  });
+});

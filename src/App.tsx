@@ -36,6 +36,7 @@ const Geladeira = lazy(() => import('./pages/Geladeira'));
 const Configuracoes = lazy(() => import('./pages/Configuracoes'));
 const Perfil = lazy(() => import('./pages/Perfil'));
 import { ShareReceiver } from './lib/shareReceiver';
+import { Atalhos, rotaDoAtalho } from './lib/atalhos';
 import { db } from './db/db';
 import { aplicarTema, salvarTema, temaInicial, type Tema } from './lib/theme';
 import { onPendentesLista } from './lib/listaStatus';
@@ -141,6 +142,15 @@ export default function App() {
     const listener = ShareReceiver.addListener('shareReceived', ({ text }) => {
       navigate('/importar', { state: { sharedText: text } });
     });
+    return () => {
+      listener.then((h) => h.remove());
+    };
+  }, [navigate]);
+
+  // Atalhos do ícone (toque longo) e toque no widget do dia: o nativo manda o destino.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = Atalhos.addListener('abrir', ({ destino }) => navigate(rotaDoAtalho(destino)));
     return () => {
       listener.then((h) => h.remove());
     };

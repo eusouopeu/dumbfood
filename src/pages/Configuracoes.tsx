@@ -5,6 +5,7 @@ import {
   ArrowUpTrayIcon,
   BanknotesIcon,
   BellAlertIcon,
+  ArchiveBoxArrowDownIcon,
   CubeIcon,
   ShoppingCartIcon,
   Squares2X2Icon,
@@ -16,7 +17,7 @@ import OrcamentoCard from '../components/lista/OrcamentoCard';
 import Secao from '../components/Secao';
 import { useListaCompras } from '../lib/useListaCompras';
 import { useLembreteValidade } from '../lib/lembretes';
-import { useArredondarEmbalagem, useDescontarGeladeira } from '../lib/preferencias';
+import { useArredondarEmbalagem, useBaixaPorConsumo, useDescontarGeladeira } from '../lib/preferencias';
 import {
   cancelarLembretesValidade,
   notificacoesNativasDisponiveis,
@@ -31,6 +32,7 @@ export default function Configuracoes() {
   const [lembreteValidade, setLembreteValidade] = useLembreteValidade();
   const [descontarGeladeira, setDescontarGeladeira] = useDescontarGeladeira();
   const [arredondarEmbalagem, setArredondarEmbalagem] = useArredondarEmbalagem();
+  const [baixaConsumo, setBaixaConsumo] = useBaixaPorConsumo();
   // Orçamento e preços saíram da lista de mercado, mas são calculados sobre ela.
   const lista = useListaCompras(descontarGeladeira, arredondarEmbalagem);
   const [editandoPrecos, setEditandoPrecos] = useState(false);
@@ -94,6 +96,24 @@ export default function Configuracoes() {
               checked={descontarGeladeira}
               onChange={(e) => {
                 setDescontarGeladeira(e.target.checked);
+                hapticLeve();
+              }}
+            />
+          </label>
+          <label className="flex items-center gap-3">
+            <ArchiveBoxArrowDownIcon className="size-5 flex-shrink-0 text-brand-500" />
+            <span className="flex-1">
+              <span className="block font-medium">Baixar da despensa ao registrar refeição</span>
+              <span className="block text-xs text-stone-500 dark:text-stone-400">
+                Receita comida desconta os ingredientes com quantidade conhecida.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="h-5 w-5 flex-shrink-0 accent-brand-500"
+              checked={baixaConsumo}
+              onChange={(e) => {
+                setBaixaConsumo(e.target.checked);
                 hapticLeve();
               }}
             />

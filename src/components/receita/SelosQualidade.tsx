@@ -3,8 +3,9 @@
 // A tabela completa responde "quanto tem de cada coisa"; o selo responde "isso é pesado?".
 // São perguntas diferentes, e a segunda é a que decide se a receita entra na semana.
 
-import { CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { ESTILO_NOTA, avaliarAlimento } from '../../lib/rating';
+import { useState } from 'react';
+import { CheckIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ESTILO_NOTA, REGRA_NOTA, avaliarAlimento } from '../../lib/rating';
 import type { Nutrientes100g } from '../../lib/nutrition';
 import type { Micronutrientes100g } from '../../lib/micronutrientes';
 
@@ -22,6 +23,8 @@ export default function SelosQualidade({
   /** Observação de rodapé; muda quando os valores vêm do rótulo, e não de estimativa. */
   rodape?: string;
 }) {
+  // Ajuda recolhida: o porquê de cada selo fica atrás do ícone, não ocupa a tela sempre.
+  const [explicando, setExplicando] = useState(false);
   if (nutri.kcal <= 0) return null;
   const { nota, positivos, negativos } = avaliarAlimento(nutri, micro);
   const estilo = ESTILO_NOTA[nota];
@@ -39,7 +42,25 @@ export default function SelosQualidade({
         <span className="text-xs text-stone-400 dark:text-stone-500">
           {Math.round(nutri.kcal)} kcal por 100 g
         </span>
+        <button
+          onClick={() => setExplicando((v) => !v)}
+          aria-expanded={explicando}
+          aria-label={explicando ? 'Esconder por que esta nota' : 'Por que esta nota?'}
+          title="Por que esta nota?"
+          className={`ml-auto rounded-full p-0.5 ${explicando ? 'text-brand-600 dark:text-brand-400' : 'text-stone-400 dark:text-stone-500'}`}
+        >
+          <InformationCircleIcon className="size-5" />
+        </button>
       </div>
+      {explicando && (
+        <div className="space-y-1 rounded-xl bg-stone-50 p-2.5 text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-300">
+          {[...negativos, ...positivos].map((s) => (
+            <p key={s.chave}>{s.motivo}</p>
+          ))}
+          {positivos.length === 0 && negativos.length === 0 && <p>Nenhum valor passou dos limites por 100 g.</p>}
+          <p className="text-stone-400 dark:text-stone-500">{REGRA_NOTA} Limites na lógica das alegações da ANVISA.</p>
+        </div>
+      )}
       {(positivos.length > 0 || negativos.length > 0) && (
         <ul className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
           {positivos.map((s) => (

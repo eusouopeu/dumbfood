@@ -217,3 +217,13 @@ export function receitasParaAproveitar(
     )
     .slice(0, limite);
 }
+
+/** Validade mais próxima primeiro; sem validade vão para o fim, na ordem em que entraram. */
+export function ordenarPorValidade(itens: GeladeiraItem[]): GeladeiraItem[] {
+  return [...itens].sort((a, b) => {
+    if (a.validade && b.validade) return a.validade - b.validade;
+    if (a.validade) return -1;
+    if (b.validade) return 1;
+    return a.adicionadoEm - b.adicionadoEm;
+  });
+}

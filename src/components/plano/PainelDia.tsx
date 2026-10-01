@@ -6,7 +6,8 @@
 // vem o planejamento. O dia é navegável porque registrar o jantar de ontem às 23h é
 // tão comum quanto registrar o almoço de hoje.
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   CalendarDaysIcon,
@@ -16,7 +17,16 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../../db/db';
-import { registrarConsumo, registrarExercicio, removerConsumo, removerExercicio } from '../../db/repo';
+import {
+  baixarDespensaPorConsumo,
+  registrarConsumo,
+  registrarExercicio,
+  removerConsumo,
+  removerExercicio,
+  restaurarNaDespensa,
+} from '../../db/repo';
+import { baixaPorConsumoLigada } from '../../lib/preferencias';
+import { atualizarWidget } from '../../lib/atalhos';
 import { receitasDoDia } from '../../lib/agenda';
 import {
   chaveDia,
@@ -70,6 +80,26 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
   const agrupado = useMemo(() => porRefeicao(registrosDoDia, chaves), [registrosDoDia, chaves]);
   const queimado = kcalQueimadaNoDia(exerciciosDoDia, dia);
 
+  // Atalho "Registrar refeição" e toque no widget chegam como /?registrar=1: abre o
+  // registro de hoje, na refeição da hora, e limpa o parâmetro.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (!params.has('registrar')) return;
+    setDia(chaveDia());
+    setBuscaInicial(undefined);
+    setRegistrando(refeicaoPorHorario());
+    setParams({}, { replace: true });
+  }, [params, setParams]);
+
+  // O widget mostra sempre hoje, não o dia navegado.
+  const kcalHoje = useMemo(() => {
+    const hoje = chaveDia();
+    return totaisDoDia(consumo.filter((r) => r.dia === hoje)).kcal;
+  }, [consumo]);
+  useEffect(() => {
+    atualizarWidget(kcalHoje, meta.kcal, chaveDia());
+  }, [kcalHoje, meta.kcal]);
+
   // O que o plano marcou para o dia da semana correspondente à data escolhida.
   const agendadoPorRefeicao = useMemo(() => {
     const porId = new Map(recipes.map((r) => [r.id, r]));
@@ -92,6 +122,18 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
   async function registrar(refeicao: Refeicao, dados: DadosRegistro) {
     await registrarConsumo({ dia, refeicao, ...dados });
     hapticLeve();
+    const recipe = dados.recipeId ? recipes.find((r) => r.id === dados.recipeId) : undefined;
+    if (recipe && baixaPorConsumoLigada()) {
+      const { anteriores, alterados } = await baixarDespensaPorConsumo(recipe, dados.porcoes);
+      if (alterados > 0) {
+        toast(
+          `${capitalizar(dados.nome)} registrado · ${alterados} ${alterados === 1 ? 'item baixado' : 'itens baixados'} da despensa.`,
+          'sucesso',
+          { rotulo: 'Desfazer', onClick: () => restaurarNaDespensa(anteriores) },
+        );
+        return;
+      }
+    }
     toast(`${capitalizar(dados.nome)} registrado.`);
   }
 

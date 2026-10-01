@@ -1,6 +1,7 @@
 // Reescala de quantidades de ingredientes por um fator.
 
 import type { Ingredient, RecipeYield } from '../types';
+import { unitDefByCanonical } from './units';
 
 /** Multiplica as quantidades numéricas pelo fator; mantém "a gosto" (null) intacto. */
 export function scaleIngredients(ingredientes: Ingredient[], fator: number): Ingredient[] {
@@ -39,4 +40,22 @@ export function formatQuantidade(n: number | null): string {
   const fkey = frac[resto.toString()] ?? frac[key];
   if (fkey) return inteiro > 0 ? `${inteiro} ${fkey}` : fkey;
   return rounded.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+}
+
+/** Ingrediente medido em massa, candidato a referência da reescala "por grama". */
+export interface IngredienteDeMassa {
+  idx: number;
+  label: string;
+  /** Quantidade original em gramas. */
+  baseG: number;
+}
+
+/** Ingredientes da receita com quantidade em massa (g, kg, mg), já convertida para gramas. */
+export function ingredientesDeMassa(ingredientes: Ingredient[]): IngredienteDeMassa[] {
+  const out: IngredienteDeMassa[] = [];
+  ingredientes.forEach((ing, idx) => {
+    const def = ing.unidade ? unitDefByCanonical(ing.unidade) : undefined;
+    if (def?.dimension === 'massa' && ing.quantidade) out.push({ idx, label: ing.item, baseG: ing.quantidade * def.toBase });
+  });
+  return out;
 }

@@ -25,6 +25,8 @@ import { parseIngredient, normalizeItemKey } from '../lib/ingredientParser';
 import { agendamentosDoItem, mesmoAgendamento } from '../lib/agenda';
 import { distribuirSemana, tipoDaReceita } from '../lib/distribuirSemana';
 import { sugerirReceitasParaPlano } from '../lib/autoPlano';
+import { baixaPorConsumo } from '../lib/baixaDespensa';
+import type { RegistroPeso } from '../lib/pesoCorporal';
 
 export function novoId(): string {
   return (
@@ -334,7 +336,7 @@ export async function definirNotas(recipe: Recipe, notas: string): Promise<void>
  * inflariam o JSON) — por isso `videos` não aparece aqui.
  */
 interface BackupData {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
@@ -348,6 +350,8 @@ interface BackupData {
   codigos?: CodigoBarras[];
   /** Exercícios registrados (versão 4 do backup em diante). */
   exercicios?: RegistroExercicio[];
+  /** Peso corporal por dia (versão 5 em diante). */
+  pesos?: RegistroPeso[];
   /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
   preferencias?: Record<string, string>;
 }
@@ -375,7 +379,7 @@ function gravarPreferencias(prefs: Record<string, string> | undefined): void {
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios] = await Promise.all([
+  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios, pesos] = await Promise.all([
     db.recipes.toArray(),
     db.plans.toArray(),
     db.compras.toArray(),
@@ -385,9 +389,10 @@ export async function exportarJSON(): Promise<string> {
     db.consumo.toArray(),
     db.codigos.toArray(),
     db.exercicios.toArray(),
+    db.pesos.toArray(),
   ]);
   const data: BackupData = {
-    version: 4,
+    version: 5,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
@@ -398,6 +403,7 @@ export async function exportarJSON(): Promise<string> {
     consumo,
     codigos,
     exercicios,
+    pesos,
     preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
@@ -437,6 +443,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       db.consumo,
       db.codigos,
       db.exercicios,
+      db.pesos,
     ],
     async () => {
       if (modo === 'substituir') {
@@ -449,6 +456,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
         if (data.consumo) await db.consumo.clear();
         if (data.codigos) await db.codigos.clear();
         if (data.exercicios) await db.exercicios.clear();
+        if (data.pesos) await db.pesos.clear();
       }
       await db.recipes.bulkPut(data.recipes as Recipe[]);
       if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
@@ -459,6 +467,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       if (Array.isArray(data.consumo)) await db.consumo.bulkPut(data.consumo);
       if (Array.isArray(data.codigos)) await db.codigos.bulkPut(data.codigos);
       if (Array.isArray(data.exercicios)) await db.exercicios.bulkPut(data.exercicios);
+      if (Array.isArray(data.pesos)) await db.pesos.bulkPut(data.pesos);
     },
   );
 
@@ -706,6 +715,43 @@ export async function ajustarPorcoesConsumo(id: string, porcoes: number): Promis
 /** Apaga tudo que foi registrado num dia (o botão "limpar" do painel). */
 export async function limparConsumoDoDia(dia: string): Promise<number> {
   return db.consumo.where('dia').equals(dia).delete();
+}
+
+/**
+ * Desconta da despensa o que uma refeição registrada consumiu (ver lib/baixaDespensa.ts).
+ * Devolve os itens como estavam antes, para o "Desfazer" do aviso, e quantos mudaram.
+ */
+export async function baixarDespensaPorConsumo(
+  recipe: Recipe,
+  porcoes: number,
+): Promise<{ anteriores: GeladeiraItem[]; alterados: number }> {
+  const despensa = await db.geladeira.toArray();
+  const fator = porcoes / (recipe.rendimentoBase.valor || 1);
+  const { atualizar, remover } = baixaPorConsumo(recipe.ingredientes, fator, despensa);
+  const mexidos = new Set([...atualizar.map((g) => g.itemKey), ...remover]);
+  const anteriores = despensa.filter((g) => mexidos.has(g.itemKey));
+  if (mexidos.size === 0) return { anteriores, alterados: 0 };
+  await db.transaction('rw', db.geladeira, async () => {
+    if (atualizar.length > 0) await db.geladeira.bulkPut(atualizar);
+    if (remover.length > 0) await db.geladeira.bulkDelete(remover);
+  });
+  return { anteriores, alterados: mexidos.size };
+}
+
+/** Devolve à despensa itens como estavam (o "Desfazer" da baixa automática). */
+export async function restaurarNaDespensa(itens: GeladeiraItem[]): Promise<void> {
+  if (itens.length > 0) await db.geladeira.bulkPut(itens);
+}
+
+// ---- Peso corporal ----
+
+/** Grava o peso do dia (um por dia: registrar de novo no mesmo dia substitui). */
+export async function registrarPeso(dia: string, kg: number): Promise<void> {
+  await db.pesos.put({ dia, kg, criadoEm: Date.now() });
+}
+
+export async function removerPeso(dia: string): Promise<void> {
+  await db.pesos.delete(dia);
 }
 
 // ---- Códigos de barras ----

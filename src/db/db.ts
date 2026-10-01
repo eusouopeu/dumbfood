@@ -13,6 +13,7 @@ import type {
   VideoReceita,
   WeekPlan,
 } from '../types';
+import type { RegistroPeso } from '../lib/pesoCorporal';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -27,6 +28,7 @@ export class DumbfoodDB extends Dexie {
   consumo!: Table<RegistroConsumo, string>;
   codigos!: Table<CodigoBarras, string>;
   exercicios!: Table<RegistroExercicio, string>;
+  pesos!: Table<RegistroPeso, string>;
 
   constructor() {
     super('dumbfood');
@@ -161,6 +163,21 @@ export class DumbfoodDB extends Dexie {
       consumo: 'id, dia, criadoEm, recipeId',
       codigos: 'codigo, itemKey',
       exercicios: 'id, dia, criadoEm',
+    });
+    // v12: peso corporal ao longo do tempo, um registro por dia (o dia é a chave). O perfil
+    // segue guardando o peso atual; a tabela guarda a série para mostrar a tendência.
+    this.version(12).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
+      listaEstado: 'id',
+      consumo: 'id, dia, criadoEm, recipeId',
+      codigos: 'codigo, itemKey',
+      exercicios: 'id, dia, criadoEm',
+      pesos: 'dia',
     });
   }
 }

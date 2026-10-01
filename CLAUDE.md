@@ -28,24 +28,24 @@ pedir permissão a cada vez. Reserve isso para tarefas simples e realmente
 independentes — não usar para dividir uma tarefa complexa ou que exija
 contexto acumulado da conversa.
 
-## Skill obrigatória
+## Padrões compartilhados
 
-SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda resposta neste projeto.
+Este projeto segue os padrões comuns aos apps do Pedro, documentados em
+`../_shared/tech-standards.md` (stack, testes, commit/push/release, skill
+`/caveman` obrigatória, subagentes, leitura de dependências) e
+`../_shared/design-standards.md` + `../_shared/minimalismo.md` (visual,
+ícones, estética minimalista, "ajuda recolhida"). Ícones já usam Heroicons,
+alinhado ao padrão compartilhado.
 
-
-## Padrões técnicos e visuais obrigatórios
-
-- Sempre usar **TypeScript**, **Tailwind CSS** e fonte **Montserrat** com espaçamento
-  entrelinhas (line-height) de 1.5.
-- Ícones: o app usa **Heroicons** (`@heroicons/react/24/outline`) em todas as telas. Manter
-  Heroicons por consistência — não misturar com Lucide.
-- Dar preferência a **botões-ícone** em vez de botões com texto.
+"Ajuda recolhida" já aplicada aos selos de qualidade (`SelosQualidade`): o ícone ⓘ
+abre o motivo de cada selo (valor por 100 g contra o limite, vindo de `Selo.motivo` em
+`src/lib/rating.ts`) e a regra da nota.
 
 ## Organização do código
 
 - Página com mais de ~350 linhas deve ser quebrada: a lógica de cálculo vai para `src/lib/`
   (pura e testável) e os pedaços de UI para `src/components/<área>/` (`lista/`, `plano/`,
-  `receita/`, `receitas/`).
+  `receita/`, `receitas/`, `geladeira/`).
 - As telas fora da inicial entram por `React.lazy` em `App.tsx`, para o OCR (tesseract), o
   leitor de QR (jsQR) e o vídeo não pesarem na primeira abertura. A tela inicial (`/`,
   `src/pages/Inicio.tsx`) é **o dia**: só o painel de calorias/macros/refeições
@@ -92,6 +92,16 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   `localStorage` sob o prefixo `dumbfood:`; tudo com esse prefixo entra e volta no backup
   JSON automaticamente. Dado do usuário (receitas, plano, consumo, compras) fica no Dexie.
 
+## Android: atalhos e widget
+
+- `AtalhosPlugin.java` (plugin nativo "Atalhos", ponte em `src/lib/atalhos.ts`): atalhos do
+  ícone (`res/xml/shortcuts.xml`) e o widget abrem `dumbfood://<destino>`
+  (registrar, lista, importar); o JS navega por `rotaDoAtalho`. "registrar" vira
+  `/?registrar=1` (HashRouter), que o `PainelDia` lê para abrir o registro de hoje.
+- Widget do dia (`DiaWidgetProvider.java`, `layout/widget_dia.xml`): kcal de hoje contra a
+  meta. O `PainelDia` manda os números a cada mudança (`atualizarWidget`), gravados em
+  SharedPreferences `dumbfood_widget`.
+
 ## Metas nutricionais: duas bases de percentual
 
 - `src/lib/diet.ts` trabalha em **percentual da massa** de macros e hoje serve só ao
@@ -107,6 +117,13 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
 - O consumo de fato comido fica na tabela `consumo` (Dexie v11), com `dia` em
   'AAAA-MM-DD' local. A tabela `codigos` guarda código de barras → ingrediente e a
   `exercicios` guarda o gasto do dia (nome + kcal, minutos opcionais), registrado à mão.
+- Peso corporal: cada mudança válida no campo Peso de `/perfil` grava o registro do dia na
+  tabela `pesos` (Dexie v12, chave `dia`); `src/lib/pesoCorporal.ts` calcula a tendência e
+  `perfil/EvolucaoPeso` desenha a linha. O perfil continua com o peso atual para a meta.
+- Registrar uma **receita** comida desconta os ingredientes da despensa
+  (`src/lib/baixaDespensa.ts`), na proporção porções ÷ rendimento, só nos itens com
+  quantidade conhecida; o aviso tem "Desfazer". Liga/desliga em Configurações
+  (`dumbfood:baixaPorConsumo`).
 - Exercício **não** muda a meta de calorias (`src/lib/exercicios.ts`): o fator de atividade
   do perfil já conta o gasto habitual, somar de novo contaria duas vezes. O número aparece
   como coluna própria do anel do dia.
@@ -115,23 +132,6 @@ SEMPRE usar a skill `/caveman` (modo de comunicação ultra-comprimido) em toda 
   aberta (`RefeicaoPadrao | (string & {})`) e a divisão da meta entre refeições é
   **renormalizada** a cada mudança de lista — a soma dos recomendados é sempre a meta.
 
-## Testes
-
-- Por rodada de alterações, realizar apenas os **2 ou 3 testes mais essenciais** — não mais que isso.
-- Esses testes devem ser **elaborados ANTES** da implementação das mudanças de código, para que não
-  sejam enviesados pelo resultado da implementação.
-
-
-## Commit, push e atualização do CLAUDE.md
-
-- A cada rodada em que o código do app/site for alterado, deve ser feito o **commit** e o **push**
-  para o repositório remoto no GitHub.
-- Nessa mesma rodada, atualizar o conteúdo deste **CLAUDE.md** no que couber (novas convenções,
-  decisões, mudanças de stack, etc.), mantendo-o coerente com o estado atual do projeto.
-
-## Proibição de leitura de dependências
-
-- NUNCA ler arquivos de dependências (ex.: `node_modules/`, `dist/`, `build/`, pastas de vendor
-  ou qualquer artefato gerado/instalado) para obter contexto. Usar apenas o código-fonte do
-  próprio projeto.
+Testes, commit/push, atualização do CLAUDE.md e leitura de dependências: ver
+`../_shared/tech-standards.md`.
 

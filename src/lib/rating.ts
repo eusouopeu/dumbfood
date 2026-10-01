@@ -14,6 +14,8 @@ export type NotaAlimento = 'bom' | 'moderado' | 'ruim';
 export interface Selo {
   chave: string;
   label: string;
+  /** Por que o selo apareceu: o valor por 100 g e o limite que ele cruzou. */
+  motivo: string;
 }
 
 export interface AvaliacaoAlimento {
@@ -42,26 +44,44 @@ export function avaliarAlimento(
   const negativos: Selo[] = [];
   const positivos: Selo[] = [];
 
-  if (n.acucares >= LIMITES.acucarAlto) negativos.push({ chave: 'acucar', label: 'Muito açúcar' });
-  if (n.kcal >= LIMITES.caloriaDensa) negativos.push({ chave: 'calorico', label: 'Calórico' });
+  const acima = (chave: string, label: string, nome: string, valor: number, limite: number, un = 'g') =>
+    negativos.push({ chave, label, motivo: `${nome}: ${fmt(valor)} ${un} por 100 g (limite ${fmt(limite)} ${un})` });
+  const bom = (chave: string, label: string, nome: string, valor: number, texto: string) =>
+    positivos.push({ chave, label, motivo: `${nome}: ${fmt(valor)} ${texto}` });
+
+  if (n.acucares >= LIMITES.acucarAlto) acima('acucar', 'Muito açúcar', 'Açúcares', n.acucares, LIMITES.acucarAlto);
+  if (n.kcal >= LIMITES.caloriaDensa) acima('calorico', 'Calórico', 'Energia', n.kcal, LIMITES.caloriaDensa, 'kcal');
   if (n.gorduraSaturada >= LIMITES.gorduraSaturadaAlta)
-    negativos.push({ chave: 'gordura_saturada', label: 'Gordura saturada alta' });
-  if (n.gorduraTotal >= LIMITES.gorduraTotalAlta) negativos.push({ chave: 'gordura', label: 'Muita gordura' });
-  if (n.colesterolMg >= LIMITES.colesterolAlto) negativos.push({ chave: 'colesterol', label: 'Colesterol alto' });
+    acima('gordura_saturada', 'Gordura saturada alta', 'Gordura saturada', n.gorduraSaturada, LIMITES.gorduraSaturadaAlta);
+  if (n.gorduraTotal >= LIMITES.gorduraTotalAlta)
+    acima('gordura', 'Muita gordura', 'Gorduras totais', n.gorduraTotal, LIMITES.gorduraTotalAlta);
+  if (n.colesterolMg >= LIMITES.colesterolAlto)
+    acima('colesterol', 'Colesterol alto', 'Colesterol', n.colesterolMg, LIMITES.colesterolAlto, 'mg');
 
   const sodio = micro?.sodio;
   if (sodio !== undefined) {
-    if (sodio >= LIMITES.sodioAlto) negativos.push({ chave: 'sodio', label: 'Muito sódio' });
-    else if (sodio <= LIMITES.sodioBaixo) positivos.push({ chave: 'pouco_sodio', label: 'Pouco sódio' });
+    if (sodio >= LIMITES.sodioAlto) acima('sodio', 'Muito sódio', 'Sódio', sodio, LIMITES.sodioAlto, 'mg');
+    else if (sodio <= LIMITES.sodioBaixo)
+      bom('pouco_sodio', 'Pouco sódio', 'Sódio', sodio, `mg por 100 g (até ${LIMITES.sodioBaixo} mg)`);
   }
 
-  if (n.fibra >= LIMITES.fibraBoa) positivos.push({ chave: 'fibra', label: 'Fonte de fibras' });
-  if (n.proteina >= LIMITES.proteinaBoa) positivos.push({ chave: 'proteina', label: 'Rico em proteína' });
+  if (n.fibra >= LIMITES.fibraBoa)
+    bom('fibra', 'Fonte de fibras', 'Fibras', n.fibra, `g por 100 g (a partir de ${LIMITES.fibraBoa} g)`);
+  if (n.proteina >= LIMITES.proteinaBoa)
+    bom('proteina', 'Rico em proteína', 'Proteína', n.proteina, `g por 100 g (a partir de ${LIMITES.proteinaBoa} g)`);
 
   // Um problema ainda é "moderado": arroz com sal não vira vilão. Dois ou mais é ruim.
   const nota: NotaAlimento = negativos.length >= 2 ? 'ruim' : negativos.length === 1 ? 'moderado' : 'bom';
   return { nota, positivos, negativos };
 }
+
+/** Número curto em pt-BR: inteiro quando dá, uma casa decimal quando não. */
+function fmt(v: number): string {
+  return (Math.round(v * 10) / 10).toLocaleString('pt-BR');
+}
+
+/** Como a nota sai dos selos — texto da ajuda recolhida ao lado dos selos. */
+export const REGRA_NOTA = 'Nenhum excesso: boa escolha. Um excesso: com moderação. Dois ou mais: pesado.';
 
 export const ESTILO_NOTA: Record<NotaAlimento, { texto: string; fundo: string; rotulo: string }> = {
   bom: { texto: 'text-green-700 dark:text-green-300', fundo: 'bg-green-100 dark:bg-green-900/40', rotulo: 'Boa escolha' },
