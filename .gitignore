@@ -9,3 +9,6 @@ coverage
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# APK de debug copiado para a raiz
+*.apk

@@ -51,6 +51,12 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Refeições para o Nexo: o provider confere pacote e assinatura de quem pede. -->
+        <provider
+            android:name=".CompartilharProvider"
+            android:authorities="${applicationId}.compartilhar"
+            android:exported="true" />
     </application>
 
     <!-- Permissions -->

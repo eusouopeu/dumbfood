@@ -44,6 +44,10 @@ import { useLembreteValidade, podeAvisarHoje, marcarAvisadoHoje } from './lib/le
 import { statusValidade } from './lib/validade';
 import { toast } from './lib/toast';
 import { verificarBackupAutomatico } from './lib/backupAutomatico';
+import { pacoteParaNexo, publicarParaNexo } from './lib/compartilharNexo';
+import { chaveDia } from './lib/consumo';
+import { useEnviarNexo } from './lib/preferencias';
+import { todasRefeicoes } from './lib/refeicoes';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 // A barra é só de ícones e flutua em vidro, em duas peças: os quatro destinos do uso diário
@@ -103,6 +107,20 @@ export default function App() {
   useEffect(() => {
     void verificarBackupAutomatico();
   }, []);
+
+  // Refeições para o Nexo: republica a cada mudança no consumo (ver lib/compartilharNexo.ts).
+  const [enviarNexo] = useEnviarNexo();
+  const consumo = useLiveQuery(() => db.consumo.toArray(), []);
+  const receitas = useLiveQuery(() => db.recipes.toArray(), []);
+  useEffect(() => {
+    if (!enviarNexo) return publicarParaNexo(null);
+    if (!consumo || !receitas) return;
+    const t = setTimeout(() => {
+      const rotulos = Object.fromEntries(todasRefeicoes().map((r) => [r.chave, r.label]));
+      publicarParaNexo(pacoteParaNexo(consumo, receitas, rotulos, chaveDia()));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [enviarNexo, consumo, receitas]);
 
   // Aviso in-app (equivalente, no PWA/web, à notificação nativa agendada em Geladeira.tsx):
   // confere uma vez por dia se algo está vencido ou perto de vencer.

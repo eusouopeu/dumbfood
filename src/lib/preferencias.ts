@@ -42,3 +42,8 @@ export function baixaPorConsumoLigada(): boolean {
 export function useBaixaPorConsumo(): [boolean, (v: boolean) => void] {
   return useFlag(KEY_BAIXA_CONSUMO, true);
 }
+
+/** Entrega as refeições dos últimos 14 dias ao Nexo (mesmo celular, sem internet). */
+export function useEnviarNexo(): [boolean, (v: boolean) => void] {
+  return useFlag('dumbfood:enviarNexo', true);
+}

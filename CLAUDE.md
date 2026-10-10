@@ -102,6 +102,19 @@ abre o motivo de cada selo (valor por 100 g contra o limite, vindo de `Selo.moti
   meta. O `PainelDia` manda os números a cada mudança (`atualizarWidget`), gravados em
   SharedPreferences `dumbfood_widget`.
 
+## Integração com o Nexo (refeições → diário de saúde)
+
+- `src/lib/compartilharNexo.ts` monta o pacote dos últimos 14 dias de consumo (horário,
+  rótulo da refeição, kcal, ingredientes da receita) e o `App.tsx` o republica a cada mudança
+  no consumo, via plugin nativo `Compartilhar` (`CompartilharPlugin.java`, arquivo privado).
+- `CompartilharProvider.java` (`content://br.com.dumbfood.app.compartilhar/alimentacao`) só
+  responde ao `com.pedro.nexo` assinado pela chave de debug do Mac (SHA-256 fixo no Java).
+  Sem internet: o Nexo lê ao abrir. Liga/desliga em Configurações › Nexo
+  (`dumbfood:enviarNexo`, padrão ligado). Trocar a keystore exige atualizar a constante lá
+  e no `Assinatura.java` do Nexo.
+- O APK de debug é copiado para a raiz como `dumbfood-<versionName>.apk` (fora do git);
+  `versionName` segue `AAAA.MM.DD-n`.
+
 ## Metas nutricionais: duas bases de percentual
 
 - `src/lib/diet.ts` trabalha em **percentual da massa** de macros e hoje serve só ao
