@@ -49,6 +49,7 @@ import BarChart from '../BarChart';
 import LinhaRefeicao from './LinhaRefeicao';
 import RegistrarConsumo from './RegistrarConsumo';
 import RegistrarExercicio from './RegistrarExercicio';
+import BotaoFome from './BotaoFome';
 import { toast } from '../../lib/toast';
 import { hapticLeve } from '../../lib/haptics';
 import type { PlanItem, Recipe, Refeicao } from '../../types';
@@ -74,6 +75,7 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
 
   const consumo = useLiveQuery(() => db.consumo.toArray(), []) ?? [];
   const exercicios = useLiveQuery(() => db.exercicios.toArray(), []) ?? [];
+  const pratos = useLiveQuery(() => db.pratos.toArray(), []) ?? [];
   const registrosDoDia = useMemo(() => consumo.filter((r) => r.dia === dia), [consumo, dia]);
   const exerciciosDoDia = useMemo(() => exercicios.filter((e) => e.dia === dia), [exercicios, dia]);
   const totais = useMemo(() => totaisDoDia(registrosDoDia), [registrosDoDia]);
@@ -329,6 +331,7 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
           >
             <PlusIcon className="size-6" />
           </button>
+          <BotaoFome />
         </div>
       </form>
       {/* Espaço para a barra flutuante não cobrir o jantar. */}
@@ -342,6 +345,7 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
           recipes={recipes}
           agendadas={agendadoPorRefeicao.get(registrando) ?? []}
           historico={consumo}
+          pratos={pratos}
           onRegistrar={async (dados) => {
             await registrar(registrando, dados);
             setRegistrando(null);

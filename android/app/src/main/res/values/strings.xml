@@ -5,6 +5,7 @@
     <string name="package_name">br.com.dumbfood.app</string>
     <string name="custom_url_scheme">br.com.dumbfood.app</string>
     <string name="atalho_registrar">Registrar refeição</string>
+    <string name="atalho_fome">Estou com fome</string>
     <string name="atalho_lista">Lista de mercado</string>
     <string name="atalho_importar">Nova receita</string>
     <string name="widget_descricao">Calorias de hoje contra a meta</string>

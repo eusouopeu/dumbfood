@@ -34,6 +34,8 @@ import SecaoGondola from '../components/lista/SecaoGondola';
 import ComparativoMercados from '../components/lista/ComparativoMercados';
 import FinalizarCompra from '../components/lista/FinalizarCompra';
 import FabLista from '../components/lista/FabLista';
+import { corrigirLista, mensagemErroIA, useIAConfigurada } from '../lib/ia';
+import { aplicarCorrecoes } from '../lib/correcaoLista';
 import type { CompraItem } from '../types';
 
 function ListaSkeleton() {
@@ -54,6 +56,8 @@ export default function ListaMercado() {
   const [editandoQtd, setEditandoQtd] = useState<string | null>(null);
   const [qtdTexto, setQtdTexto] = useState('');
   const [escaneando, setEscaneando] = useState(false);
+  const iaConfigurada = useIAConfigurada();
+  const [arrumando, setArrumando] = useState(false);
 
   const comprados = new Set(estado.comprados);
 
@@ -132,6 +136,31 @@ export default function ListaMercado() {
     });
   }
 
+  /** IA (Haiku) revisa as quantidades tortas e as duplicadas; a correção tem Desfazer. */
+  async function arrumarComIA() {
+    const linhas = secoes.flatMap((s) => s.linhas).map((l) => ({ id: l.id, item: l.item, rotulo: l.rotulo }));
+    if (linhas.length === 0) return;
+    setArrumando(true);
+    try {
+      const correcoes = await corrigirLista(linhas);
+      if (correcoes.length === 0) {
+        toast('A IA não achou nada para arrumar.');
+        return;
+      }
+      const anterior = { overrides: estado.overrides, ocultos: estado.ocultos, extras: estado.extras };
+      const r = aplicarCorrecoes(estado, correcoes);
+      await atualizarListaEstado(r.patch);
+      toast(`IA: ${r.corrigidas} quantidade(s) corrigida(s), ${r.removidas} linha(s) juntada(s) ou removida(s).`, 'sucesso', {
+        rotulo: 'Desfazer',
+        onClick: () => atualizarListaEstado(anterior),
+      });
+    } catch (e) {
+      toast(mensagemErroIA(e), 'erro');
+    } finally {
+      setArrumando(false);
+    }
+  }
+
   async function copiar() {
     const texto = secoes
       .map((s) => `## ${s.gondola}\n` + s.linhas.map((l) => `- ${l.rotulo} ${nomeItem(l.item)}`).join('\n'))
@@ -206,7 +235,11 @@ export default function ListaMercado() {
 
   return (
     <div className="space-y-4">
-      <FabLista onAdicionarItem={adicionarExtra} />
+      <FabLista
+        onAdicionarItem={adicionarExtra}
+        onArrumarComIA={iaConfigurada ? arrumarComIA : undefined}
+        arrumando={arrumando}
+      />
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xl font-bold">Lista de mercado</h2>
         <div className="flex items-center gap-2">

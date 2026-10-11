@@ -14,6 +14,17 @@
             android:targetClass="br.com.dumbfood.app.MainActivity" />
     </shortcut>
     <shortcut
+        android:shortcutId="fome"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/atalho_fome">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="dumbfood://fome"
+            android:targetPackage="br.com.dumbfood.app"
+            android:targetClass="br.com.dumbfood.app.MainActivity" />
+    </shortcut>
+    <shortcut
         android:shortcutId="lista"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"

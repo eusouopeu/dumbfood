@@ -55,6 +55,8 @@ captures/
 # Keystore files
 *.jks
 *.keystore
+# chave de debug do Mac, versionada (mesma do Nexo): APK da nuvem atualiza o instalado
+!debug.keystore
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild

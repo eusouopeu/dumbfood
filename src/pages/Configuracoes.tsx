@@ -7,7 +7,6 @@ import {
   BellAlertIcon,
   ArchiveBoxArrowDownIcon,
   CubeIcon,
-  HeartIcon,
   ShoppingCartIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
@@ -16,9 +15,12 @@ import ActionSheet from '../components/ActionSheet';
 import EditarPrecos from '../components/EditarPrecos';
 import OrcamentoCard from '../components/lista/OrcamentoCard';
 import Secao from '../components/Secao';
+import SecaoIA from '../components/config/SecaoIA';
+import SecaoLugares from '../components/config/SecaoLugares';
+import SecaoApps from '../components/config/SecaoApps';
 import { useListaCompras } from '../lib/useListaCompras';
 import { useLembreteValidade } from '../lib/lembretes';
-import { useArredondarEmbalagem, useBaixaPorConsumo, useDescontarGeladeira, useEnviarNexo } from '../lib/preferencias';
+import { useArredondarEmbalagem, useBaixaPorConsumo, useDescontarGeladeira } from '../lib/preferencias';
 import {
   cancelarLembretesValidade,
   notificacoesNativasDisponiveis,
@@ -34,7 +36,6 @@ export default function Configuracoes() {
   const [descontarGeladeira, setDescontarGeladeira] = useDescontarGeladeira();
   const [arredondarEmbalagem, setArredondarEmbalagem] = useArredondarEmbalagem();
   const [baixaConsumo, setBaixaConsumo] = useBaixaPorConsumo();
-  const [enviarNexo, setEnviarNexo] = useEnviarNexo();
   // Orçamento e preços saíram da lista de mercado, mas são calculados sobre ela.
   const lista = useListaCompras(descontarGeladeira, arredondarEmbalagem);
   const [editandoPrecos, setEditandoPrecos] = useState(false);
@@ -186,24 +187,11 @@ export default function Configuracoes() {
         </label>
       </Secao>
 
-      <Secao chave="cfg-nexo" titulo="Nexo" subtitulo="refeições para o diário de saúde" padraoAberta={false}>
-        <label className="flex items-center gap-3 text-sm">
-          <HeartIcon className="size-5 flex-shrink-0 text-brand-500" />
-          <span className="flex-1">
-            <span className="block font-medium">Enviar refeições ao Nexo</span>
-            <span className="block text-xs text-stone-500 dark:text-stone-400">
-              O que você registra como comido nos últimos 14 dias, com os ingredientes das receitas. Fica no celular, sem
-              internet: só o Nexo instalado por você consegue ler.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            className="h-5 w-5 flex-shrink-0 accent-brand-500"
-            checked={enviarNexo}
-            onChange={(e) => setEnviarNexo(e.target.checked)}
-          />
-        </label>
-      </Secao>
+      <SecaoLugares />
+
+      <SecaoIA />
+
+      <SecaoApps />
 
       <Secao chave="cfg-backup" titulo="Backup" padraoAberta={false}>
         <div className="space-y-3 text-sm">

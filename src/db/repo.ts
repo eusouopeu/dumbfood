@@ -17,6 +17,7 @@ import type {
   VideoReceita,
   WeekPlan,
   YieldType,
+  PratoSalvo,
 } from '../types';
 import { db, LISTA_ATUAL_ID, PLANO_ATUAL_ID, getOrCreatePlanoAtual, listaEstadoVazio } from './db';
 import { scaleIngredients } from '../lib/scale';
@@ -27,6 +28,8 @@ import { distribuirSemana, tipoDaReceita } from '../lib/distribuirSemana';
 import { sugerirReceitasParaPlano } from '../lib/autoPlano';
 import { baixaPorConsumo } from '../lib/baixaDespensa';
 import type { RegistroPeso } from '../lib/pesoCorporal';
+import type { RegistroFome } from '../lib/fome';
+import { chaveDia } from '../lib/consumo';
 
 export function novoId(): string {
   return (
@@ -336,7 +339,7 @@ export async function definirNotas(recipe: Recipe, notas: string): Promise<void>
  * inflariam o JSON) — por isso `videos` não aparece aqui.
  */
 interface BackupData {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
@@ -352,6 +355,10 @@ interface BackupData {
   exercicios?: RegistroExercicio[];
   /** Peso corporal por dia (versão 5 em diante). */
   pesos?: RegistroPeso[];
+  /** Horários de fome registrados à mão (versão 6 em diante). */
+  fome?: RegistroFome[];
+  /** Pratos estimados pela IA (versão 6 em diante). */
+  pratos?: PratoSalvo[];
   /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
   preferencias?: Record<string, string>;
 }
@@ -379,7 +386,7 @@ function gravarPreferencias(prefs: Record<string, string> | undefined): void {
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios, pesos] = await Promise.all([
+  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios, pesos, fome, pratos] = await Promise.all([
     db.recipes.toArray(),
     db.plans.toArray(),
     db.compras.toArray(),
@@ -390,9 +397,11 @@ export async function exportarJSON(): Promise<string> {
     db.codigos.toArray(),
     db.exercicios.toArray(),
     db.pesos.toArray(),
+    db.fome.toArray(),
+    db.pratos.toArray(),
   ]);
   const data: BackupData = {
-    version: 5,
+    version: 6,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
@@ -404,6 +413,8 @@ export async function exportarJSON(): Promise<string> {
     codigos,
     exercicios,
     pesos,
+    fome,
+    pratos,
     preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
@@ -444,6 +455,8 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       db.codigos,
       db.exercicios,
       db.pesos,
+      db.fome,
+      db.pratos,
     ],
     async () => {
       if (modo === 'substituir') {
@@ -457,6 +470,8 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
         if (data.codigos) await db.codigos.clear();
         if (data.exercicios) await db.exercicios.clear();
         if (data.pesos) await db.pesos.clear();
+        if (data.fome) await db.fome.clear();
+        if (data.pratos) await db.pratos.clear();
       }
       await db.recipes.bulkPut(data.recipes as Recipe[]);
       if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
@@ -468,6 +483,8 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       if (Array.isArray(data.codigos)) await db.codigos.bulkPut(data.codigos);
       if (Array.isArray(data.exercicios)) await db.exercicios.bulkPut(data.exercicios);
       if (Array.isArray(data.pesos)) await db.pesos.bulkPut(data.pesos);
+      if (Array.isArray(data.fome)) await db.fome.bulkPut(data.fome);
+      if (Array.isArray(data.pratos)) await db.pratos.bulkPut(data.pratos);
     },
   );
 
@@ -684,6 +701,28 @@ export async function registrarExercicio(
 
 export async function removerExercicio(id: string): Promise<void> {
   await db.exercicios.delete(id);
+}
+
+// ---- Fome e pratos avulsos ----
+
+/** "Estou com fome" agora: grava o horário (o dia é o de agora, não o navegado no painel). */
+export async function registrarFome(intensidade: RegistroFome['intensidade'] = 2): Promise<RegistroFome> {
+  const agora = Date.now();
+  const novo: RegistroFome = { id: novoId(), dia: chaveDia(new Date(agora)), hora: agora, intensidade, criadoEm: agora };
+  await db.fome.put(novo);
+  return novo;
+}
+
+export async function removerFome(id: string): Promise<void> {
+  await db.fome.delete(id);
+}
+
+/** Guarda (ou atualiza, pelo nome) um prato fora do acervo para a busca achar depois. */
+export async function salvarPrato(prato: Omit<PratoSalvo, 'id' | 'criadoEm'>): Promise<PratoSalvo> {
+  const mesmoNome = await db.pratos.where('nome').equals(prato.nome).first();
+  const salvo: PratoSalvo = { ...prato, id: mesmoNome?.id ?? novoId(), criadoEm: Date.now() };
+  await db.pratos.put(salvo);
+  return salvo;
 }
 
 export async function removerConsumo(id: string): Promise<void> {

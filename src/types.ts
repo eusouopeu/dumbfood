@@ -266,3 +266,19 @@ export interface CodigoBarras {
   marca?: string;
   atualizadoEm: number;
 }
+
+/**
+ * Prato fora do acervo de receitas (hoje, estimado pela IA): fica guardado para a busca do
+ * registro achar de novo, sem consultar a IA outra vez. Nutrientes por UMA porção.
+ */
+export interface PratoSalvo {
+  id: string;
+  nome: string;
+  /** Porção em palavras, ex.: "1 prato (≈ 350 g)". */
+  porcao: string;
+  gramas: number;
+  nutrientes: Nutrientes100g;
+  ingredientes: string[];
+  origem: 'ia';
+  criadoEm: number;
+}
