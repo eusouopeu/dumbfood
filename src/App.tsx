@@ -46,8 +46,15 @@ import { toast } from './lib/toast';
 import { verificarBackupAutomatico } from './lib/backupAutomatico';
 import { pacoteParaNexo, publicarParaNexo } from './lib/compartilharNexo';
 import { chaveDia } from './lib/consumo';
-import { useEnviarNexo } from './lib/preferencias';
+import { useEnviarBrita, useEnviarNexo, useReceberNexo } from './lib/preferencias';
+import { pacoteParaBrita, publicarParaBrita } from './lib/compartilharBrita';
+import { sincronizarAvisosNexo } from './lib/avisosNexo';
+import { usePlano } from './db/usePlano';
+import { useMetaDiaria } from './lib/metas';
 import { todasRefeicoes } from './lib/refeicoes';
+import { aplicarConfigLugares, lerConfigLugares, publicarEstadoLugares } from './lib/lugares';
+import { itensAcabando } from './lib/despensaAcabando';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 // A importação não fica na barra: entra pelo botão "+ Nova" da aba de receitas.
 // A barra é só de ícones e flutua em vidro, em duas peças: os quatro destinos do uso diário
@@ -121,6 +128,67 @@ export default function App() {
     }, 1500);
     return () => clearTimeout(t);
   }, [enviarNexo, consumo, receitas]);
+
+  // Brita: kcal do dia, cardápio do plano e o que está acabando (ver lib/compartilharBrita.ts).
+  const [enviarBrita] = useEnviarBrita();
+  const plano = usePlano();
+  const meta = useMetaDiaria();
+  useEffect(() => {
+    if (!enviarBrita) return publicarParaBrita(null);
+    if (!consumo || !receitas || !geladeira) return;
+    const t = setTimeout(() => {
+      const rotulos = Object.fromEntries(todasRefeicoes().map((r) => [r.chave, r.label]));
+      const h = lerConfigLugares().hortifruti;
+      publicarParaBrita(
+        pacoteParaBrita(
+          consumo,
+          receitas,
+          plano.itens,
+          rotulos,
+          meta.kcal,
+          itensAcabando(geladeira),
+          h.ativo ? { dias: h.dias, mercado: h.mercado } : null,
+          chaveDia(),
+        ),
+      );
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [enviarBrita, consumo, receitas, geladeira, plano, meta.kcal]);
+
+  // Nexo → dumbfood: o que evitar, lido ao abrir e a cada volta ao app.
+  const [receberNexo] = useReceberNexo();
+  useEffect(() => {
+    const ler = () => void sincronizarAvisosNexo(receberNexo).catch(() => {});
+    ler();
+    const aoVoltar = () => document.visibilityState === 'visible' && ler();
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => document.removeEventListener('visibilitychange', aoVoltar);
+  }, [receberNexo]);
+
+  // Cercas de GPS somem se o Play services for limpo: reaplica a configuração ao abrir.
+  useEffect(() => {
+    void aplicarConfigLugares(lerConfigLugares()).catch(() => {});
+  }, []);
+
+  // O aviso de mercado (saindo da academia) e o da cozinha decidem com o app fechado:
+  // deixa com o nativo o que está acabando e quando foi a última refeição registrada.
+  useEffect(() => {
+    if (!geladeira || !consumo) return;
+    const ultimo = consumo.reduce((m, r) => Math.max(m, r.criadoEm), 0);
+    publicarEstadoLugares(itensAcabando(geladeira), ultimo);
+  }, [geladeira, consumo]);
+
+  // Toque no lembrete de hortifrúti (notificação local) abre a lista de mercado.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = LocalNotifications.addListener('localNotificationActionPerformed', (a) => {
+      const destino = a.notification.extra?.destino;
+      if (typeof destino === 'string') navigate(rotaDoAtalho(destino));
+    });
+    return () => {
+      listener.then((h) => h.remove());
+    };
+  }, [navigate]);
 
   // Aviso in-app (equivalente, no PWA/web, à notificação nativa agendada em Geladeira.tsx):
   // confere uma vez por dia se algo está vencido ou perto de vencer.

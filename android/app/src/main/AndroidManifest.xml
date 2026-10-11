@@ -52,12 +52,30 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Refeições para o Nexo: o provider confere pacote e assinatura de quem pede. -->
+        <!-- Cozinha e academia por GPS (Lugares.java): eventos das cercas, reboot e alarme. -->
+        <receiver android:name=".GeofenceReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".AlarmeService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Refeições para o Nexo e dia/cardápio para o Brita: o provider confere pacote e assinatura de quem pede. -->
         <provider
             android:name=".CompartilharProvider"
             android:authorities="${applicationId}.compartilhar"
             android:exported="true" />
     </application>
+
+    <!-- Android 11+: enxergar o Nexo para ler os avisos dele (alergias, teste de eliminação). -->
+    <queries>
+        <package android:name="com.pedro.nexo" />
+    </queries>
 
     <!-- Permissions -->
 
@@ -66,4 +84,16 @@
     <!-- Câmera: leitura do QR Code da nota fiscal (NFC-e) dentro do app. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Cozinha e academia por GPS: cercas com o app fechado precisam de "o tempo todo". -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Alarme da cozinha toca em loop num serviço em primeiro plano. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

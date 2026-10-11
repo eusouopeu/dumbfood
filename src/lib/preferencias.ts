@@ -47,3 +47,13 @@ export function useBaixaPorConsumo(): [boolean, (v: boolean) => void] {
 export function useEnviarNexo(): [boolean, (v: boolean) => void] {
   return useFlag('dumbfood:enviarNexo', true);
 }
+
+/** Entrega ao Brita as kcal do dia, o cardápio da semana e o que está acabando. */
+export function useEnviarBrita(): [boolean, (v: boolean) => void] {
+  return useFlag('dumbfood:enviarBrita', true);
+}
+
+/** Lê do Nexo o que evitar (alergias e teste de eliminação) e marca nas receitas. */
+export function useReceberNexo(): [boolean, (v: boolean) => void] {
+  return useFlag('dumbfood:receberNexo', true);
+}

@@ -16,6 +16,7 @@
     "android:assets": "npx capacitor-assets generate --android"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@capacitor/app": "^6.0.3",
     "@capacitor/haptics": "^6.0.3",
     "@capacitor/local-notifications": "^6.1.3",

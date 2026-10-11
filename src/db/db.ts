@@ -6,6 +6,7 @@ import type {
   Compra,
   GeladeiraItem,
   ListaEstado,
+  PratoSalvo,
   PrecoItem,
   Recipe,
   RegistroConsumo,
@@ -14,6 +15,7 @@ import type {
   WeekPlan,
 } from '../types';
 import type { RegistroPeso } from '../lib/pesoCorporal';
+import type { RegistroFome } from '../lib/fome';
 import { gerarTags } from '../lib/tags';
 import { reprocessarIngrediente } from '../lib/ingredientParser';
 
@@ -29,6 +31,8 @@ export class DumbfoodDB extends Dexie {
   codigos!: Table<CodigoBarras, string>;
   exercicios!: Table<RegistroExercicio, string>;
   pesos!: Table<RegistroPeso, string>;
+  fome!: Table<RegistroFome, string>;
+  pratos!: Table<PratoSalvo, string>;
 
   constructor() {
     super('dumbfood');
@@ -178,6 +182,23 @@ export class DumbfoodDB extends Dexie {
       codigos: 'codigo, itemKey',
       exercicios: 'id, dia, criadoEm',
       pesos: 'dia',
+    });
+    // v13: horários de fome registrados à mão ("Estou com fome") e pratos que não vieram
+    // de receita — estimados pela IA —, para a busca do registro achar de novo depois.
+    this.version(13).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
+      listaEstado: 'id',
+      consumo: 'id, dia, criadoEm, recipeId',
+      codigos: 'codigo, itemKey',
+      exercicios: 'id, dia, criadoEm',
+      pesos: 'dia',
+      fome: 'id, dia, criadoEm',
+      pratos: 'id, nome, criadoEm',
     });
   }
 }

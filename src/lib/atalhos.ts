@@ -4,7 +4,7 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
 
 /** Destinos que atalhos e widget abrem (o host de dumbfood://<destino>). */
-export type DestinoAtalho = 'registrar' | 'lista' | 'importar';
+export type DestinoAtalho = 'registrar' | 'fome' | 'lista' | 'importar' | 'mercado';
 
 interface AtalhosPlugin {
   addListener(eventName: 'abrir', listenerFunc: (data: { destino: string }) => void): Promise<PluginListenerHandle>;
@@ -16,7 +16,8 @@ export const Atalhos = registerPlugin<AtalhosPlugin>('Atalhos');
 /** Rota do app para cada destino; desconhecido cai na tela inicial. */
 export function rotaDoAtalho(destino: string): string {
   if (destino === 'registrar') return '/?registrar=1';
-  if (destino === 'lista') return '/lista';
+  if (destino === 'fome') return '/?fome=1';
+  if (destino === 'lista' || destino === 'mercado') return '/lista';
   if (destino === 'importar') return '/importar';
   return '/';
 }

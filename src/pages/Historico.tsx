@@ -34,13 +34,14 @@ import { composicaoRelativa } from '../lib/diet';
 import { useMetaDiaria } from '../lib/metas';
 import { useOrcamento, statusOrcamento } from '../lib/orcamento';
 import { MacroResumoCard } from '../components/MacroResumo';
+import AnaliseFome from '../components/historico/AnaliseFome';
 import { confirmar } from '../lib/confirm';
 import { toast } from '../lib/toast';
 import { hapticForte } from '../lib/haptics';
 import { CardListSkeleton } from '../components/Skeleton';
 import type { Compra, CompraItem } from '../types';
 
-type Aba = 'compras' | 'gastos' | 'precos' | 'macros';
+type Aba = 'compras' | 'gastos' | 'precos' | 'macros' | 'fome';
 
 /** Intervalo [início, fim] usado nas médias: o range custom, ou do primeiro registro até hoje. */
 function useIntervalo(compras: Compra[], inicioStr: string, fimStr: string): [number, number] {
@@ -80,18 +81,20 @@ export default function Historico() {
       <h2 className="text-xl font-bold">Histórico</h2>
 
       <div className="flex gap-1 rounded-xl bg-stone-100 dark:bg-stone-800 p-1">
-        {(['compras', 'gastos', 'precos', 'macros'] as Aba[]).map((a) => (
+        {(['compras', 'gastos', 'precos', 'macros', 'fome'] as Aba[]).map((a) => (
           <button
             key={a}
             onClick={() => setAba(a)}
             className={`flex-1 rounded-lg py-1.5 text-sm font-semibold capitalize ${aba === a ? 'bg-white dark:bg-stone-800 shadow-sm' : 'text-stone-500 dark:text-stone-400'}`}
           >
-            {a === 'compras' ? 'Compras' : a === 'gastos' ? 'Gastos' : a === 'precos' ? 'Preços' : 'Macros'}
+            {a === 'compras' ? 'Compras' : a === 'gastos' ? 'Gastos' : a === 'precos' ? 'Preços' : a === 'macros' ? 'Macros' : 'Fome'}
           </button>
         ))}
       </div>
 
-      {compras.length === 0 ? (
+      {aba === 'fome' ? (
+        <AnaliseFome />
+      ) : compras.length === 0 ? (
         <div className="card p-6 text-center">
           <ChartBarIcon className="mx-auto mb-1 size-10 text-brand-400 dark:text-brand-300" />
           <p className="font-semibold">Nenhuma compra salva ainda</p>

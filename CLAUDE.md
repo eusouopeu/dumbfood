@@ -102,6 +102,27 @@ abre o motivo de cada selo (valor por 100 g contra o limite, vindo de `Selo.moti
   meta. O `PainelDia` manda os números a cada mudança (`atualizarWidget`), gravados em
   SharedPreferences `dumbfood_widget`.
 
+## Fome, IA e lembretes por lugar
+
+- Fome: "Estou com fome" (relógio na barra "inserir refeição…", atalho do ícone
+  `dumbfood://fome` → `/?fome=1`) grava na tabela `fome` (Dexie v13). `src/lib/fome.ts` junta
+  esses toques com o horário de lançamento do consumo (só quando lançado no mesmo dia) e acha
+  os picos; a tela é a aba Fome do Histórico (`historico/AnaliseFome.tsx`).
+- IA (`src/lib/ia.ts`, SDK `@anthropic-ai/sdk` direto do app, modelo `claude-haiku-5-5`,
+  saída em JSON por `output_config.format`): chave em `dumbfoodIA:chave` — **fora** do prefixo
+  `dumbfood:` para não ir no backup. Estima prato fora do acervo na busca do registro (vira
+  `pratos`, Dexie v13) e arruma a lista de mercado (`lib/correcaoLista.ts`, entra por
+  overrides/ocultos/extras, com Desfazer).
+- Lugares (`src/lib/lugares.ts` + `Lugares*.java`, `GeofenceReceiver`, `AlarmeService`,
+  `BootReceiver`, `Avisos`): cercas do Google Play services (`play-services-location`).
+  Cozinha (DWELL 1 min) → notificação ou alarme em loop até "Desligar"/abrir o registro;
+  saída da academia → "passe no mercado" se `itensAcabando` (`lib/despensaAcabando.ts`) ou dia
+  de hortifrúti; dias de hortifrúti também viram notificação semanal (ids 2000–2006). Config
+  em `dumbfood:lugares`; o JS publica itens acabando e último registro em SharedPreferences
+  `dumbfood_lugares`. GPS não separa cômodos.
+- Assinatura: `android/debug.keystore` versionada (= chave de debug do Mac e do Nexo); o
+  `build.gradle` assina com ela, então APK da nuvem atualiza o instalado.
+
 ## Integração com o Nexo (refeições → diário de saúde)
 
 - `src/lib/compartilharNexo.ts` monta o pacote dos últimos 14 dias de consumo (horário,
@@ -112,6 +133,13 @@ abre o motivo de cada selo (valor por 100 g contra o limite, vindo de `Selo.moti
   Sem internet: o Nexo lê ao abrir. Liga/desliga em Configurações › Nexo
   (`dumbfood:enviarNexo`, padrão ligado). Trocar a keystore exige atualizar a constante lá
   e no `Assinatura.java` do Nexo.
+- Brita: `src/lib/compartilharBrita.ts` publica kcal/meta, cardápio do plano (7 dias para trás
+  e para a frente), itens acabando e dias de hortifrúti; o provider entrega em `/brita` só ao
+  `com.pedro.rotinas` assinado pela `brita.keystore` (`CHAVE_BRITA`). Configurações › Nexo e
+  Brita (`dumbfood:enviarBrita`, padrão ligado).
+- Nexo → dumbfood: `src/lib/avisosNexo.ts` lê `content://com.pedro.nexo.compartilhar/dumbfood`
+  (alergias da ficha e teste de eliminação ativo) e marca receitas/pratos no registro. Guardado
+  em `dumbfoodNexo:evitar` (fora do backup); `dumbfood:receberNexo`, padrão ligado.
 - O APK de debug é copiado para a raiz como `dumbfood-<versionName>.apk` (fora do git);
   `versionName` segue `AAAA.MM.DD-n`.
 

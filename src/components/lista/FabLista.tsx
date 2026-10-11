@@ -5,10 +5,19 @@
 // importar nota fiscal saiu daqui para o botão-ícone ao lado de "Salvar no histórico".
 
 import { useState } from 'react';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import AbasMercado from '../AbasMercado';
 
-export default function FabLista({ onAdicionarItem }: { onAdicionarItem: (texto: string) => void }) {
+export default function FabLista({
+  onAdicionarItem,
+  onArrumarComIA,
+  arrumando = false,
+}: {
+  onAdicionarItem: (texto: string) => void;
+  /** Só existe com a chave da IA cadastrada (Configurações). */
+  onArrumarComIA?: () => void;
+  arrumando?: boolean;
+}) {
   const [adicionando, setAdicionando] = useState(false);
   const [texto, setTexto] = useState('');
 
@@ -23,6 +32,17 @@ export default function FabLista({ onAdicionarItem }: { onAdicionarItem: (texto:
   return (
     <>
       <div className="fixed bottom-[4.9rem] right-4 z-30 flex items-center gap-2">
+        {onArrumarComIA && (
+          <button
+            onClick={onArrumarComIA}
+            disabled={arrumando}
+            aria-label="Arrumar quantidades com IA"
+            title="Arrumar quantidades com IA"
+            className={`flex size-11 items-center justify-center rounded-full border border-white/60 bg-white/60 text-brand-600 shadow-lg backdrop-blur-md dark:border-stone-700/60 dark:bg-stone-900/60 dark:text-brand-300 ${arrumando ? 'animate-pulse' : ''}`}
+          >
+            <SparklesIcon className="size-5" />
+          </button>
+        )}
         <AbasMercado />
         <button
           onClick={() => setAdicionando(true)}
