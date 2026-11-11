@@ -137,10 +137,22 @@ function carregar(): MetaSalva {
   }
 }
 
+/**
+ * Fibra não tem energia própria, mas a recomendação também é por energia: 14 g a cada
+ * 1.000 kcal (referência das DRIs). Assim a meta acompanha a de calorias.
+ */
+export const FIBRA_POR_1000_KCAL = 14;
+
+export function metaFibra(kcalDia: number): number {
+  return Math.round((kcalDia * FIBRA_POR_1000_KCAL) / 1000);
+}
+
 export interface MetaDiaria {
   kcal: number;
   macros: MetaMacrosPct;
   gramas: MetaMacrosPct;
+  /** Fibra do dia em gramas (metaFibra). */
+  fibra: number;
   /** true quando as kcal vieram do cálculo do perfil, e não de um número digitado. */
   kcalAutomatica: boolean;
 }
@@ -153,6 +165,7 @@ export function metaEfetiva(perfil: Perfil, salva: MetaSalva): MetaDiaria {
     kcal,
     macros: salva.macros,
     gramas: gramasDaMeta(kcal, salva.macros),
+    fibra: metaFibra(kcal),
     kcalAutomatica: salva.kcal === null,
   };
 }

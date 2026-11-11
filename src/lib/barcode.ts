@@ -43,6 +43,8 @@ export interface ProdutoCodigo {
   nutrientes?: Nutrientes100g;
   /** Sódio por 100 g em mg, quando informado (entra na avaliação de qualidade). */
   sodioMg?: number;
+  /** Porção declarada no rótulo, em gramas (ou ml), quando a base informa. */
+  porcaoG?: number;
 }
 
 const URL_OFF = 'https://world.openfoodfacts.org/api/v2/product';
@@ -58,14 +60,20 @@ export async function buscarProdutoOpenFoodFacts(codigo: string): Promise<Produt
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    const campos = 'product_name,product_name_pt,brands,nutriments';
+    const campos = 'product_name,product_name_pt,brands,nutriments,serving_quantity';
     const res = await fetch(`${URL_OFF}/${encodeURIComponent(codigo)}.json?fields=${campos}`, {
       signal: abort.signal,
     });
     if (!res.ok) return null;
     const json = (await res.json()) as {
       status?: number;
-      product?: { product_name?: string; product_name_pt?: string; brands?: string; nutriments?: Record<string, unknown> };
+      product?: {
+        product_name?: string;
+        product_name_pt?: string;
+        brands?: string;
+        nutriments?: Record<string, unknown>;
+        serving_quantity?: number | string;
+      };
     };
     const p = json.product;
     const nome = (p?.product_name_pt || p?.product_name || '').trim();
@@ -73,6 +81,7 @@ export async function buscarProdutoOpenFoodFacts(codigo: string): Promise<Produt
     const n = p.nutriments ?? {};
     // O Open Food Facts guarda sódio em gramas; o app trabalha em mg.
     const sodioMg = numero(n['sodium_100g']) * 1000 || numero(n['salt_100g']) * 400;
+    const porcaoG = numero(p.serving_quantity);
     return {
       codigo,
       nome,
@@ -88,6 +97,7 @@ export async function buscarProdutoOpenFoodFacts(codigo: string): Promise<Produt
         fibra: numero(n['fiber_100g']),
       },
       ...(sodioMg > 0 ? { sodioMg } : {}),
+      ...(porcaoG > 0 ? { porcaoG } : {}),
     };
   } catch {
     return null;

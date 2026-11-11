@@ -36,3 +36,9 @@ Atualizado em: 11/11/2026.
   preferências `dumbfood:aguaCopoMl` e `dumbfood:aguaMetaMl`, editáveis no Perfil. Copo vazio
   soma um copo; copo cheio desfaz ele e os seguintes (`src/lib/agua.ts`). Guardar ml deixa
   trocar o copo sem reescrever o histórico.
+- Fibra: `metaFibra` em `metas.ts` dá 14 g a cada 1.000 kcal da meta (referência das DRIs) —
+  base energia, como os macros; entra em `MetaDiaria.fibra`.
+- Veredito do código de barras (`VereditoProduto`, `src/lib/veredito.ts`): kcal da porção do
+  rótulo (`serving_quantity` do Open Food Facts; sem ela, 100 g) e anéis de gordura, proteína,
+  carboidrato e fibra com a fração da meta do dia. A nota é a dos selos (`rating.ts`, por
+  100 g) logo abaixo; não há outra regra de nota.

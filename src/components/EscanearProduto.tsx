@@ -12,6 +12,7 @@ import LeitorQr from './LeitorQr';
 import { FORMATOS_BARRAS, buscarProdutoOpenFoodFacts, eanValido, leitorBarrasDisponivel } from '../lib/barcode';
 import { buscarCodigoBarras, salvarCodigoBarras } from '../db/repo';
 import SelosQualidade from './receita/SelosQualidade';
+import VereditoProduto from './VereditoProduto';
 import type { Nutrientes100g } from '../lib/nutrition';
 import { toast } from '../lib/toast';
 import { hapticLeve } from '../lib/haptics';
@@ -32,6 +33,7 @@ export default function EscanearProduto({
   const [origem, setOrigem] = useState('');
   const [nutrientes, setNutrientes] = useState<Nutrientes100g | undefined>();
   const [sodioMg, setSodioMg] = useState<number | undefined>();
+  const [porcaoG, setPorcaoG] = useState<number | undefined>();
 
   async function identificar(lido: string) {
     const limpo = lido.trim();
@@ -60,6 +62,7 @@ export default function EscanearProduto({
       setOrigem('Open Food Facts');
       setNutrientes(produto.nutrientes);
       setSodioMg(produto.sodioMg);
+      setPorcaoG(produto.porcaoG);
     } else {
       setOrigem('Produto não encontrado na base pública. Digite o nome — ele fica salvo para a próxima leitura.');
     }
@@ -154,6 +157,7 @@ export default function EscanearProduto({
               />
             </label>
             {origem && <p className="text-xs text-stone-400 dark:text-stone-500">{origem}</p>}
+            {nutrientes && nutrientes.kcal > 0 && <VereditoProduto nutrientes={nutrientes} porcaoG={porcaoG} />}
             {nutrientes && (
               <SelosQualidade
                 nutri={nutrientes}
