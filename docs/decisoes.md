@@ -9,6 +9,7 @@ aberto fica em [pendencias.md](pendencias.md).
 
 | Data | Decisão | Detalhe em |
 |---|---|---|
+| 11/11/2026 | Painel do dia mostra fibra contra a meta e o exercício como "Queimadas", só informativo | `docs/metas-nutricionais.md` |
 | 11/11/2026 | Leitura do código de barras mostra kcal e quatro anéis por porção (contra a meta do dia); a nota segue sendo a de `rating.ts` por 100 g. Meta de fibra = 14 g por 1.000 kcal | `docs/metas-nutricionais.md` |
 | 11/11/2026 | Água em copos no painel: total em ml por dia no Dexie (`agua`, v14); copo e meta em `dumbfood:aguaCopoMl`/`dumbfood:aguaMetaMl` | `docs/metas-nutricionais.md` |
 | 11/11/2026 | Dependências com pnpm (`pnpm-lock.yaml`), também no CI | `package.json` |

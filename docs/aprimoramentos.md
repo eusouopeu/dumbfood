@@ -27,6 +27,7 @@ Formato: "descrição – implementado em DD/MM/AAAA".
 - Foto do prato com IA no registro do consumo – implementado em 11/11/2026
 - Água do dia em copos no painel, com meta no Perfil – implementado em 11/11/2026
 - Veredito por porção na leitura do código de barras – implementado em 11/11/2026
+- Fibra contra a meta e "Queimadas" no painel do dia – implementado em 11/11/2026
 
 ## Recomendações refutadas
 

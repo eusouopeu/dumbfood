@@ -26,7 +26,8 @@ Atualizado em: 11/11/2026.
   (`dumbfood:baixaPorConsumo`).
 - Exercício **não** muda a meta de calorias (`src/lib/exercicios.ts`): o fator de atividade
   do perfil já conta o gasto habitual, somar de novo contaria duas vezes. O número aparece
-  como coluna própria do anel do dia.
+  como coluna "Queimadas" do anel do dia, só informativa. O painel também tem a barra de
+  Fibras contra `MetaDiaria.fibra`, e cada refeição mostra "consumido / recomendado kcal".
 - Além de café/almoço/lanche/jantar, o usuário cria refeições próprias
   (`src/lib/refeicoes.ts`, em `dumbfood:refeicoesExtras`). Por isso `Refeicao` é chave
   aberta (`RefeicaoPadrao | (string & {})`) e a divisão da meta entre refeições é

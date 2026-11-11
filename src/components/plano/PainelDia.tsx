@@ -174,7 +174,8 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         meta={meta.kcal}
         esquerda={{ label: 'Refeições', valor: String(registrosDoDia.length) }}
         direita={{
-          label: 'Exercícios',
+          // Só informação: exercício não muda a meta (lib/exercicios.ts).
+          label: 'Queimadas',
           valor: Math.round(queimado).toLocaleString('pt-BR'),
           onClick: () => setRegistrandoExercicio(true),
         }}
@@ -184,6 +185,7 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         <BarraMacro rotulo="Carboidratos" atual={totais.carboidrato} meta={meta.gramas.carboidrato} cor={CORES_MACRO.carboidrato} />
         <BarraMacro rotulo="Proteínas" atual={totais.proteina} meta={meta.gramas.proteina} cor={CORES_MACRO.proteina} />
         <BarraMacro rotulo="Gorduras" atual={totais.gorduraTotal} meta={meta.gramas.gorduraTotal} cor={CORES_MACRO.gordura} />
+        <BarraMacro rotulo="Fibras" atual={totais.fibra} meta={meta.fibra} cor="#16a34a" />
       </div>
 
       <CartaoAgua dia={dia} />
