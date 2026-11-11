@@ -18,6 +18,7 @@ import type {
   WeekPlan,
   YieldType,
   PratoSalvo,
+  RegistroAgua,
 } from '../types';
 import { db, LISTA_ATUAL_ID, PLANO_ATUAL_ID, getOrCreatePlanoAtual, listaEstadoVazio } from './db';
 import { scaleIngredients } from '../lib/scale';
@@ -339,7 +340,7 @@ export async function definirNotas(recipe: Recipe, notas: string): Promise<void>
  * inflariam o JSON) — por isso `videos` não aparece aqui.
  */
 interface BackupData {
-  version: 1 | 2 | 3 | 4 | 5 | 6;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   exportadoEm: string;
   recipes: Recipe[];
   plans: WeekPlan[];
@@ -359,6 +360,8 @@ interface BackupData {
   fome?: RegistroFome[];
   /** Pratos estimados pela IA (versão 6 em diante). */
   pratos?: PratoSalvo[];
+  /** Água por dia (versão 7 em diante). */
+  agua?: RegistroAgua[];
   /** Preferências de interface (tema, dieta, orçamento, lembretes...), chave -> valor. */
   preferencias?: Record<string, string>;
 }
@@ -386,7 +389,7 @@ function gravarPreferencias(prefs: Record<string, string> | undefined): void {
 }
 
 export async function exportarJSON(): Promise<string> {
-  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios, pesos, fome, pratos] = await Promise.all([
+  const [recipes, plans, compras, precos, geladeira, listaEstado, consumo, codigos, exercicios, pesos, fome, pratos, agua] = await Promise.all([
     db.recipes.toArray(),
     db.plans.toArray(),
     db.compras.toArray(),
@@ -399,9 +402,10 @@ export async function exportarJSON(): Promise<string> {
     db.pesos.toArray(),
     db.fome.toArray(),
     db.pratos.toArray(),
+    db.agua.toArray(),
   ]);
   const data: BackupData = {
-    version: 6,
+    version: 7,
     exportadoEm: new Date().toISOString(),
     recipes,
     plans,
@@ -415,6 +419,7 @@ export async function exportarJSON(): Promise<string> {
     pesos,
     fome,
     pratos,
+    agua,
     preferencias: lerPreferencias(),
   };
   return JSON.stringify(data, null, 2);
@@ -457,6 +462,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       db.pesos,
       db.fome,
       db.pratos,
+      db.agua,
     ],
     async () => {
       if (modo === 'substituir') {
@@ -472,6 +478,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
         if (data.pesos) await db.pesos.clear();
         if (data.fome) await db.fome.clear();
         if (data.pratos) await db.pratos.clear();
+        if (data.agua) await db.agua.clear();
       }
       await db.recipes.bulkPut(data.recipes as Recipe[]);
       if (Array.isArray(data.plans)) await db.plans.bulkPut(data.plans);
@@ -485,6 +492,7 @@ export async function importarJSON(json: string, modo: ModoImportacao = 'mesclar
       if (Array.isArray(data.pesos)) await db.pesos.bulkPut(data.pesos);
       if (Array.isArray(data.fome)) await db.fome.bulkPut(data.fome);
       if (Array.isArray(data.pratos)) await db.pratos.bulkPut(data.pratos);
+      if (Array.isArray(data.agua)) await db.agua.bulkPut(data.agua);
     },
   );
 
@@ -723,6 +731,12 @@ export async function salvarPrato(prato: Omit<PratoSalvo, 'id' | 'criadoEm'>): P
   const salvo: PratoSalvo = { ...prato, id: mesmoNome?.id ?? novoId(), criadoEm: Date.now() };
   await db.pratos.put(salvo);
   return salvo;
+}
+
+/** Grava o total de água do dia (zero apaga o registro). */
+export async function definirAgua(dia: string, ml: number): Promise<void> {
+  if (ml <= 0) await db.agua.delete(dia);
+  else await db.agua.put({ dia, ml, atualizadoEm: Date.now() });
 }
 
 export async function removerConsumo(id: string): Promise<void> {

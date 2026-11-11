@@ -14,7 +14,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PlusIcon,
-  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { db } from '../../db/db';
 import {
@@ -22,7 +21,6 @@ import {
   registrarConsumo,
   registrarExercicio,
   removerConsumo,
-  removerExercicio,
   restaurarNaDespensa,
 } from '../../db/repo';
 import { baixaPorConsumoLigada } from '../../lib/preferencias';
@@ -48,7 +46,9 @@ import BarChart from '../BarChart';
 import LinhaRefeicao from './LinhaRefeicao';
 import RegistrarConsumo, { type DadosRegistro } from './RegistrarConsumo';
 import RegistrarExercicio from './RegistrarExercicio';
-import BotaoFome from './BotaoFome';
+import BarraRapida from './BarraRapida';
+import CartaoAgua from './CartaoAgua';
+import ListaExercicios from './ListaExercicios';
 import { toast } from '../../lib/toast';
 import { hapticLeve } from '../../lib/haptics';
 import type { PlanItem, Recipe, Refeicao } from '../../types';
@@ -61,8 +61,6 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
   const [registrandoExercicio, setRegistrandoExercicio] = useState(false);
   const [novaRefeicao, setNovaRefeicao] = useState('');
   const [criandoRefeicao, setCriandoRefeicao] = useState(false);
-  /** Texto da barra de adição rápida; ao enviar, abre a busca já filtrada. */
-  const [rapido, setRapido] = useState('');
   const [buscaInicial, setBuscaInicial] = useState<string | undefined>();
   const seletorData = useRef<HTMLInputElement>(null);
   const meta = useMetaDiaria();
@@ -188,6 +186,8 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         <BarraMacro rotulo="Gorduras" atual={totais.gorduraTotal} meta={meta.gramas.gorduraTotal} cor={CORES_MACRO.gordura} />
       </div>
 
+      <CartaoAgua dia={dia} />
+
       <div>
         <h3 className="section-heading mb-1 text-sm">Últimos {DIAS_NA_SERIE} dias</h3>
         <BarChart
@@ -200,29 +200,7 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         />
       </div>
 
-      {exerciciosDoDia.length > 0 && (
-        <ul className="space-y-0.5">
-          {exerciciosDoDia.map((e) => (
-            <li key={e.id} className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
-              <span className="min-w-0 flex-1 truncate">
-                {capitalizar(e.nome)}
-                {e.minutos ? ` · ${e.minutos} min` : ''}
-              </span>
-              <span className="tabular-nums">−{Math.round(e.kcal).toLocaleString('pt-BR')} kcal</span>
-              <button
-                onClick={async () => {
-                  await removerExercicio(e.id);
-                  toast('Exercício removido.');
-                }}
-                aria-label={`Remover ${e.nome}`}
-                className="text-red-500 dark:text-red-400"
-              >
-                <TrashIcon className="size-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ListaExercicios exercicios={exerciciosDoDia} />
 
       <ul className="divide-y divide-stone-100 dark:divide-stone-700">
         {refeicoes.map((def) => (
@@ -297,41 +275,12 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
         </button>
       )}
 
-      {/* Adição rápida: digitar o que comeu e cair direto na busca, na refeição da hora.
-          Fica flutuando acima da barra de navegação para estar à mão em qualquer rolagem. */}
-      <form
-        className="fixed inset-x-0 bottom-[4.9rem] z-20 mx-auto flex max-w-2xl px-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const texto = rapido.trim();
-          if (!texto) return;
+      <BarraRapida
+        onEnviar={(texto) => {
           setBuscaInicial(texto);
           setRegistrando(refeicaoPorHorario());
-          setRapido('');
         }}
-      >
-        <div className="flex w-full items-center gap-2 rounded-full border border-white/60 bg-white/60 py-0.5 pl-5 pr-1 shadow-lg backdrop-blur-md dark:border-stone-700/60 dark:bg-stone-900/60">
-          <input
-            className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-stone-500"
-            placeholder="inserir refeição…"
-            aria-label="Adicionar o que comeu"
-            value={rapido}
-            onChange={(e) => setRapido(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={!rapido.trim()}
-            aria-label="Adicionar"
-            title="Adicionar"
-            className="flex size-9 flex-shrink-0 items-center justify-center rounded-full text-stone-700 disabled:opacity-40 dark:text-stone-200"
-          >
-            <PlusIcon className="size-6" />
-          </button>
-          <BotaoFome />
-        </div>
-      </form>
-      {/* Espaço para a barra flutuante não cobrir o jantar. */}
-      <div aria-hidden className="h-12" />
+      />
 
       {registrando && (
         <RegistrarConsumo

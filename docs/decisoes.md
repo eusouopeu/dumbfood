@@ -9,6 +9,7 @@ aberto fica em [pendencias.md](pendencias.md).
 
 | Data | Decisão | Detalhe em |
 |---|---|---|
+| 11/11/2026 | Água em copos no painel: total em ml por dia no Dexie (`agua`, v14); copo e meta em `dumbfood:aguaCopoMl`/`dumbfood:aguaMetaMl` | `docs/metas-nutricionais.md` |
 | 11/11/2026 | Dependências com pnpm (`pnpm-lock.yaml`), também no CI | `package.json` |
 | 11/11/2026 | Foto do prato: Haiku lista itens e gramas, folha editável antes de lançar; a foto não é guardada | `docs/fome-ia-lugares.md` |
 | 31/10/2026 | CI no GitHub roda tipos e testes em cada push e PR | `.github/workflows/ci.yml` |

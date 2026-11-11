@@ -2,7 +2,7 @@
 
 Quando ler: ao mexer em metas, macros, perfil, consumo, peso, exercício, selos ou refeições.
 Fonte de verdade para: bases de percentual (massa × energia), tabelas Dexie de consumo/peso/exercício e regras de cálculo.
-Atualizado em: 14/10/2026 (movido do `CLAUDE.md`).
+Atualizado em: 11/11/2026.
 
 - `src/lib/diet.ts` trabalha em **percentual da massa** de macros e hoje serve só ao
   Histórico (composição das compras passadas).
@@ -31,3 +31,8 @@ Atualizado em: 14/10/2026 (movido do `CLAUDE.md`).
   (`src/lib/refeicoes.ts`, em `dumbfood:refeicoesExtras`). Por isso `Refeicao` é chave
   aberta (`RefeicaoPadrao | (string & {})`) e a divisão da meta entre refeições é
   **renormalizada** a cada mudança de lista — a soma dos recomendados é sempre a meta.
+- Água: cartão de copos no painel (`plano/CartaoAgua.tsx`). O total bebido fica em ml por dia
+  na tabela `agua` (Dexie v14, chave `dia`, backup versão 7); copo (250 ml) e meta (2 L) são
+  preferências `dumbfood:aguaCopoMl` e `dumbfood:aguaMetaMl`, editáveis no Perfil. Copo vazio
+  soma um copo; copo cheio desfaz ele e os seguintes (`src/lib/agua.ts`). Guardar ml deixa
+  trocar o copo sem reescrever o histórico.

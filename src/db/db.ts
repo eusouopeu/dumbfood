@@ -9,6 +9,7 @@ import type {
   PratoSalvo,
   PrecoItem,
   Recipe,
+  RegistroAgua,
   RegistroConsumo,
   RegistroExercicio,
   VideoReceita,
@@ -33,6 +34,7 @@ export class DumbfoodDB extends Dexie {
   pesos!: Table<RegistroPeso, string>;
   fome!: Table<RegistroFome, string>;
   pratos!: Table<PratoSalvo, string>;
+  agua!: Table<RegistroAgua, string>;
 
   constructor() {
     super('dumbfood');
@@ -199,6 +201,23 @@ export class DumbfoodDB extends Dexie {
       pesos: 'dia',
       fome: 'id, dia, criadoEm',
       pratos: 'id, nome, criadoEm',
+    });
+    // v14: água do dia (total em ml por dia).
+    this.version(14).stores({
+      recipes: 'id, titulo, criadoEm, *tags, tempoPreparoMin',
+      plans: 'id',
+      compras: 'id, data, mercado',
+      precos: 'itemKey, item',
+      geladeira: 'itemKey, adicionadoEm',
+      videos: 'id, criadoEm',
+      listaEstado: 'id',
+      consumo: 'id, dia, criadoEm, recipeId',
+      codigos: 'codigo, itemKey',
+      exercicios: 'id, dia, criadoEm',
+      pesos: 'dia',
+      fome: 'id, dia, criadoEm',
+      pratos: 'id, nome, criadoEm',
+      agua: 'dia',
     });
   }
 }

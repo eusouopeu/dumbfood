@@ -25,6 +25,7 @@ Formato: "descrição – implementado em DD/MM/AAAA".
 - Horários de fome, IA para pratos fora do acervo, lembretes por GPS, hortifrúti semanal, troca com o Brita e avisos do Nexo nas receitas – implementado em 11/10/2026
 - CI com tipos e testes no GitHub – implementado em 31/10/2026
 - Foto do prato com IA no registro do consumo – implementado em 11/11/2026
+- Água do dia em copos no painel, com meta no Perfil – implementado em 11/11/2026
 
 ## Recomendações refutadas
 

@@ -282,3 +282,11 @@ export interface PratoSalvo {
   origem: 'ia';
   criadoEm: number;
 }
+
+/** Água bebida num dia, em ml (um registro por dia; o copo é preferência). */
+export interface RegistroAgua {
+  /** Dia no formato local 'AAAA-MM-DD'. */
+  dia: string;
+  ml: number;
+  atualizadoEm: number;
+}

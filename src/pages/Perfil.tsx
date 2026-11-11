@@ -27,6 +27,7 @@ import {
 } from '../lib/metas';
 import { DIETA_ORDEM, DIETAS } from '../lib/diet';
 import AjusteMacros from '../components/perfil/AjusteMacros';
+import MetaAgua from '../components/perfil/MetaAgua';
 import EvolucaoPeso from '../components/perfil/EvolucaoPeso';
 import { registrarPeso } from '../db/repo';
 import { chaveDia } from '../lib/consumo';
@@ -260,6 +261,8 @@ export default function Perfil() {
           </button>
         </div>
       </div>
+
+      <MetaAgua />
     </div>
   );
 }
