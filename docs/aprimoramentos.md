@@ -2,7 +2,7 @@
 
 Quando ler: antes de sugerir melhorias.
 Fonte de verdade para: melhorias entregues e recomendações recusadas.
-Atualizado em: 31/10/2026.
+Atualizado em: 11/11/2026.
 
 Ao gerar recomendações, não repita as implementadas nem as refutadas. Quando o
 Pedro escolher algumas, registre as não escolhidas em "Recomendações
@@ -24,6 +24,7 @@ Formato: "descrição – implementado em DD/MM/AAAA".
 - Refeições enviadas ao Nexo – implementado em 10/10/2026
 - Horários de fome, IA para pratos fora do acervo, lembretes por GPS, hortifrúti semanal, troca com o Brita e avisos do Nexo nas receitas – implementado em 11/10/2026
 - CI com tipos e testes no GitHub – implementado em 31/10/2026
+- Foto do prato com IA no registro do consumo – implementado em 11/11/2026
 
 ## Recomendações refutadas
 

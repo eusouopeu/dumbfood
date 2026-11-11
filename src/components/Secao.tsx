@@ -15,6 +15,11 @@ function lerEstado(): Record<string, boolean> {
   }
 }
 
+/** Deixa a seção aberta na próxima vez que a tela montar (ex.: atalho para Configurações › IA). */
+export function abrirSecao(chave: string): void {
+  gravarEstado(chave, true);
+}
+
 function gravarEstado(chave: string, aberta: boolean): void {
   const atual = lerEstado();
   localStorage.setItem(KEY, JSON.stringify({ ...atual, [chave]: aberta }));
@@ -44,7 +49,7 @@ export default function Secao({
   }
 
   return (
-    <div className="card overflow-hidden">
+    <div id={chave} className="card scroll-mt-20 overflow-hidden">
       <button
         type="button"
         onClick={alternar}

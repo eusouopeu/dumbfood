@@ -7,6 +7,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { useEffect, useState } from 'react';
+import { limparItens, totalDosItens, type ItemFoto, type TotalFoto } from './fotoPrato';
 
 /** Modelo pedido pelo Pedro: suficiente para estimativa e limpeza de texto, e barato. */
 export const MODELO_IA = 'claude-haiku-5-5';
@@ -58,7 +59,11 @@ export function mensagemErroIA(e: unknown): string {
 }
 
 /** Uma pergunta com resposta em JSON validado pelo esquema (structured outputs). */
-async function perguntarJSON<T>(sistema: string, pergunta: string, schema: Record<string, unknown>): Promise<T> {
+async function perguntarJSON<T>(
+  sistema: string,
+  pergunta: string | Anthropic.Messages.ContentBlockParam[],
+  schema: Record<string, unknown>,
+): Promise<T> {
   const resposta = await cliente().messages.create({
     model: MODELO_IA,
     max_tokens: 8000,
@@ -165,6 +170,64 @@ export async function estimarPrato(descricao: string): Promise<PratoEstimado> {
     colesterolMg: numeroValido(r.colesterolMg),
     ingredientes: (r.ingredientes ?? []).map((i) => i.trim()).filter(Boolean),
   };
+}
+
+// ---------------------------------------------------------------- foto do prato
+
+export interface FotoPratoAnalisada {
+  itens: ItemFoto[];
+  total: TotalFoto;
+}
+
+const ITEM_FOTO = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['nome', 'gramas', 'kcal', 'proteina', 'carboidrato', 'gorduraTotal', 'fibra'],
+  properties: {
+    nome: { type: 'string' },
+    gramas: NUM,
+    kcal: NUM,
+    proteina: NUM,
+    carboidrato: NUM,
+    gorduraTotal: NUM,
+    fibra: NUM,
+  },
+};
+
+const SCHEMA_FOTO = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['itens', 'total'],
+  properties: {
+    itens: { type: 'array', items: ITEM_FOTO },
+    total: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['gramas', 'kcal', 'proteina', 'carboidrato', 'gorduraTotal', 'fibra'],
+      properties: { gramas: NUM, kcal: NUM, proteina: NUM, carboidrato: NUM, gorduraTotal: NUM, fibra: NUM },
+    },
+  },
+};
+
+const SISTEMA_FOTO = `Você identifica a comida numa foto de prato (Brasil) e estima a quantidade de cada item.
+Liste cada alimento visível separadamente (ex.: "arroz branco", "feijão carioca", "frango grelhado"),
+com o nome curto em português e inicial minúscula, e as gramas estimadas pelo tamanho no prato.
+kcal, proteina, carboidrato, gorduraTotal e fibra são os valores da quantidade estimada (não por 100 g),
+com a TACO/USDA como referência. "total" é a soma dos itens.
+Sem comida na foto, devolva itens vazio e total zerado.`;
+
+/** Analisa a foto (JPEG em base64, já reduzida). O total é recalculado dos itens limpos. */
+export async function analisarFotoPrato(jpegBase64: string): Promise<FotoPratoAnalisada> {
+  const r = await perguntarJSON<{ itens: Partial<ItemFoto>[] }>(
+    SISTEMA_FOTO,
+    [
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpegBase64 } },
+      { type: 'text', text: 'O que tem neste prato?' },
+    ],
+    SCHEMA_FOTO,
+  );
+  const itens = limparItens(r.itens ?? []);
+  return { itens, total: totalDosItens(itens) };
 }
 
 // ---------------------------------------------------------------- lista de mercado

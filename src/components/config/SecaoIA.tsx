@@ -1,6 +1,7 @@
 // Configurações › Inteligência artificial: a chave da Anthropic, só neste aparelho.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { KeyIcon, SparklesIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Secao from '../Secao';
 import { gravarChaveIA, lerChaveIA, mensagemErroIA, testarChaveIA, useIAConfigurada } from '../../lib/ia';
@@ -11,6 +12,11 @@ export default function SecaoIA() {
   const [chave, setChave] = useState('');
   const [testando, setTestando] = useState(false);
   const final = lerChaveIA().slice(-4);
+  // Atalhos que pedem a chave (foto do prato) chegam em /config#ia: rola até aqui.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === '#ia') document.getElementById('cfg-ia')?.scrollIntoView({ block: 'start' });
+  }, [hash]);
 
   async function salvar() {
     const anterior = lerChaveIA();

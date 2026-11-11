@@ -24,7 +24,7 @@ React + TypeScript + Vite · Tailwind CSS · Dexie (IndexedDB) · vite-plugin-pw
 ## Rodando
 
 ```bash
-npm install
+pnpm install
 npm run dev       # http://localhost:5173
 npm test          # testes do parser, agregação e extração de JSON-LD
 npm run build     # gera dist/ (PWA com service worker)

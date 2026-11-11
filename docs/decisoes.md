@@ -2,13 +2,15 @@
 
 Quando ler: antes de mudar comportamento já decidido.
 Fonte de verdade para: o que já foi decidido no projeto (uma linha por decisão).
-Atualizado em: 31/10/2026.
+Atualizado em: 11/11/2026.
 
 Decisão nova entra no topo, com data e onde está detalhada. Decisão ainda em
 aberto fica em [pendencias.md](pendencias.md).
 
 | Data | Decisão | Detalhe em |
 |---|---|---|
+| 11/11/2026 | Dependências com pnpm (`pnpm-lock.yaml`), também no CI | `package.json` |
+| 11/11/2026 | Foto do prato: Haiku lista itens e gramas, folha editável antes de lançar; a foto não é guardada | `docs/fome-ia-lugares.md` |
 | 31/10/2026 | CI no GitHub roda tipos e testes em cada push e PR | `.github/workflows/ci.yml` |
 | 14/10/2026 | Documentação segue `../_shared/docs-standards.md` | `CLAUDE.md` |
 | 11/10/2026 | Claude Haiku (chave do usuário) estima pratos fora do acervo e arruma quantidades e itens repetidos da lista | `docs/fome-ia-lugares.md` |

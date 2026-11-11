@@ -2,7 +2,7 @@
 
 Quando ler: antes de criar, remover ou recriar funcionalidade.
 Fonte de verdade para: o que foi removido e não deve voltar; contratos visíveis.
-Atualizado em: 31/10/2026.
+Atualizado em: 11/11/2026.
 
 ## Não reimplementar
 
@@ -21,4 +21,5 @@ Funcionalidade removida ou substituída, com data e o que cobre o uso agora.
 Comportamentos visíveis que parecem estranhos mas são intencionais.
 
 - Tocar no card da Semana marca ou desmarca a receita, sem abrir o detalhe.
+- Foto do prato nunca lança direto: a IA preenche a folha e só "Lançar" grava; a foto não é salva.
 - Arrastar item da lista para a direita edita a quantidade; para a esquerda remove (item de receita só fica oculto na semana).

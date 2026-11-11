@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "pnpm@10.34.7",
   "description": "PWA para importar receitas, reescalar quantidades e gerar lista de mercado unificada por gôndola.",
   "scripts": {
     "dev": "vite",

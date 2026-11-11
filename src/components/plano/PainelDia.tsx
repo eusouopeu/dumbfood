@@ -41,13 +41,12 @@ import { useMetaDiaria } from '../../lib/metas';
 import { kcalRecomendada, refeicaoPorHorario, useRefeicoes } from '../../lib/refeicoes';
 import { kcalQueimadaNoDia } from '../../lib/exercicios';
 import { capitalizar } from '../../lib/format';
-import type { Nutrientes100g } from '../../lib/nutrition';
 import { CORES_MACRO } from '../MacroResumo';
 import AnelProgresso from '../AnelProgresso';
 import BarraMacro from '../BarraMacro';
 import BarChart from '../BarChart';
 import LinhaRefeicao from './LinhaRefeicao';
-import RegistrarConsumo from './RegistrarConsumo';
+import RegistrarConsumo, { type DadosRegistro } from './RegistrarConsumo';
 import RegistrarExercicio from './RegistrarExercicio';
 import BotaoFome from './BotaoFome';
 import { toast } from '../../lib/toast';
@@ -55,9 +54,6 @@ import { hapticLeve } from '../../lib/haptics';
 import type { PlanItem, Recipe, Refeicao } from '../../types';
 
 const DIAS_NA_SERIE = 7;
-
-/** O que a folha de registro devolve; o dia e a refeição são do painel. */
-type DadosRegistro = { nome: string; recipeId?: string; porcoes: number; nutrientes: Nutrientes100g };
 
 export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; itensPlano: PlanItem[] }) {
   const [dia, setDia] = useState(() => chaveDia());
@@ -348,6 +344,13 @@ export default function PainelDia({ recipes, itensPlano }: { recipes: Recipe[]; 
           pratos={pratos}
           onRegistrar={async (dados) => {
             await registrar(registrando, dados);
+            setRegistrando(null);
+            setBuscaInicial(undefined);
+          }}
+          onRegistrarVarios={async (lista) => {
+            for (const dados of lista) await registrarConsumo({ dia, refeicao: registrando, ...dados });
+            hapticLeve();
+            toast(`${lista.length} ${lista.length === 1 ? 'item lançado' : 'itens lançados'} da foto.`);
             setRegistrando(null);
             setBuscaInicial(undefined);
           }}

@@ -2,7 +2,7 @@
 
 Quando ler: ao mexer em "Estou com fome", IA (Claude Haiku), cercas de GPS, alarme da cozinha ou lembrete de hortifrúti.
 Fonte de verdade para: tabela `fome`, cliente de IA e lembretes por lugar.
-Atualizado em: 14/10/2026 (movido do `CLAUDE.md`).
+Atualizado em: 11/11/2026.
 
 - Fome: "Estou com fome" (relógio na barra "inserir refeição…", atalho do ícone
   `dumbfood://fome` → `/?fome=1`) grava na tabela `fome` (Dexie v13). `src/lib/fome.ts` junta
@@ -13,6 +13,13 @@ Atualizado em: 14/10/2026 (movido do `CLAUDE.md`).
   `dumbfood:` para não ir no backup. Estima prato fora do acervo na busca do registro (vira
   `pratos`, Dexie v13) e arruma a lista de mercado (`lib/correcaoLista.ts`, entra por
   overrides/ocultos/extras, com Desfazer).
+- Foto do prato (`plano/FotoPrato.tsx`, lazy dentro de `RegistrarConsumo`): câmera ou galeria;
+  a imagem é reduzida no canvas (lado maior 1024 px, JPEG 0,8) e vai ao Haiku
+  (`analisarFotoPrato`), que devolve itens com gramas, kcal, proteína, carboidrato, gordura e
+  fibra. A folha deixa ajustar gramas (macros na proporção, `lib/fotoPrato.ts`) e remover itens;
+  só "Lançar" grava, um registro de consumo por item. Saturada, açúcar e colesterol ficam em 0.
+  A foto não vai para o Dexie nem para o backup. Sem chave, o botão abre `/config#ia` com a
+  seção da IA aberta.
 - Lugares (`src/lib/lugares.ts` + `Lugares*.java`, `GeofenceReceiver`, `AlarmeService`,
   `BootReceiver`, `Avisos`): cercas do Google Play services (`play-services-location`).
   Cozinha (DWELL 1 min) → notificação ou alarme em loop até "Desligar"/abrir o registro;

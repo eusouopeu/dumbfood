@@ -4,8 +4,11 @@
 // atrás. Por isso as abas na ordem "Agendado → Recentes → Favoritos → Buscar" — a
 // primeira aba costuma bastar, e a busca só existe para o dia fora do roteiro.
 
-import { useMemo, useState } from 'react';
-import { MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Suspense, lazy, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CameraIcon, MagnifyingGlassIcon, PlusIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { abrirSecao } from '../Secao';
+import { nutrientesDoItem } from '../../lib/fotoPrato';
 import { capitalizar } from '../../lib/format';
 import { calcularNutricaoTotal, dividirPorPorcoes, nutrientesPor100g, type Nutrientes100g } from '../../lib/nutrition';
 import { rotuloRefeicao } from '../../lib/agenda';
@@ -16,6 +19,12 @@ import { toast } from '../../lib/toast';
 import { avisosDosIngredientes, useAvisosNexo, type AvisoNexo } from '../../lib/avisosNexo';
 import SelosQualidade from '../receita/SelosQualidade';
 import type { PratoSalvo, Recipe, Refeicao, RegistroConsumo } from '../../types';
+
+// A câmera e a revisão só carregam quando alguém toca em "Fotografar prato".
+const FotoPrato = lazy(() => import('./FotoPrato'));
+
+/** O que a folha devolve para o painel gravar (dia e refeição são do painel). */
+export type DadosRegistro = { nome: string; recipeId?: string; porcoes: number; nutrientes: Nutrientes100g };
 
 type Aba = 'agendado' | 'recentes' | 'favoritos' | 'buscar';
 
@@ -54,6 +63,7 @@ export default function RegistrarConsumo({
   historico,
   pratos = [],
   onRegistrar,
+  onRegistrarVarios,
   onFechar,
 }: {
   refeicao: Refeicao;
@@ -68,9 +78,13 @@ export default function RegistrarConsumo({
   historico: RegistroConsumo[];
   /** Pratos fora do acervo (estimados pela IA), achados pela busca. */
   pratos?: PratoSalvo[];
-  onRegistrar: (dados: { nome: string; recipeId?: string; porcoes: number; nutrientes: Nutrientes100g }) => void;
+  onRegistrar: (dados: DadosRegistro) => void;
+  /** Vários itens de uma vez (foto do prato); fecha a folha depois. */
+  onRegistrarVarios: (dados: DadosRegistro[]) => void | Promise<void>;
   onFechar: () => void;
 }) {
+  const navigate = useNavigate();
+  const [fotografando, setFotografando] = useState(false);
   const [aba, setAba] = useState<Aba>(
     buscaInicial ? 'buscar' : agendadas.length > 0 ? 'agendado' : 'recentes',
   );
@@ -195,6 +209,19 @@ export default function RegistrarConsumo({
           </button>
         </div>
 
+        {/* Sem chave da IA a foto não tem quem a leia: o botão leva direto ao cadastro. */}
+        <button
+          onClick={() => {
+            if (iaConfigurada) return setFotografando(true);
+            abrirSecao('cfg-ia');
+            navigate('/config#ia');
+          }}
+          className="mx-4 mb-2 flex items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 py-2 text-sm font-semibold text-stone-600 dark:border-stone-600 dark:text-stone-300"
+        >
+          <CameraIcon className="size-4 text-brand-500" />
+          {iaConfigurada ? 'Fotografar prato' : 'Fotografar prato · cadastrar chave da IA'}
+        </button>
+
         <div className="mx-4 flex gap-0.5 rounded-lg bg-stone-100 p-0.5 text-xs dark:bg-stone-700">
           {ABAS.map((a) => (
             <button
@@ -291,6 +318,18 @@ export default function RegistrarConsumo({
           ))}
         </ul>
       </div>
+
+      {fotografando && (
+        <Suspense fallback={null}>
+          <FotoPrato
+            rotulo={rotulo ?? rotuloRefeicao(refeicao)}
+            onFechar={() => setFotografando(false)}
+            onLancar={(itens) =>
+              onRegistrarVarios(itens.map((i) => ({ nome: i.nome, porcoes: 1, nutrientes: nutrientesDoItem(i) })))
+            }
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
